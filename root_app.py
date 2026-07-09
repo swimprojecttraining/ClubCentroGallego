@@ -56,7 +56,7 @@ def validar_token_handshake(token_b64, secret_key_local):
 # =============================================================================
 
 # Leemos directamente la clave configurada en tus Secrets (con respaldo idéntico)
-SECRET_EXCLUSIVO_LOCAL = st.secrets.get("CLUB_SECRET_KEY", "ClubDenatacionCentroGallegoqazws")
+SECRET_EXCLUSIVO_LOCAL = st.secrets.get("CLUB_SECRET_KEY", "ClubdeNatacionCentroGallegoqazws")
 
 if "puente_validado" not in st.session_state:
     st.session_state["puente_validado"] = False
