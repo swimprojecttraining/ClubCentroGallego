@@ -8,7 +8,7 @@ from views_sidebar import renderizar_sidebar_completo
 
 # 2. IMPORTACIÓN DE CADA PESTAÑA DE MANERA DIRECTA
 from views_tab_admin import renderizar_tab_admin
-#from views_tab_asignaciones import renderizar_tab_asignaciones
+from views_tab_asignaciones import renderizar_tab_asignaciones
 from views_tab_calendario import renderizar_tab_calendario
 #from views_tab_entrenador import renderizar_tab_entrenador
 #from views_tab_grafico import renderizar_tab_grafico
@@ -69,8 +69,8 @@ def mostrar_vista_enrutador():
 #            renderizar_tab_marcas(datos_sidebar=None)
 #        with tab_entrenador:
 #            renderizar_tab_entrenador(datos_sidebar=None)
-#        with tab_asignaciones:
-#            renderizar_tab_asignaciones(datos_sidebar=None)
+        with tab_asignaciones:
+            renderizar_tab_asignaciones(datos_sidebar=None)
         with tab_calendario:
             renderizar_tab_calendario(datos_sidebar=None)
         with tab_admin:
