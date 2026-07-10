@@ -14,12 +14,38 @@ def renderizar_tab_marcas(datos_sidebar):
     st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
     st.caption("Módulo centralizado para la gestión de marcas oficiales, análisis de récords personales y exportación curricular.")
 
-    # Lógica de seguridad y pool de atletas basada en roles de tu aplicación
-    # 🛠️ El cambio exacto en la línea 18 de views_tab_marcas.py:
+    # 🛠️ Extracción limpia y autónoma del pool de datos
     ctx_supabase_mar = datos_sidebar.get("supabase") if datos_sidebar else st.session_state.get("supabase")
+    titulo_grafico = datos_sidebar.get("titulo_grafico", "Prueba General")
+    es_preinfantil = datos_sidebar.get("es_preinfantil", False)
+    
     rol_usuario = st.session_state.get("rol")
     id_usuario = st.session_state.get("usuario_id")
     id_atleta_actual = st.session_state.get("nadador_seleccionado_id")
+
+    # =============================================================================
+    # CARPINTERÍA PREVIA: EXTRACCIÓN Y PREPARACIÓN DE DATOS REALEZ
+    # =============================================================================
+    records_marcas = []
+    df_procesado = pd.DataFrame()
+    df_marcas_raw = pd.DataFrame()
+
+    try:
+        raw_db = ctx_supabase_mar.table("marcas_historicas").select("*").eq("usuario_id", id_atleta_actual).execute()
+        records_marcas = raw_db.data if raw_db else []
+        
+        if records_marcas:
+            df_marcas_raw = pd.DataFrame(records_marcas)
+            # Construimos df_procesado para la Subtab 1 filtrando por la prueba bajo análisis
+            df_procesado = df_marcas_raw[df_marcas_raw["prueba"] == titulo_grafico].copy()
+            if not df_procesado.empty:
+                df_procesado = df_procesado.sort_values("edad").reset_index(drop=True)
+                # Formateamos columnas simulando la estructura esperada por tu visor original
+                df_procesado["Edad"] = df_procesado["edad"].round(2)
+                df_procesado["Tiempo"] = df_procesado["tiempo"]
+                df_procesado["Evento / Fecha"] = df_procesado["nota"]
+    except Exception as e:
+        st.error(f"Error al conectar con marcas_historicas: {e}")
 
     # =============================================================================
     # INYECCIÓN DE LAS 3 SUBPESTAÑAS EN LA PARTE SUPERIOR DEL PANEL
@@ -31,7 +57,7 @@ def renderizar_tab_marcas(datos_sidebar):
     ])
 
     # =============================================================================
-    # SUBTAB 1: INGRESO DE DATOS Y GESTIÓN DIRECTA DE FILAS (TU LÓGICA ORIGINAL)
+    # SUBTAB 1: INGRESO DE DATOS Y GESTIÓN DIRECTA DE FILAS
     # =============================================================================
     with subtab_ingreso:
         col_form, col_tabla_rapida = st.columns([1, 1.2])
@@ -79,19 +105,16 @@ def renderizar_tab_marcas(datos_sidebar):
         
         with col_tabla_rapida:
             st.markdown("**Gestión de Registros Existentes**")
-            if 'df_procesado' in locals() and len(df_procesado) > 0:
-                
-                # Copia local para no alterar el DataFrame original que uses en otras lógicas matemáticas
+            if not df_procesado.empty:
                 df_visual = df_procesado.copy()
                 
-                # Aplicamos tu función nativa a la columna de Tiempo
                 if "Tiempo" in df_visual.columns:
                     df_visual["Tiempo"] = df_visual["Tiempo"].apply(lambda x: formatear_a_minutos(float(x)) if pd.notna(x) else "-")
                 
                 if rol_usuario in ["Head Coach", "Entrenador", "Administrador"]:
                     opciones_eliminacion = {
                         f"Edad: {row['Edad']} | Tiempo: {row['Tiempo']} | {row['Evento / Fecha']}": row['id']
-                        for _, row in df_procesado.iterrows() # Mantiene los datos crudos para identificar el id
+                        for _, row in df_procesado.iterrows()
                     }
                     seleccion_etiqueta = st.selectbox("Seleccione el registro que desea eliminar:", options=list(opciones_eliminacion.keys()), key="del_box_subtab1")
                     id_del = opciones_eliminacion[seleccion_etiqueta]
@@ -101,27 +124,20 @@ def renderizar_tab_marcas(datos_sidebar):
                         st.warning("Registro removido con éxito.")
                         st.rerun()
                 
-                # Desplegamos la tabla estilizada con los tiempos en formato MM:SS.hh
-                st.dataframe(df_visual.drop(columns=["id"], errors="ignore"), use_container_width=True)
+                st.dataframe(df_visual.drop(columns=["id", "prueba", "usuario_id", "edad", "nota", "tiempo"], errors="ignore"), use_container_width=True)
             else:
-                st.info("💡 No hay registros en el DataFrame procesado para este atleta.")
+                st.info(f"💡 No hay registros en 'marcas_historicas' para la prueba {titulo_grafico}.")
 
     # =============================================================================
-    # EXTRACCIÓN Y PREPARACIÓN DE DATOS PARA LAS EXTENSIONES ANALÍTICAS
+    # PROCESAMIENTO SEGURO DE ANÁLISIS COMPLETO
     # =============================================================================
-    try:
-        raw_db = ctx_supabase_mar.table("marcas_historicas").select("*").execute()
-        records_marcas_all = raw_db.data if raw_db else []
-        records_marcas = [r for r in records_marcas_all if r.get("usuario_id") == id_atleta_actual]
-        
-        if not records_marcas:
-            with subtab_top_tiempos:
-                st.info("📭 Registra marcas en la Subpestaña 1 para habilitar los reportes analíticos.")
-            with subtab_evolucion_prueba:
-                st.info("📭 Registra marcas en la Subpestaña 1 para habilitar el buscador evolutivo.")
-        else:
-            df_marcas_raw = pd.DataFrame(records_marcas)
-
+    if not records_marcas:
+        with subtab_top_tiempos:
+            st.info("📭 Registra marcas en la Subpestaña 1 para habilitar los reportes analíticos.")
+        with subtab_evolucion_prueba:
+            st.info("📭 Registra marcas en la Subpestaña 1 para habilitar el buscador evolutivo.")
+    else:
+        try:
             # ---------------------------------------------------------------------
             # SUBTAB 2: REPORTES DE MEJORES TIEMPOS (TOP HISTÓRICO POR PRUEBA)
             # ---------------------------------------------------------------------
@@ -132,12 +148,10 @@ def renderizar_tab_marcas(datos_sidebar):
                 idx_mejores = df_marcas_raw.groupby('prueba')['tiempo'].idxmin()
                 df_top_historico = df_marcas_raw.loc[idx_mejores].copy().sort_values("prueba").reset_index(drop=True)
                 
-                # Formateo estricto a minutos
                 df_top_historico["tiempo_formateado"] = df_top_historico["tiempo"].map(
                     lambda x: f"{int(x//60)}:{ascii(round(x%60, 2)).replace(chr(39),'')}" if x >= 60 else f"{x:.2f}"
                 )
                 
-                # Estructura limpia sin segundos puros
                 df_tabla_top = pd.DataFrame({
                     "Prueba": df_top_historico["prueba"],
                     "Tiempo": df_top_historico["tiempo_formateado"],
@@ -172,14 +186,12 @@ def renderizar_tab_marcas(datos_sidebar):
                         info_atleta_db = ctx_supabase_mar.table("usuarios").select("*").eq("id", id_atleta_actual).execute()
                         if info_atleta_db.data:
                             atleta_meta = info_atleta_db.data[0]
-                            
                             fecha_nac_raw = atleta_meta.get("fecha_nacimiento")
                             genero_nadador = atleta_meta.get("genero") or atleta_meta.get("sexo") or "F"
                             
                             if fecha_nac_raw:
                                 fecha_nac_str = str(fecha_nac_raw)[:10]
                                 categoria_nadador, edad_tecnica = calcular_categoria_competencia(fecha_nac_str)
-                                
                                 st.session_state["categoria_actual"] = categoria_nadador
                                 st.session_state["categoria"] = categoria_nadador
                                 st.session_state["genero"] = genero_nadador
@@ -191,10 +203,8 @@ def renderizar_tab_marcas(datos_sidebar):
                 if not genero_nadador:
                     genero_nadador = st.session_state.get("genero") or st.session_state.get("sexo") or "F"
                 
-                if isinstance(categoria_nadador, str):
-                    categoria_nadador = categoria_nadador.strip()
-                if isinstance(genero_nadador, str):
-                    genero_nadador = genero_nadador.strip()
+                if isinstance(categoria_nadador, str): categoria_nadador = categoria_nadador.strip()
+                if isinstance(genero_nadador, str): genero_nadador = genero_nadador.strip()
 
                 if categoria_nadador and categoria_nadador not in ["Desconocida", "Error Formato"]:
                     st.caption(f"🎯 Categoría Competencia: **{categoria_nadador}** (Edad Técnica: {edad_tecnica} años) | Género: **{genero_nadador}**")
@@ -215,7 +225,6 @@ def renderizar_tab_marcas(datos_sidebar):
 
                 if prueba_sel != "Todas" and len(df_evolucion) > 0:
                     fig_mar, ax = plt.subplots(figsize=(8.5, 3.5))
-                    
                     df_cronologico = df_evolucion.sort_values("edad").reset_index(drop=True)
                     t0_tiempo = float(df_cronologico["tiempo"].iloc[0])
                     
@@ -227,37 +236,25 @@ def renderizar_tab_marcas(datos_sidebar):
                     marca_minima_seg = None
                     try:
                         query_ref = ctx_supabase_mar.table("marcas_referencia").select("m_ano").eq("prueba", prueba_sel)
-                        if categoria_nadador:
-                            query_ref = query_ref.eq("categoria", categoria_nadador)
-                        if genero_nadador:
-                            query_ref = query_ref.eq("genero", genero_nadador)
-                            
+                        if categoria_nadador: query_ref = query_ref.eq("categoria", categoria_nadador)
+                        if genero_nadador: query_ref = query_ref.eq("genero", genero_nadador)
                         ref_query = query_ref.execute()
                         if ref_query.data and ref_query.data[0].get("m_ano") is not None:
                             marca_minima_seg = float(ref_query.data[0]["m_ano"])
-                    except Exception as e:
+                    except Exception:
                         pass
                     
                     if marca_minima_seg is not None:
                         color_ocre = "#b58900"
-                        label_linea = f"Mínima {categoria_nadador}"
-                        ax.axhline(marca_minima_seg, color=color_ocre, linestyle=":", linewidth=1.5, alpha=0.8, label=label_linea)
-                        
+                        ax.axhline(marca_minima_seg, color=color_ocre, linestyle=":", linewidth=1.5, alpha=0.8, label=f"Mínima {categoria_nadador}")
                         x_max = df_cronologico["edad"].max()
-                        ax.text(x_max, marca_minima_seg, f" Mínima: {formatear_a_minutos(marca_minima_seg)}", 
-                                color=color_ocre, va='bottom', ha='left', fontsize=7, fontweight='bold')
-                        
-                        menor_absoluto = min(min_seg, marca_minima_seg)
-                        bottom_limit = menor_absoluto * 0.96
-                        ax.set_ylim(bottom=bottom_limit)
+                        ax.text(x_max, marca_minima_seg, f" Mínima: {formatear_a_minutos(marca_minima_seg)}", color=color_ocre, va='bottom', ha='left', fontsize=7, fontweight='bold')
+                        ax.set_ylim(bottom=min(min_seg, marca_minima_seg) * 0.96)
                     else:
                         ax.set_ylim(bottom=min_seg * 0.96)
                     
-                    top_limit = t0_tiempo * 1.04
-                    ax.set_ylim(top=top_limit)
-                    
+                    ax.set_ylim(top=t0_tiempo * 1.04)
                     ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: formatear_a_minutos(x)))
-                    
                     ax.set_ylabel("Tiempo (Minutos)", fontsize=8)
                     ax.set_xlabel("Evolución Basada en la Edad (Años)", fontsize=8)
                     ax.tick_params(axis='both', labelsize=7)
@@ -272,7 +269,6 @@ def renderizar_tab_marcas(datos_sidebar):
                     "Tiempo": df_evolucion["tiempo_formateado"],
                     "Referencia / Campeonato": df_evolucion["nota"]
                 })
-                
                 st.write(df_tabla_ev.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
             
             csv_ev_data = df_tabla_ev.to_csv(index=False).encode('utf-8')
@@ -283,23 +279,27 @@ def renderizar_tab_marcas(datos_sidebar):
                 st.download_button("📥 Descargar Historial Seleccionado (CSV)", data=csv_ev_data, file_name="historial_tiempos.csv", mime="text/csv", use_container_width=True, key="dl_csv_ev")
             with c_ev2:
                 st.download_button("📄 Descargar Historial Seleccionado (TXT)", data=txt_ev_data, file_name="historial_tiempos.txt", mime="text/plain", use_container_width=True, key="dl_txt_ev")
+        except Exception as e:
+            st.error(f"Error al compilar el análisis analítico de marcas: {e}")
 
-    except Exception as e:
-        st.error(f"Error al compilar el análisis analítico de marcas: {e}")
-    pass
-
-def render_tab_config_umbrales(supabase, titulo_grafico, es_preinfantil):
+# =============================================================================
+# VISTA GENERAL DE UMBRALES ADAPTADA AL CONTENEDOR UNIFICADO
+# =============================================================================
+def render_tab_config_umbrales(datos_sidebar):
     if st.session_state.rol in ["Head Coach", "Administrador"]:
+        ctx_supabase_ref = datos_sidebar.get("supabase") if datos_sidebar else st.session_state.get("supabase")
+        titulo_grafico = datos_sidebar.get("titulo_grafico", "Prueba General")
+        es_preinfantil = datos_sidebar.get("es_preinfantil", False)
+
         st.markdown(f"### ⚙️ Umbrales de Competencia para la Categoría")
         
         if titulo_grafico in ['25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa', '100 Combinado'] or es_preinfantil:
-            st.info(f"💡 **Aviso:** Las marcas de referencia para pruebas Preinfantiles ({titulo_grafico}) se calculan automáticamente basándose en las marcas mínimas de 50m de la categoría Infantil A. No se configuran manualmente en este panel para proteger la integridad de los cálculos.")
+            st.info(f"💡 **Aviso:** Las marcas de referencia para pruebas Preinfantiles ({titulo_grafico}) se calculan automáticamente basándose en las marcas mínimas de 50m de la categoría Infantil A.")
         else:
             u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
-            
             db_m_ano, db_m_panam_b, db_m_panam_a, db_m_wa_b, db_m_wa_a, db_m_wr = None, None, None, None, None, None
             try:
-                ref_dinamica = supabase.table("marcas_referencia").select("*")\
+                ref_dinamica = ctx_supabase_ref.table("marcas_referencia").select("*")\
                     .eq("prueba", titulo_grafico)\
                     .eq("genero", st.session_state.nadador_seleccionado_genero)\
                     .eq("categoria", u_cat).execute()
@@ -332,11 +332,11 @@ def render_tab_config_umbrales(supabase, titulo_grafico, es_preinfantil):
                     if db_m_wr is not None: up_data["m_wr"] = u_wr
                     
                     if up_data:
-                        supabase.table("marcas_referencia").upsert({
+                        ctx_supabase_ref.table("marcas_referencia").upsert({
                             "prueba": titulo_grafico, "genero": st.session_state.nadador_seleccionado_genero,
                             "categoria": u_cat, **up_data
                         }, on_conflict="prueba,genero,categoria").execute()
                         st.success(f"Tiempos de referencia actualizados para {u_cat}.")
                         st.rerun()
     else:
-        st.warning("🔒 Requiere credenciales de Head Coach.")
+        st.warning("🔒 Requires credenciales de Head Coach.")
