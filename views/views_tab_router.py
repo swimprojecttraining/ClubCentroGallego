@@ -12,7 +12,7 @@ from views_tab_asignaciones import renderizar_tab_asignaciones
 from views_tab_calendario import renderizar_tab_calendario
 from views_tab_entrenador import renderizar_tab_entrenador
 #from views_tab_grafico import renderizar_tab_grafico
-#from views_tab_marcas import renderizar_tab_marcas
+from views_tab_marcas import renderizar_tab_marcas
 #from views_tab_pizarra import renderizar_tab_pizarra
 #from views_tab_reportes import renderizar_tab_reportes
 
@@ -65,8 +65,8 @@ def mostrar_vista_enrutador():
 #            renderizar_tab_pizarra(datos_sidebar)
 #        with tab_reportes:
 #            renderizar_tab_reportes(datos_sidebar)
-#        with tab_marcas:
-#            renderizar_tab_marcas(datos_sidebar)
+        with tab_marcas:
+            renderizar_tab_marcas(datos_sidebar)
         with tab_entrenador:
             renderizar_tab_entrenador(datos_sidebar)
         with tab_asignaciones:
