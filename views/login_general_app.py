@@ -290,5 +290,5 @@ def mostrar_pantalla_login():
                                     else:
                                         st.error("❌ Los datos proporcionados no coinciden con ningún registro activo.")
                                 except Exception as rec_err:
-                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")                         
+                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")
         st.stop()
