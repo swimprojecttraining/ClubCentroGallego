@@ -68,9 +68,9 @@ def mostrar_vista_enrutador():
 with tab_marcas:
     render_tab_marcas(
         supabase=st.session_state.supabase,
-        titulo_grafico="Control de Marcas", # O el string/variable que uses para tus gráficos
-        es_preinfantil=False, # O la lógica de categoría que aplique
-        convertir_string_a_segundos=convertir_string_a_segundos, # Tus funciones de fórmulas
+        titulo_grafico="Control de Marcas",
+        es_preinfantil=False,
+        convertir_string_a_segundos=convertir_string_a_segundos,
         calcular_edad_decimal=calcular_edad_decimal,
         formatear_a_minutos=formatear_a_minutos,
         calcular_categoria_competencia=calcular_categoria_competencia
