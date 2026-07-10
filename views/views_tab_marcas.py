@@ -12,12 +12,23 @@ from formulas_lib_funciones import (
 
 def renderizar_tab_marcas(datos_sidebar):
     st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
-    st.caption("Módulo centralizado para la gestión de marcas oficiales, análisis de récords personales y exportación curricular.")
+    
+    # 1. RECUPERACIÓN BLINDADA (El salvavidas)
+    supabase_client = st.session_state.get("supabase")
+    if supabase_client is None:
+        st.error("Error al conectar con la base de datos: La instancia es nula. Por favor, vuelve a iniciar sesión.")
+        st.stop()
 
-    # 🛠️ Extracción limpia y autónoma del pool de datos
-    ctx_supabase_mar = datos_sidebar.get("supabase") if datos_sidebar else st.session_state.get("supabase")
-    titulo_grafico = datos_sidebar.get("titulo_grafico", "Prueba General")
-    es_preinfantil = datos_sidebar.get("es_preinfantil", False)
+    # 2. TUS VARIABLES ORIGINALES (Ahora están seguras después de validar la conexión)
+    titulo_grafico = datos_sidebar.get("titulo_grafico", "Prueba General") if datos_sidebar else "Prueba General"
+    es_preinfantil = datos_sidebar.get("es_preinfantil", False) if datos_sidebar else False
+    
+    # 3. LÓGICA DE CONSULTA
+    try:
+        response = supabase_client.table("marcas_historicas").select("*").execute()
+        # Aquí continúa el resto de tu lógica que ya tenías...
+    except Exception as e:
+        st.error(f"Error al ejecutar consulta en marcas_historicas: {e}")
     
     rol_usuario = st.session_state.get("rol")
     id_usuario = st.session_state.get("usuario_id")
