@@ -23,7 +23,7 @@ def mostrar_vista_enrutador():
     el flujo hacia archivos independientes dentro de la carpeta views.
     """
     # Ejecutamos la barra lateral y extraemos su diccionario reactivo sin caché
-    datos_sidebar = renderizar_sidebar_completo()
+    datos_sidebar = renderizar_sidebar_acceso_y_gestion()
     
     titulo_grafico = datos_sidebar["titulo_grafico"]
     simulacion_externa = datos_sidebar["simulacion_externa"]
