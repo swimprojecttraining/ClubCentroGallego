@@ -47,76 +47,60 @@ def renderizar_sidebar_completo():
             st.session_state.autenticado = autenticado_seguro
             st.toast("⚡ Datos del club y marcas actualizados.", icon="ℹ️")
             st.rerun()
-
-    # -------------------------------------------------------------
-    # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Filtros por Rol)
-    # -------------------------------------------------------------
+#---------------------------------------------------------------------------------------
+# 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Filtros por Rol)
+#---------------------------------------------------------------------------------------
     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
+        
         try:
+            # 1. OBTENCIÓN DE DATOS (Lógica de selección de nadadores)
             if st.session_state.rol == "Entrenador":
-                # Consulta filtrada por la tabla intermedia 'asignaciones'
                 resp_asig = supabase_local.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).eq("activo", True).execute()
                 ids_asignados = [reg["atleta_id"] for reg in resp_asig.data] if resp_asig.data else []
                 
                 if ids_asignados:
                     resp_atletas = supabase_local.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").in_("id", ids_asignados).execute()
                 else:
-                    resp_atletas = None  # No tiene nadadores asignados activos
+                    resp_atletas = None # El entrenador no tiene asignaciones
             else:
-                # Head Coach y Administrador tienen acceso global
                 resp_atletas = supabase_local.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-            
+
+            # 2. PROCESAMIENTO DE RESULTADOS
             if resp_atletas and resp_atletas.data:
                 df_atl = pd.DataFrame(resp_atletas.data)
                 dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
                 
                 sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
-                atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
-                atleta_dict = atleta_row.to_dict() if hasattr(atleta_row, "to_dict") else dict(atleta_row)
                 
-                st.session_state.nadador_seleccionado_id = int(atleta_dict["id"])
-                st.session_state.nadador_seleccionado_nombre = atleta_dict["nombre"]
-                st.session_state.nadador_seleccionado_genero = atleta_dict.get("genero", "M")
-                
-                # 🎯 CÁLCULO REAL: Extraemos la fecha y calculamos la categoría real al vuelo
-                fecha_nac_atleta = atleta_dict.get("fecha_nacimiento")
-                if fecha_nac_atleta:
-                    fecha_limpia = str(fecha_nac_atleta).strip()[:10]
-                    cat_calc, edad_calc = calcular_categoria_competencia(fecha_limpia)
+                if sel_id:
+                    atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
+                    st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
+                    st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
+                    
+                    # Cálculo al vuelo
+                    fecha_nac = str(atleta_row.get("fecha_nacimiento", "")).strip()[:10]
+                    cat_calc, edad_calc = calcular_categoria_competencia(fecha_nac) if fecha_nac else ("Sin Categoría", 0)
+                    
                     st.session_state.nadador_seleccionado_categoria = cat_calc
-                    st.session_state["nadador_seleccionado_edad_tecnica"] = edad_calc
-                else:
-                    st.session_state.nadador_seleccionado_categoria = "Sin Categoría"
-                    st.session_state["nadador_seleccionado_edad_tecnica"] = 0
-                
-            else:
-                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
-                st.session_state.nadador_seleccionado_id = None
-        except Exception as e:
-            st.error(f"Error cargando nómina de atletas filtrada: {e}")
-        else:
-            # En lugar de asignar tu ID, dejamos que el estado se mantenga 
-            # o se limpie si no hay selección válida.
-            if "nadador_seleccionado_id" not in st.session_state:
-                st.session_state.nadador_seleccionado_id = None
-                st.session_state.nadador_seleccionado_nombre = "Ninguno"
-                st.session_state.nadador_seleccionado_genero = st.session_state.genero
+                    st.session_state.nadador_seleccionado_edad_tecnica = edad_calc
             
-            # El parche de seguridad para limpiar tu cabecera cuando entras tú como Admin:
-            cat_inicial = st.session_state.get("categoria_atleta", "Master")
-            if cat_inicial == "Error Formato":
-                st.session_state.nadador_seleccionado_categoria = "Todo el Equipo"
             else:
-                st.session_state.nadador_seleccionado_categoria = cat_inicial
+                # Caso sin nadadores encontrados o sin asignaciones
+                st.sidebar.warning("⚠️ No hay nadadores activos para mostrar.")
+                st.session_state.nadador_seleccionado_id = None
+                st.session_state.nadador_seleccionado_categoria = "Sin Categoría"
+                
+        except Exception as e:
+            st.error(f"Error cargando nómina de atletas: {e}")
 
+    # Resto de tus variables de configuración
     modo_equipo = False
     tipo_filtro = "Todos los Atletas"
     filtro_genero = "Todos"
     cat_sel = None
     ids_sel = []
-
     # -------------------------------------------------------------
     # 👥 ANÁLISIS COLECTIVO
     # -------------------------------------------------------------
