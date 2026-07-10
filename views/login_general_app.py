@@ -90,15 +90,13 @@ def mostrar_pantalla_login():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
 
-    # Si entramos aquí, asumimos que st.session_state.puente_validado ya es True gracias al root_app.py.
-    # Si por algún motivo se perdió la instancia de base de datos, la conectamos usando las credenciales locales
+    # Conexión fallback si se pierde la instancia
     if not st.session_state.supabase:
         try:
             st.session_state.supabase = create_client(
                 st.secrets["SUPABASE_URL"], 
                 st.secrets["SUPABASE_KEY"]
             )
-            # Extraemos el nombre del club desde los secrets o por defecto
             st.session_state.club_seleccionado = st.secrets.get("NOMBRE_CLUB_LOCAL", "Centro Gallego")
         except Exception as e:
             st.error(f"❌ Error de infraestructura al conectar base de datos local: {e}")
@@ -150,7 +148,6 @@ def mostrar_pantalla_login():
                                     nuevo_rol = st.session_state.reg_datos_temporales["rol"]
                                     nuevo_email = st.session_state.reg_datos_temporales["email"]
                                     
-                                    # ✨ SIN CORRUPCIÓN: Alineación corregida perfectamente
                                     if status_inicial == "Pendiente":
                                         enviar_email("Cuenta en Revisión", f"Hola {nuevo_nombre}, tu cuenta de {nuevo_rol} ha sido registrada. Está pendiente de revisión por el administrador.", nuevo_email)
                                         enviar_email("Nuevo Registro Pendiente", f"El usuario {nuevo_nombre} ({nuevo_rol}) se ha registrado. Email: {nuevo_email}. Favor revisar en consola admin.", st.secrets["EMAIL_ADMIN"])
@@ -289,6 +286,10 @@ def mostrar_pantalla_login():
                                                 st.error("Error al enviar el correo de recuperación.")
                                     else:
                                         st.error("❌ Los datos proporcionados no coinciden con ningún registro activo.")
+                                try:
+                                    pass
                                 except Exception as rec_err:
-                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")
+                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")                         
+        
+        # El stop detiene la renderización de la app principal para no autenticados
         st.stop()
