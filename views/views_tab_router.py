@@ -57,22 +57,22 @@ def mostrar_vista_enrutador():
         ])
 
     # Enrutamiento directo a los archivos de la misma carpeta
-    with tab_grafico:
-        renderizar_tab_grafico(datos_sidebar)
+#    with tab_grafico:
+#        renderizar_tab_grafico(datos_sidebar)
 
     if not simulacion_externa:
-        with tab_pizarra:
-            renderizar_tab_pizarra(datos_sidebar)
-        with tab_reportes:
-            renderizar_tab_reportes(datos_sidebar=None)
-        with tab_marcas:
-            renderizar_tab_marcas(datos_sidebar=None)
-        with tab_entrenador:
-            renderizar_tab_entrenador(datos_sidebar=None)
-        with tab_asignaciones:
-            renderizar_tab_asignaciones(datos_sidebar=None)
-        with tab_calendario:
-            renderizar_tab_calendario(datos_sidebar=None)
+#        with tab_pizarra:
+#            renderizar_tab_pizarra(datos_sidebar)
+#        with tab_reportes:
+#            renderizar_tab_reportes(datos_sidebar=None)
+#        with tab_marcas:
+#            renderizar_tab_marcas(datos_sidebar=None)
+#        with tab_entrenador:
+#            renderizar_tab_entrenador(datos_sidebar=None)
+#        with tab_asignaciones:
+#            renderizar_tab_asignaciones(datos_sidebar=None)
+#        with tab_calendario:
+#            renderizar_tab_calendario(datos_sidebar=None)
         with tab_admin:
             renderizar_tab_admin(datos_sidebar=None)
 
