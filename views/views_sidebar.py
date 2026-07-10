@@ -77,16 +77,11 @@ def renderizar_sidebar_completo():
                 
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
-                # 🎯 CORRECCIÓN GÉNERO: Evaluamos de forma segura si viene como código corto o completo
-                gen_raw = atleta_row.get("genero", "M")
-                if gen_raw in ["Masculino", "M"]:
-                    st.session_state.nadador_seleccionado_genero = "M"
-                else:
-                    st.session_state.nadador_seleccionado_genero = "F"
-                # 🎯 CORRECCIÓN CATEGORÍA: Consumimos la categoría precalculada de la fila
-                st.session_state.nadador_seleccionado_categoria = atleta_row["categoria"]
-                # Guardamos la edad técnica en el estado de la sesión
-                st.session_state["nadador_seleccionado_edad_tecnica"] = atleta_row["edad"]
+                st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
+                
+                # Al haber agregado "fecha_nacimiento" en la librería, esta línea ya no fallará:
+                cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+                st.session_state.nadador_seleccionado_categoria = cat_calc
                 
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento.")
