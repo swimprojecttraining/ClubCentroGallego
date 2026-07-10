@@ -75,26 +75,37 @@ def renderizar_sidebar_completo():
                 sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
                 atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
                 
+        # =============================================================================
+                # CÓDIGO CORREGIDO Y BLINDADO PARA VIEWS_SIDEBAR.PY
+                # =============================================================================
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
-                
-                # Mapeamos el código de género correcto ('M' o 'F') que espera tu backend
                 st.session_state.nadador_seleccionado_genero = atleta_row["genero_codigo"]
-                
-                # 🎯 SOLUCIÓN ARQUITECTÓNICA: Consumir la categoría y edad técnica 
-                # que la librería calculó dinámicamente al 31-12
                 st.session_state.nadador_seleccionado_categoria = atleta_row["categoria"]
                 st.session_state["nadador_seleccionado_edad_tecnica"] = atleta_row["edad"]
             else:
-                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
+                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento.")
                 st.session_state.nadador_seleccionado_id = None
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
-    else:
-        st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
-        st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
-        st.session_state.nadador_seleccionado_genero = st.session_state.genero
-        st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
+        else:
+            # 🎯 AQUÍ ESTABA EL SÍNTOMA: Si es un nadador independiente, recalculamos de forma segura
+            st.session_state.nadador_seleccionado_id = st.session_state.get("usuario_id")
+            st.session_state.nadador_seleccionado_nombre = st.session_state.get("nombre_nadador", "Atleta")
+            st.session_state.nadador_seleccionado_genero = st.session_state.get("genero", "F")
+            
+            # Extraemos su fecha de nacimiento del login para corregir el "Error Formato" heredado
+            fecha_nac_login = st.session_state.get("fecha_nacimiento")
+            
+            if fecha_nac_login:
+                # Purgamos cualquier residuo de horas antes de calcular
+                fecha_limpia = str(fecha_nac_login).strip()[:10].replace("/", "-")
+                cat_real, edad_real = calcular_categoria_competencia(fecha_limpia)
+                st.session_state.nadador_seleccionado_categoria = cat_real
+                st.session_state["nadador_seleccionado_edad_tecnica"] = edad_real
+            else:
+                # Respaldo si no hay fecha en el estado de la sesión
+                st.session_state.nadador_seleccionado_categoria = st.session_state.get("categoria_atleta", "Infantil A")
 
     # Variables colectivas inicializadas exactamente igual al modelo original
     modo_equipo = False
