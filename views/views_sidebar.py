@@ -75,16 +75,20 @@ def renderizar_sidebar_completo():
                 sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
                 atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
                 
-                st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
-                st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
-                st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
+                # 🎯 LA NUEVA LÍNEA VA AQUÍ: Convierte la fila de Pandas a diccionario puro
+                atleta_dict = atleta_row.to_dict() if hasattr(atleta_row, "to_dict") else dict(atleta_row)
                 
-                # Al haber agregado "fecha_nacimiento" en la librería, esta línea ya no fallará:
-                cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                st.session_state.nadador_seleccionado_categoria = cat_calc
+                # 🎯 REEMPLAZO: Ahora todas las asignaciones usan 'atleta_dict' en vez de 'atleta_row'
+                st.session_state.nadador_seleccionado_id = int(atleta_dict["id"])
+                st.session_state.nadador_seleccionado_nombre = atleta_dict["nombre"]
+                st.session_state.nadador_seleccionado_genero = atleta_dict.get("genero_codigo", atleta_dict.get("genero", "M"))
+                
+                # Consumimos la categoría y la edad precalculadas que vienen desde la librería
+                st.session_state.nadador_seleccionado_categoria = atleta_dict.get("categoria", "Infantil A")
+                st.session_state["nadador_seleccionado_edad_tecnica"] = atleta_dict.get("edad", 0)
                 
             else:
-                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento.")
+                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
                 st.session_state.nadador_seleccionado_id = None
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
