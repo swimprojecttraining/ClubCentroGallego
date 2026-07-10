@@ -65,8 +65,16 @@ def mostrar_vista_enrutador():
 #            renderizar_tab_pizarra(datos_sidebar)
 #        with tab_reportes:
 #            renderizar_tab_reportes(datos_sidebar)
-        with tab_marcas:
-            renderizar_tab_marcas(datos_sidebar)
+with tab_marcas:
+    render_tab_marcas(
+        supabase=st.session_state.supabase,
+        titulo_grafico="Control de Marcas", # O el string/variable que uses para tus gráficos
+        es_preinfantil=False, # O la lógica de categoría que aplique
+        convertir_string_a_segundos=convertir_string_a_segundos, # Tus funciones de fórmulas
+        calcular_edad_decimal=calcular_edad_decimal,
+        formatear_a_minutos=formatear_a_minutos,
+        calcular_categoria_competencia=calcular_categoria_competencia
+    )
         with tab_entrenador:
             renderizar_tab_entrenador(datos_sidebar)
         with tab_asignaciones:
