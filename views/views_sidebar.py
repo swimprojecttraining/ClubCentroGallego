@@ -77,10 +77,14 @@ def renderizar_sidebar_completo():
                 
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
-                st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
                 
-                cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                st.session_state.nadador_seleccionado_categoria = cat_calc
+                # Mapeamos el código de género correcto ('M' o 'F') que espera tu backend
+                st.session_state.nadador_seleccionado_genero = atleta_row["genero_codigo"]
+                
+                # 🎯 SOLUCIÓN ARQUITECTÓNICA: Consumir la categoría y edad técnica 
+                # que la librería calculó dinámicamente al 31-12
+                st.session_state.nadador_seleccionado_categoria = atleta_row["categoria"]
+                st.session_state["nadador_seleccionado_edad_tecnica"] = atleta_row["edad"]
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
                 st.session_state.nadador_seleccionado_id = None
