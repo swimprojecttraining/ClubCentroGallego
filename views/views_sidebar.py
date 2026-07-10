@@ -92,14 +92,13 @@ def renderizar_sidebar_completo():
             st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
             st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
             st.session_state.nadador_seleccionado_genero = st.session_state.genero
-            
-            # El parche de seguridad para limpiar tu cabecera cuando entras tú como Admin:
+        
+            # 🎯 VALIDACIÓN DE SEGURIDAD: Si tu sesión trae "Error Formato", lo limpiamos por defecto
             cat_inicial = st.session_state.get("categoria_atleta", "Master")
             if cat_inicial == "Error Formato":
                 st.session_state.nadador_seleccionado_categoria = "Todo el Equipo"
             else:
                 st.session_state.nadador_seleccionado_categoria = cat_inicial
-
     modo_equipo = False
     tipo_filtro = "Todos los Atletas"
     filtro_genero = "Todos"
