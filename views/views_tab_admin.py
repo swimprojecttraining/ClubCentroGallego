@@ -3,7 +3,7 @@ import pandas as pd
 import datetime
 import io
 import zipfile
-from supabase import create_client, Client
+from supabase import supabase, Client
 # Se asume la existencia de la función de mensajería del sistema unificado
 from formulas_lib_funciones import enviar_email 
 
