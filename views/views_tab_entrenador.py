@@ -1,54 +1,40 @@
 import streamlit as st
 import pandas as pd
-
-def renderizar_tab_entrenador(datos_sidebar=None):
-import streamlit as st
-import pandas as pd
 from formulas_lib_funciones import formatear_a_minutos, convertir_string_a_segundos
 
 def renderizar_tab_entrenador(datos_sidebar=None):
-    # 1. Enlace directo y limpio con Supabase
+    """
+    CÓDIGO MODULAR EVOLUCIONADO.
+    Indentación limpia corregida a 4 espacios planos para evitar fallos de despliegue.
+    """
     global supabase
-    # 🕵️‍♂️ LÍNEAS DE DIAGNÓSTICO TEMPORAL
-    st.write("🔍 Llaves vivas en Session State:", list(st.session_state.keys()))
-    if datos_sidebar:
-        st.write("🔍 Datos del Sidebar:", datos_sidebar)
     if "supabase" in st.session_state and st.session_state.supabase:
         supabase = st.session_state.supabase
     else:
         st.error("❌ Conexión no inicializada en Session State.")
         return
 
-    # 2. Validación estricta de rol
     if st.session_state.get("rol") not in ["Head Coach", "Administrador"]:
         st.warning("🔒 Requiere credenciales de Head Coach.")
         return
 
     st.markdown("### ⚙️ Umbrales de Competencia para la Categoría")
     
-    # 3. Contexto de navegación corregido para la precarga automática
     titulo_grafico = st.session_state.get("prueba_activa_seleccionada", "50 Libre")
     genero_atleta = st.session_state.get("nadador_seleccionado_genero", "F")
     es_preinfantil = st.session_state.get("es_preinfantil", False)
 
-    # 4. Regla de exclusión para pruebas Preinfantiles
     pruebas_excluidas = ['25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa', '100 Combinado']
     if titulo_grafico in pruebas_excluidas or es_preinfantil:
         st.info(f"💡 **Aviso:** Las marcas de referencia para pruebas Preinfantiles ({titulo_grafico}) se calculan automáticamente.")
         return
 
-    # 5. Selector de Categoría
     u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
     
     db_m_ano, db_m_panam_b, db_m_panam_a, db_m_wa_b, db_m_wa_a, db_m_wr = None, None, None, None, None, None
     
-    # Precarga real desde la Base de Datos
     try:
-        ref_dinamica = supabase.table("marcas_referencia").select("*")\
-            .eq("prueba", titulo_grafico)\
-            .eq("genero", genero_atleta)\
-            .eq("categoria", u_cat).execute()
-            
+        ref_dinamica = supabase.table("marcas_referencia").select("*").eq("prueba", titulo_grafico).eq("genero", genero_atleta).eq("categoria", u_cat).execute()
         if ref_dinamica.data:
             r_det = ref_dinamica.data[0]
             db_m_ano = float(r_det["m_ano"]) if r_det["m_ano"] is not None else None
@@ -62,7 +48,6 @@ def renderizar_tab_entrenador(datos_sidebar=None):
 
     st.caption(f"📋 Configurando tiempos para **{titulo_grafico}** ({'Femenino' if genero_atleta == 'F' else 'Masculino'})")
 
-    # 6. Formulario de Captura nativo mm:ss.hh
     with st.form("form_update_referencias"):
         st.write("✍️ *Ingrese los tiempos en formato `mm:ss.hh` o segundos decimales*")
         
@@ -78,7 +63,6 @@ def renderizar_tab_entrenador(datos_sidebar=None):
         
         if st.form_submit_button("⚡ Guardar Configuración de Tiempos"):
             try:
-                # Conversión directa limpia sin .replace()
                 u_ano = convertir_string_a_segundos(in_ano) if in_ano != "0.00" else None
                 u_panamb = convertir_string_a_segundos(in_panamb) if in_panamb != "0.00" else None
                 u_panama = convertir_string_a_segundos(in_panama) if in_panama != "0.00" else None
@@ -102,9 +86,9 @@ def renderizar_tab_entrenador(datos_sidebar=None):
                         **up_data
                     }, on_conflict="prueba,genero,categoria").execute()
                     
-                    st.success(f"🎉 Tiempos guardados con éxito para la categoría {u_cat}.")
+                    st.success(f"🎉 Tiempos procesados y guardados con éxito para la categoría {u_cat}.")
                     st.rerun()
                 else:
-                    st.warning("⚠️ No se detectaron cambios válidos.")
+                    st.warning("⚠️ No se detectaron cambios numéricos válidos.")
             except Exception as e:
                 st.error(f"❌ Error al procesar o guardar los tiempos: {e}")
