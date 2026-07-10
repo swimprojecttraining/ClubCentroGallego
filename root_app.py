@@ -10,7 +10,7 @@ import sys
 directorio_raiz = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(directorio_raiz)
 sys.path.append(os.path.join(directorio_raiz, "views"))
-from views.views__tab_router import mostrar_vista_enrutador
+from views.views_tab_router import mostrar_vista_enrutador
 # **********************************************************************************
 # 1. CONFIGURACIÓN ÚNICA DE LA PÁGINA
 # **********************************************************************************
