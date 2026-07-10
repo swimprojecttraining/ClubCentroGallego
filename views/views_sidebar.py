@@ -97,10 +97,12 @@ def renderizar_sidebar_completo():
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
         else:
-            # Bloque de respaldo si no entra en la condición de arriba
-            st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
-            st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
-            st.session_state.nadador_seleccionado_genero = st.session_state.genero
+            # En lugar de asignar tu ID, dejamos que el estado se mantenga 
+            # o se limpie si no hay selección válida.
+            if "nadador_seleccionado_id" not in st.session_state:
+                st.session_state.nadador_seleccionado_id = None
+                st.session_state.nadador_seleccionado_nombre = "Ninguno"
+                st.session_state.nadador_seleccionado_genero = st.session_state.genero
             
             # El parche de seguridad para limpiar tu cabecera cuando entras tú como Admin:
             cat_inicial = st.session_state.get("categoria_atleta", "Master")
