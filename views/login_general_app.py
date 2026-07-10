@@ -22,7 +22,7 @@ def login_usuario(user, password, client_db):
         # Consulta exacta a la estructura de tu BD local
         response = client_db.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user_lower).eq("contrasena", hashed_pw).execute()
         
-        if response.data:
+if response.data:
             user_data = response.data[0]
             
             if user_data.get("estatus") == "Pendiente":
@@ -33,11 +33,17 @@ def login_usuario(user, password, client_db):
                 st.error(f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica.")
                 return False
                 
+            # ==============================================================
+            # ✨ AQUÍ: GUARDADO SEGURO Y DINÁMICO EN EL SESSION_STATE
+            # ==============================================================
             st.session_state.autenticado = True
+            st.session_state.supabase = client_db  # Guardamos la conexión de este usuario de forma aislada
             st.session_state.usuario_id = user_data["id"]
             st.session_state.nombre_nadador = user_data["nombre"]
             st.session_state.genero = user_data.get("genero", "F")
-            st.session_state.rol = user_data.get("rol", "Nadador")
+            
+            # El rol se asigna dinámicamente según lo que devuelva la columna de tu BD
+            st.session_state.rol = user_data.get("rol", "Nadador") 
             st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
             
             # Poblar variables de categoría usando tus rangos reales del archivo formulas
