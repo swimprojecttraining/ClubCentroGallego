@@ -167,11 +167,25 @@ def sincronizar_hitos_competencias_atleta(nadador_id, fecha_nacimiento, genero_a
 # -------------------------------------------------------------
 # LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
 # -------------------------------------------------------------
-def calcular_categoria_competencia(fecha_nac_str):
-    if not fecha_nac_str:
+def calcular_categoria_competencia(fecha_nac_input):
+    """
+    Calcula la categoría etaria de competencia de forma segura.
+    Soporta objetos datetime, date y cadenas de texto con o sin hora.
+    """
+    if not fecha_nac_input:
         return "Desconocida", 0
+        
     try:
-        fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str))
+        # 1. Si ya es un objeto datetime o date, extraemos solo la fecha
+        if hasattr(fecha_nac_input, "year"):
+            fecha_nac = fecha_nac_input
+        else:
+            # 2. Si es string, limpiamos espacios y nos quedamos con los primeros 10 caracteres (YYYY-MM-DD)
+            fecha_limpia = str(fecha_nac_input).strip()[:10]
+            # Convertimos reemplazando barras por guiones por si acaso
+            fecha_limpia = fecha_limpia.replace("/", "-")
+            fecha_nac = datetime.date.fromisoformat(fecha_limpia)
+            
     except Exception:
         return "Error Formato", 0
         
