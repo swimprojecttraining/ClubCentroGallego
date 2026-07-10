@@ -16,13 +16,14 @@ from formulas_lib_funciones import (
 )
 
 def login_usuario(user, password, client_db):
-    try:
+try:
         user_lower = user.strip().lower()
         hashed_pw = hash_password(password)
         # Consulta exacta a la estructura de tu BD local
         response = client_db.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user_lower).eq("contrasena", hashed_pw).execute()
         
-    if response.data:
+        # ✨ CORRECCIÓN: Ahora el IF está correctamente anidado dentro del TRY (4 espacios más a la derecha)
+        if response.data:
             user_data = response.data[0]
             
             if user_data.get("estatus") == "Pendiente":
@@ -56,11 +57,13 @@ def login_usuario(user, password, client_db):
             st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
             st.session_state.nadador_seleccionado_categoria = cat
             return True
+            
+        # Este return maneja si response.data viene vacío
         return False
+
     except Exception as e:
         st.error(f"Error en Login: {e}")
         return False
-
 
 def mostrar_pantalla_login():
     """
