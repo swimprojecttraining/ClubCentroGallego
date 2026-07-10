@@ -16,13 +16,13 @@ from formulas_lib_funciones import (
 )
 
 def login_usuario(user, password, client_db):
-try:
+    try:
         user_lower = user.strip().lower()
         hashed_pw = hash_password(password)
         # Consulta exacta a la estructura de tu BD local
         response = client_db.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user_lower).eq("contrasena", hashed_pw).execute()
         
-        # ✨ CORRECCIÓN: Ahora el IF está correctamente anidado dentro del TRY (4 espacios más a la derecha)
+        # IF correctamente anidado dentro del TRY
         if response.data:
             user_data = response.data[0]
             
@@ -35,7 +35,7 @@ try:
                 return False
                 
             # ==============================================================
-            # ✨ AQUÍ: GUARDADO SEGURO Y DINÁMICO EN EL SESSION_STATE
+            # ✨ GUARDADO SEGURO Y DINÁMICO EN EL SESSION_STATE
             # ==============================================================
             st.session_state.autenticado = True
             st.session_state.supabase = client_db  # Guardamos la conexión de este usuario de forma aislada
@@ -286,10 +286,8 @@ def mostrar_pantalla_login():
                                                 st.error("Error al enviar el correo de recuperación.")
                                     else:
                                         st.error("❌ Los datos proporcionados no coinciden con ningún registro activo.")
-                                try:
-                                    pass
                                 except Exception as rec_err:
-                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")                         
+                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")                                 
         
         # El stop detiene la renderización de la app principal para no autenticados
         st.stop()
