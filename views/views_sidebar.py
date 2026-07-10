@@ -74,17 +74,13 @@ def renderizar_sidebar_completo():
                 
                 sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
                 atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
-                
-                # 🎯 LA NUEVA LÍNEA VA AQUÍ: Convierte la fila de Pandas a diccionario puro
                 atleta_dict = atleta_row.to_dict() if hasattr(atleta_row, "to_dict") else dict(atleta_row)
                 
-                # 🎯 REEMPLAZO: Ahora todas las asignaciones usan 'atleta_dict' en vez de 'atleta_row'
                 st.session_state.nadador_seleccionado_id = int(atleta_dict["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_dict["nombre"]
                 st.session_state.nadador_seleccionado_genero = atleta_dict.get("genero_codigo", atleta_dict.get("genero", "M"))
                 
-                # Consumimos la categoría y la edad precalculadas que vienen desde la librería
-                st.session_state.nadador_seleccionado_categoria = atleta_dict.get("categoria", "Infantil A")
+                 st.session_state.nadador_seleccionado_categoria = atleta_dict.get("categoria", "Infantil A")
                 st.session_state["nadador_seleccionado_edad_tecnica"] = atleta_dict.get("edad", 0)
                 
             else:
@@ -93,24 +89,17 @@ def renderizar_sidebar_completo():
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
         else:
-            st.session_state.nadador_seleccionado_id = st.session_state.get("usuario_id")
-            st.session_state.nadador_seleccionado_nombre = st.session_state.get("nombre_nadador", "Atleta")
-            st.session_state.nadador_seleccionado_genero = st.session_state.get("genero", "F")
+            st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
+            st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
+            st.session_state.nadador_seleccionado_genero = st.session_state.genero
             
-            # Extraemos su fecha de nacimiento del login para corregir el "Error Formato" heredado
-            fecha_nac_login = st.session_state.get("fecha_nacimiento")
-            
-            if fecha_nac_login:
-                # Purgamos cualquier residuo de horas antes de calcular
-                fecha_limpia = str(fecha_nac_login).strip()[:10].replace("/", "-")
-                cat_real, edad_real = calcular_categoria_competencia(fecha_limpia)
-                st.session_state.nadador_seleccionado_categoria = cat_real
-                st.session_state["nadador_seleccionado_edad_tecnica"] = edad_real
+            # El parche de seguridad para limpiar tu cabecera cuando entras tú como Admin:
+            cat_inicial = st.session_state.get("categoria_atleta", "Master")
+            if cat_inicial == "Error Formato":
+                st.session_state.nadador_seleccionado_categoria = "Todo el Equipo"
             else:
-                # Respaldo si no hay fecha en el estado de la sesión
-                st.session_state.nadador_seleccionado_categoria = st.session_state.get("categoria_atleta", "Infantil A")
+                st.session_state.nadador_seleccionado_categoria = cat_inicial
 
-    # Variables colectivas inicializadas exactamente igual al modelo original
     modo_equipo = False
     tipo_filtro = "Todos los Atletas"
     filtro_genero = "Todos"
