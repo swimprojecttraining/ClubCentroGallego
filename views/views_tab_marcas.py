@@ -4,7 +4,7 @@ import datetime
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-def render_tab_marcas(supabase, titulo_grafico, es_preinfantil, convertir_string_a_segundos, calcular_edad_decimal, formatear_a_minutos, calcular_categoria_competencia):
+def renderizar_tab_marcas(supabase, titulo_grafico, es_preinfantil, convertir_string_a_segundos, calcular_edad_decimal, formatear_a_minutos, calcular_categoria_competencia):
     st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
     st.caption("Módulo centralizado para la gestión de marcas oficiales, análisis de récords personales y exportación curricular.")
 
