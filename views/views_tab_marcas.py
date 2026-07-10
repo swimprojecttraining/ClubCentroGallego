@@ -15,7 +15,8 @@ def renderizar_tab_marcas(datos_sidebar):
     st.caption("Módulo centralizado para la gestión de marcas oficiales, análisis de récords personales y exportación curricular.")
 
     # Lógica de seguridad y pool de atletas basada en roles de tu aplicación
-    ctx_supabase_mar = supabase
+    # 🛠️ El cambio exacto en la línea 18 de views_tab_marcas.py:
+    ctx_supabase_mar = datos_sidebar.get("supabase") if datos_sidebar else st.session_state.get("supabase")
     rol_usuario = st.session_state.get("rol")
     id_usuario = st.session_state.get("usuario_id")
     id_atleta_actual = st.session_state.get("nadador_seleccionado_id")
