@@ -75,21 +75,25 @@ def renderizar_sidebar_completo():
                 sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
                 atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
                 
-        # =============================================================================
-                # CÓDIGO CORREGIDO Y BLINDADO PARA VIEWS_SIDEBAR.PY
-                # =============================================================================
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
-                st.session_state.nadador_seleccionado_genero = atleta_row["genero_codigo"]
+                # 🎯 CORRECCIÓN GÉNERO: Evaluamos de forma segura si viene como código corto o completo
+                gen_raw = atleta_row.get("genero", "M")
+                if gen_raw in ["Masculino", "M"]:
+                    st.session_state.nadador_seleccionado_genero = "M"
+                else:
+                    st.session_state.nadador_seleccionado_genero = "F"
+                # 🎯 CORRECCIÓN CATEGORÍA: Consumimos la categoría precalculada de la fila
                 st.session_state.nadador_seleccionado_categoria = atleta_row["categoria"]
+                # Guardamos la edad técnica en el estado de la sesión
                 st.session_state["nadador_seleccionado_edad_tecnica"] = atleta_row["edad"]
+                
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento.")
                 st.session_state.nadador_seleccionado_id = None
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
         else:
-            # 🎯 AQUÍ ESTABA EL SÍNTOMA: Si es un nadador independiente, recalculamos de forma segura
             st.session_state.nadador_seleccionado_id = st.session_state.get("usuario_id")
             st.session_state.nadador_seleccionado_nombre = st.session_state.get("nombre_nadador", "Atleta")
             st.session_state.nadador_seleccionado_genero = st.session_state.get("genero", "F")
