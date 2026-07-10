@@ -22,7 +22,7 @@ def login_usuario(user, password, client_db):
         # Consulta exacta a la estructura de tu BD local
         response = client_db.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user_lower).eq("contrasena", hashed_pw).execute()
         
-if response.data:
+    if response.data:
             user_data = response.data[0]
             
             if user_data.get("estatus") == "Pendiente":
