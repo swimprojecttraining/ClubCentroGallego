@@ -8,7 +8,11 @@ from supabase import create_client, client
 from formulas_lib_funciones import enviar_email 
 
 def renderizar_tab_admin(datos_sidebar=None):
-    supabase = st.session_state.supabase
+    if "supabase" in st.session_state and st.session_state.supabase:
+        supabase = st.session_state.supabase
+    else:
+        st.error("❌ Error: La conexión a Supabase no ha sido inicializada en el login.")
+        return
     if st.session_state.rol == "Administrador":
         st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")      
         try:
