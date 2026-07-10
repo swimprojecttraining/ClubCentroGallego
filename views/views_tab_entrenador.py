@@ -8,7 +8,11 @@ from formulas_lib_funciones import formatear_a_minutos, convertir_string_a_segun
 
 def renderizar_tab_entrenador(datos_sidebar=None):
     # 1. Enlace directo y limpio con Supabase
-    global supabase
+global supabase
+    # 🕵️‍♂️ LÍNEAS DE DIAGNÓSTICO TEMPORAL
+    st.write("🔍 Llaves vivas en Session State:", list(st.session_state.keys()))
+    if datos_sidebar:
+        st.write("🔍 Datos del Sidebar:", datos_sidebar)
     if "supabase" in st.session_state and st.session_state.supabase:
         supabase = st.session_state.supabase
     else:
