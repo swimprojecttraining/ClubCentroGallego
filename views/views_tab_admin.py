@@ -8,6 +8,7 @@ from supabase import create_client, Client
 from formulas_lib_funciones import enviar_email 
 
 def renderizar_tab_admin(datos_sidebar=None):
+    global supabase
     if "supabase" in st.session_state and st.session_state.supabase:
         supabase = st.session_state.supabase
     else:
