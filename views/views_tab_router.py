@@ -4,7 +4,7 @@
 import streamlit as st
 
 # 1. Importación directa (gracias al mapeo de ruta del root_app)
-from views_sidebar import renderizar_sidebar_completo
+from views_sidebar import renderizar_sidebar_acceso_y_gestion
 
 # 2. IMPORTACIÓN DE CADA PESTAÑA DE MANERA DIRECTA
 from views_tab_admin import renderizar_tab_admin
