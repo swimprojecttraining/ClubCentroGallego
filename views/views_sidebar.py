@@ -51,7 +51,7 @@ def renderizar_sidebar_completo():
     # -------------------------------------------------------------
     # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Filtros por Rol)
     # -------------------------------------------------------------
-if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
@@ -80,7 +80,7 @@ if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
                 st.session_state.nadador_seleccionado_nombre = atleta_dict["nombre"]
                 st.session_state.nadador_seleccionado_genero = atleta_dict.get("genero", "M")
                 
-                # 🎯 CÁLCULO REAL: Como viene de Supabase crudo, extraemos la fecha y calculamos la categoría real al vuelo
+                # 🎯 CÁLCULO REAL: Extraemos la fecha y calculamos la categoría real al vuelo
                 fecha_nac_atleta = atleta_dict.get("fecha_nacimiento")
                 if fecha_nac_atleta:
                     fecha_limpia = str(fecha_nac_atleta).strip()[:10]
@@ -324,7 +324,7 @@ if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
     # -------------------------------------------------------------
-    # 📐 PARÁMETROS DE LÍMITES Y PB (INDICADORES DE CANDADO 🔓/🔒)
+    # ⚖️ PARÁMETROS DE LÍMITES Y PB (INDICADORES DE CANDADO 🔓/🔒)
     # -------------------------------------------------------------
     spc()
     if simulacion_externa:
