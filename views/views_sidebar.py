@@ -1,5 +1,5 @@
 import streamlit as st
-from views_login_app.py import supabase
+from views.views_login_app import supabase
 # 1. Definimos la función en el mismo archivo para prueba rápida
 def renderizar_sidebar_acceso_y_gestion(supabase):
     st.sidebar.markdown(f"**Usuario:** Alvaro Gallegos") # Ajusta según tu lógica real
