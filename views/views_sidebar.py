@@ -51,7 +51,7 @@ def renderizar_sidebar_completo():
     # -------------------------------------------------------------
     # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Filtros por Rol)
     # -------------------------------------------------------------
-    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
@@ -78,10 +78,18 @@ def renderizar_sidebar_completo():
                 
                 st.session_state.nadador_seleccionado_id = int(atleta_dict["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_dict["nombre"]
-                st.session_state.nadador_seleccionado_genero = atleta_dict.get("genero_codigo", atleta_dict.get("genero", "M"))
+                st.session_state.nadador_seleccionado_genero = atleta_dict.get("genero", "M")
                 
-                 st.session_state.nadador_seleccionado_categoria = atleta_dict.get("categoria", "Infantil A")
-                st.session_state["nadador_seleccionado_edad_tecnica"] = atleta_dict.get("edad", 0)
+                # 🎯 CÁLCULO REAL: Como viene de Supabase crudo, extraemos la fecha y calculamos la categoría real al vuelo
+                fecha_nac_atleta = atleta_dict.get("fecha_nacimiento")
+                if fecha_nac_atleta:
+                    fecha_limpia = str(fecha_nac_atleta).strip()[:10]
+                    cat_calc, edad_calc = calcular_categoria_competencia(fecha_limpia)
+                    st.session_state.nadador_seleccionado_categoria = cat_calc
+                    st.session_state["nadador_seleccionado_edad_tecnica"] = edad_calc
+                else:
+                    st.session_state.nadador_seleccionado_categoria = "Sin Categoría"
+                    st.session_state["nadador_seleccionado_edad_tecnica"] = 0
                 
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
@@ -89,16 +97,18 @@ def renderizar_sidebar_completo():
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
         else:
+            # Bloque de respaldo si no entra en la condición de arriba
             st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
             st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
             st.session_state.nadador_seleccionado_genero = st.session_state.genero
-        
-            # 🎯 VALIDACIÓN DE SEGURIDAD: Si tu sesión trae "Error Formato", lo limpiamos por defecto
+            
+            # El parche de seguridad para limpiar tu cabecera cuando entras tú como Admin:
             cat_inicial = st.session_state.get("categoria_atleta", "Master")
             if cat_inicial == "Error Formato":
                 st.session_state.nadador_seleccionado_categoria = "Todo el Equipo"
             else:
                 st.session_state.nadador_seleccionado_categoria = cat_inicial
+
     modo_equipo = False
     tipo_filtro = "Todos los Atletas"
     filtro_genero = "Todos"
