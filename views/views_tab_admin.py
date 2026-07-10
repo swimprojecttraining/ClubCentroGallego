@@ -8,21 +8,9 @@ from supabase import create_client, client
 from formulas_lib_funciones import enviar_email 
 
 def renderizar_tab_admin(datos_sidebar=None):
+    supabase = st.session_state.supabase
     if st.session_state.rol == "Administrador":
-        st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")
-        import streamlit as st
-import pandas as pd
-import datetime
-import io
-import zipfile
-from supabase import create_client, client
-# Se asume la existencia de la función de mensajería del sistema unificado
-from formulas_lib_funciones import enviar_email 
-
-def renderizar_tab_admin(datos_sidebar=None):
-    if st.session_state.rol == "Administrador":
-        st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")
-        supabase = st.session_state.supabase
+        st.markdown("### 🛡️ Consola de Control de Usuarios e Integridad de Datos")      
         try:
             resp_usuarios = supabase.table("usuarios").select("id, nombre, usuario, email, rol, genero, estatus, fecha_nacimiento").execute()
             if resp_usuarios.data:
