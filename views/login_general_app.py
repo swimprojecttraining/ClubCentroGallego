@@ -22,7 +22,6 @@ def login_usuario(user, password, client_db):
         # Consulta exacta a la estructura de tu BD local
         response = client_db.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user_lower).eq("contrasena", hashed_pw).execute()
         
-        # IF correctamente anidado dentro del TRY
         if response.data:
             user_data = response.data[0]
             
@@ -34,17 +33,11 @@ def login_usuario(user, password, client_db):
                 st.error(f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica.")
                 return False
                 
-            # ==============================================================
-            # ✨ GUARDADO SEGURO Y DINÁMICO EN EL SESSION_STATE
-            # ==============================================================
             st.session_state.autenticado = True
-            st.session_state.supabase = client_db  # Guardamos la conexión de este usuario de forma aislada
             st.session_state.usuario_id = user_data["id"]
             st.session_state.nombre_nadador = user_data["nombre"]
             st.session_state.genero = user_data.get("genero", "F")
-            
-            # El rol se asigna dinámicamente según lo que devuelva la columna de tu BD
-            st.session_state.rol = user_data.get("rol", "Nadador") 
+            st.session_state.rol = user_data.get("rol", "Nadador")
             st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
             
             # Poblar variables de categoría usando tus rangos reales del archivo formulas
@@ -57,13 +50,11 @@ def login_usuario(user, password, client_db):
             st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
             st.session_state.nadador_seleccionado_categoria = cat
             return True
-            
-        # Este return maneja si response.data viene vacío
         return False
-
     except Exception as e:
         st.error(f"Error en Login: {e}")
         return False
+
 
 def mostrar_pantalla_login():
     """
@@ -90,13 +81,15 @@ def mostrar_pantalla_login():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
 
-    # Conexión fallback si se pierde la instancia
+    # Si entramos aquí, asumimos que st.session_state.puente_validado ya es True gracias al root_app.py.
+    # Si por algún motivo se perdió la instancia de base de datos, la conectamos usando las credenciales locales
     if not st.session_state.supabase:
         try:
             st.session_state.supabase = create_client(
                 st.secrets["SUPABASE_URL"], 
                 st.secrets["SUPABASE_KEY"]
             )
+            # Extraemos el nombre del club desde los secrets o por defecto
             st.session_state.club_seleccionado = st.secrets.get("NOMBRE_CLUB_LOCAL", "Centro Gallego")
         except Exception as e:
             st.error(f"❌ Error de infraestructura al conectar base de datos local: {e}")
@@ -148,6 +141,7 @@ def mostrar_pantalla_login():
                                     nuevo_rol = st.session_state.reg_datos_temporales["rol"]
                                     nuevo_email = st.session_state.reg_datos_temporales["email"]
                                     
+                                    # ✨ SIN CORRUPCIÓN: Alineación corregida perfectamente
                                     if status_inicial == "Pendiente":
                                         enviar_email("Cuenta en Revisión", f"Hola {nuevo_nombre}, tu cuenta de {nuevo_rol} ha sido registrada. Está pendiente de revisión por el administrador.", nuevo_email)
                                         enviar_email("Nuevo Registro Pendiente", f"El usuario {nuevo_nombre} ({nuevo_rol}) se ha registrado. Email: {nuevo_email}. Favor revisar en consola admin.", st.secrets["EMAIL_ADMIN"])
@@ -287,7 +281,5 @@ def mostrar_pantalla_login():
                                     else:
                                         st.error("❌ Los datos proporcionados no coinciden con ningún registro activo.")
                                 except Exception as rec_err:
-                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")                                 
-        
-        # El stop detiene la renderización de la app principal para no autenticados
+                                    st.error(f"Error durante el proceso de restablecimiento: {rec_err}")                         
         st.stop()
