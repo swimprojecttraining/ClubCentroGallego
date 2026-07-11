@@ -38,12 +38,12 @@ def renderizar_sidebar_acceso_y_gestion():
             resp_asig = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
             ids_asignados = [reg["atleta_id"] for reg in resp_asig.data] if resp_asig.data else []
             if ids_asignados:
-                resp_atletas = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").eq("estatus", "Activo").in_("id", ids_asignados).execute()
+                resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").in_("id", ids_asignados).execute()
             else:
                 resp_atletas = None
         else:
             # Head Coach y Admin tienen acceso global
-            resp_atletas = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+            resp_atletas = supabase.table("usuarios").select("id, nombre, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
     
         if resp_atletas and resp_atletas.data:
             df_atl = pd.DataFrame(resp_atletas.data)
@@ -61,12 +61,20 @@ def renderizar_sidebar_acceso_y_gestion():
                 format_func=lambda x: dict_atletas[x],
                 key="selector_nadador_real"
             )
-    
-            # Si el usuario cambió la selección en el sidebar, actualizamos el estado
+# Si el usuario cambió la selección en el sidebar, actualizamos el estado
             if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
                 st.session_state.nadador_seleccionado_id = st.session_state.selector_nadador_real
-                # Actualizamos también el nombre para consistencia
-                st.session_state.nadador_seleccionado_nombre = dict_atletas[sel_id]
+                
+                # Actualizamos los datos del nadador seleccionado desde el DataFrame
+                nadador_info = df_atl[df_atl['id'] == st.session_state.selector_nadador_real].iloc[0]
+                
+                st.session_state.nadador_seleccionado_nombre = nadador_info['nombre']
+                st.session_state.nadador_seleccionado_genero = nadador_info.get('genero', 'N/A')
+                
+                # Aquí calculas o extraes la categoría
+                # Asegúrate de que 'categoria' exista en tu consulta a la tabla 'usuarios'
+                st.session_state.nadador_seleccionado_categoria = nadador_info.get('categoria', 'Sin Categoría')
+                
                 st.rerun()
                 
         else:
