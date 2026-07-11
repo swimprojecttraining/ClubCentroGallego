@@ -31,7 +31,7 @@ def mostrar_vista_enrutador():
     
     titulo_grafico = datos_sidebar.get("titulo_grafico", "Visión General")
     simulacion_externa = datos_sidebar["simulacion_externa"]
-    modo_equipo = datos_sidebar["modo_equipo"]
+    modo_equipo = datos_sidebar.get("modo_equipo", False)
 
     # Encabezado dinámico según rol y simulación
     if modo_equipo:
