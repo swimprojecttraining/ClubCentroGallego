@@ -4,17 +4,17 @@
 import streamlit as st
 
 # 1. Importación directa (gracias al mapeo de ruta del root_app)
-from views_sidebar import renderizar_sidebar_acceso_y_gestion
+from views_sidebar import renderizar_sidebar_completo
 
 # 2. IMPORTACIÓN DE CADA PESTAÑA DE MANERA DIRECTA
 from views_tab_admin import renderizar_tab_admin
 from views_tab_asignaciones import renderizar_tab_asignaciones
 from views_tab_calendario import renderizar_tab_calendario
 from views_tab_entrenador import renderizar_tab_entrenador
-#from views_tab_grafico import renderizar_tab_grafico
+from views_tab_grafico import renderizar_tab_grafico
 from views_tab_marcas import renderizar_tab_marcas
-#from views_tab_pizarra import renderizar_tab_pizarra
-#from views_tab_reportes import renderizar_tab_reportes
+from views_tab_pizarra import renderizar_tab_pizarra
+from views_tab_reportes import renderizar_tab_reportes
 
 def mostrar_vista_enrutador():
     """
@@ -22,17 +22,12 @@ def mostrar_vista_enrutador():
     Captura los parámetros de la barra lateral y distribuye de forma aislada
     el flujo hacia archivos independientes dentro de la carpeta views.
     """
-    # 1. Llamada a la sidebar
-    datos_sidebar = renderizar_sidebar_acceso_y_gestion()
+    # Ejecutamos la barra lateral y extraemos su diccionario reactivo sin caché
+    datos_sidebar = renderizar_sidebar_completo()
     
-    # 2. Blindaje: Si es None, inicializamos un diccionario vacío
-    if datos_sidebar is None:
-        datos_sidebar = {}
-    
-    # 3. Lectura segura con valores por defecto
-    titulo_grafico = datos_sidebar.get("titulo_grafico", "Visión General")
-    simulacion_externa = datos_sidebar.get("simulacion_externa", False)
-    modo_equipo = datos_sidebar.get("modo_equipo", False)
+    titulo_grafico = datos_sidebar["titulo_grafico"]
+    simulacion_externa = datos_sidebar["simulacion_externa"]
+    modo_equipo = datos_sidebar["modo_equipo"]
 
     # Encabezado dinámico según rol y simulación
     if modo_equipo:
@@ -62,22 +57,22 @@ def mostrar_vista_enrutador():
         ])
 
     # Enrutamiento directo a los archivos de la misma carpeta
-#    with tab_grafico:
-#        renderizar_tab_grafico(datos_sidebar)
+    with tab_grafico:
+        renderizar_tab_grafico(datos_sidebar)
 
     if not simulacion_externa:
-#        with tab_pizarra:
-#            renderizar_tab_pizarra(datos_sidebar)
-#        with tab_reportes:
-#            renderizar_tab_reportes(datos_sidebar)
+        with tab_pizarra:
+            renderizar_tab_pizarra(datos_sidebar)
+        with tab_reportes:
+            renderizar_tab_reportes(datos_sidebar=None)
         with tab_marcas:
-            renderizar_tab_marcas(datos_sidebar)
+            renderizar_tab_marcas(datos_sidebar=None)
         with tab_entrenador:
-            renderizar_tab_entrenador(datos_sidebar)
+            renderizar_tab_entrenador(datos_sidebar=None)
         with tab_asignaciones:
-            renderizar_tab_asignaciones(datos_sidebar)
+            renderizar_tab_asignaciones(datos_sidebar=None)
         with tab_calendario:
-            renderizar_tab_calendario(datos_sidebar)
+            renderizar_tab_calendario(datos_sidebar=None)
         with tab_admin:
-            renderizar_tab_admin(datos_sidebar)
+            renderizar_tab_admin(datos_sidebar=None)
 
