@@ -66,7 +66,7 @@ def formatear_a_minutos(segundos_flotante: float) -> str:
         if minutos > 0:
             return f"{minutos}:{segundos:05.2f}"  # M:SS.hh (fuerza 2 dígitos en segundos)
         else:
-            return f"{segundos:.2f}"            # Si es menor a un minuto, lo deja en segundos
+            return f"{segundos:.2f} s"            # Si es menor a un minuto, lo deja en segundos
     except (ValueError, TypeError):
         return "-"
 
@@ -167,25 +167,11 @@ def sincronizar_hitos_competencias_atleta(nadador_id, fecha_nacimiento, genero_a
 # -------------------------------------------------------------
 # LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
 # -------------------------------------------------------------
-def calcular_categoria_competencia(fecha_nac_input):
-    """
-    Calcula la categoría etaria de competencia de forma segura.
-    Soporta objetos datetime, date y cadenas de texto con o sin hora.
-    """
-    if not fecha_nac_input:
+def calcular_categoria_competencia(fecha_nac_str):
+    if not fecha_nac_str:
         return "Desconocida", 0
-        
     try:
-        # 1. Si ya es un objeto datetime o date, extraemos solo la fecha
-        if hasattr(fecha_nac_input, "year"):
-            fecha_nac = fecha_nac_input
-        else:
-            # 2. Si es string, limpiamos espacios y nos quedamos con los primeros 10 caracteres (YYYY-MM-DD)
-            fecha_limpia = str(fecha_nac_input).strip()[:10]
-            # Convertimos reemplazando barras por guiones por si acaso
-            fecha_limpia = fecha_limpia.replace("/", "-")
-            fecha_nac = datetime.date.fromisoformat(fecha_limpia)
-            
+        fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str))
     except Exception:
         return "Error Formato", 0
         
