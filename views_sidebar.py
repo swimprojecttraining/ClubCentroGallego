@@ -79,8 +79,12 @@ def renderizar_sidebar_completo():
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
                 st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
                 
-                cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                st.session_state.nadador_seleccionado_categoria = cat_calc
+                resultado_total = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+                st.sidebar.write(f"DEBUG: El resultado completo de la función es: {resultado_total}")
+                
+                # Luego, separa los valores con claridad
+                cat_calc = resultado_total[0]
+                segundo_valor = resultado_total[1]
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
                 st.session_state.nadador_seleccionado_id = None
