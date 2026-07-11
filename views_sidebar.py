@@ -79,9 +79,6 @@ def renderizar_sidebar_completo():
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
                 st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
                 
-                st.write(f"DEBUG: Tipo de dato recibido: {type(atleta_row.get('fecha_nacimiento'))}")
-                st.write(f"DEBUG: Valor recibido: {atleta_row.get('fecha_nacimiento')}")
-                
                 cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
                 st.session_state.nadador_seleccionado_categoria = cat_calc
             else:
