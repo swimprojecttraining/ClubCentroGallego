@@ -198,7 +198,6 @@ def calcular_categoria_competencia(fecha_nac_str):
         cat = "Máster"
     else:
         cat = "Semillero / Menor"
-        
     return cat, edad_competencia
 
 def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
