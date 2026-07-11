@@ -64,7 +64,7 @@ def renderizar_sidebar_acceso_y_gestion():
                 key="selector_nadador_real"
             )
 # Si el usuario cambió la selección en el sidebar, actualizamos el estado
-if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
+            if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
                 nadador_info = df_atl[df_atl['id'] == st.session_state.selector_nadador_real].iloc[0]
                 
                 st.session_state.nadador_seleccionado_id = st.session_state.selector_nadador_real
