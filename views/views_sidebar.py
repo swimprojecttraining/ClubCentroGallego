@@ -63,17 +63,14 @@ def renderizar_sidebar_acceso_y_gestion():
             )
 # Si el usuario cambió la selección en el sidebar, actualizamos el estado
             if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
-                st.session_state.nadador_seleccionado_id = st.session_state.selector_nadador_real
-                
-                # Actualizamos los datos del nadador seleccionado desde el DataFrame
+                # Obtenemos la fila completa del nadador seleccionado
                 nadador_info = df_atl[df_atl['id'] == st.session_state.selector_nadador_real].iloc[0]
                 
+                # Actualizamos todos los datos clave en el estado
+                st.session_state.nadador_seleccionado_id = st.session_state.selector_nadador_real
                 st.session_state.nadador_seleccionado_nombre = nadador_info['nombre']
-                st.session_state.nadador_seleccionado_genero = nadador_info.get('genero', 'N/A')
-                
-                # Aquí calculas o extraes la categoría
-                # Asegúrate de que 'categoria' exista en tu consulta a la tabla 'usuarios'
-                st.session_state.nadador_seleccionado_categoria = nadador_info.get('categoria', 'Sin Categoría')
+                st.session_state.nadador_seleccionado_genero = nadador_info.get('genero', 'F')
+                st.session_state.nadador_seleccionado_fecha_nacimiento = nadador_info.get('fecha_nacimiento', 'Sin Categoría')
                 
                 st.rerun()
                 
