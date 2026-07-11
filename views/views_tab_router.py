@@ -11,10 +11,10 @@ from views_tab_admin import renderizar_tab_admin
 from views_tab_asignaciones import renderizar_tab_asignaciones
 from views_tab_calendario import renderizar_tab_calendario
 from views_tab_entrenador import renderizar_tab_entrenador
-from views_tab_grafico import renderizar_tab_grafico
-from views_tab_marcas import renderizar_tab_marcas
-from views_tab_pizarra import renderizar_tab_pizarra
-from views_tab_reportes import renderizar_tab_reportes
+#from views_tab_grafico import renderizar_tab_grafico
+#from views_tab_marcas import renderizar_tab_marcas
+#from views_tab_pizarra import renderizar_tab_pizarra
+#from views_tab_reportes import renderizar_tab_reportes
 
 def mostrar_vista_enrutador():
     """
@@ -57,13 +57,13 @@ def mostrar_vista_enrutador():
         ])
 
     # Enrutamiento directo a los archivos de la misma carpeta
-    with tab_grafico:
-        renderizar_tab_grafico(datos_sidebar)
+    #with tab_grafico:
+        #renderizar_tab_grafico(datos_sidebar)
 
     if not simulacion_externa:
-        with tab_pizarra:
-            renderizar_tab_pizarra(datos_sidebar)
-        with tab_reportes:
+        #with tab_pizarra:
+            #renderizar_tab_pizarra(datos_sidebar)
+        #with tab_reportes:
             renderizar_tab_reportes(datos_sidebar=None)
         with tab_marcas:
             renderizar_tab_marcas(datos_sidebar=None)
