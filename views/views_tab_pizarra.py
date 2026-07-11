@@ -2,205 +2,377 @@ import streamlit as st
 import pandas as pd
 import datetime
 import urllib.parse
-import json
-from formulas_lib_funciones import (
-    calcular_categoria_competencia, 
-    obtener_atletas_filtrados_supabase
-)
 
 def renderizar_tab_pizarra(datos_sidebar):
     """
-    Controlador maestro: Orquesta la lógica sin fragmentación, 
-    asegurando la persistencia del estado en st.session_state.
+    Módulo operativo independiente para la Pizarra de Entrenamiento Diario,
+    Difusión por Canales, Segmentación e Imputación Histórica de Carga.
     """
+    # Extracción de parámetros de control desde el Sidebar Maestro
+    simulacion_externa = datos_sidebar.get("simulacion_externa", False)
     supabase = st.session_state.get("supabase")
-    
-    # 1. Seguridad: Acceso restringido a equipo técnico
-    if st.session_state.rol not in ["Head Coach", "Entrenador", "Administrador"]:
-        st.warning("🔒 Sección restringida.")
+
+    if simulacion_externa:
+        st.warning("⚠️ El módulo de gestión y control de entrenamientos está deshabilitado en Modo Simulación.")
         return
 
-    # 2. Inicialización de Estado (Pilar de la pizarra)
-    if "pizarra_entrenamiento" not in st.session_state:
-        st.session_state.pizarra_entrenamiento = []
+    # Restricción estricta de roles para el equipo técnico
+    if st.session_state.rol not in ["Head Coach", "Entrenador", "Administrador"]:
+        st.warning("🔒 Sección restringida al equipo técnico.")
+        return
 
-    # 3. Router de pestañas interno
+    # Definición e inicialización de las sub-pestañas internas exactas
     subtab_crear, subtab_reportes = st.tabs(["✍️ Diseñar Menú del Día", "📊 Reportes e Historial"])
 
+    # =========================================================================
+    # SUB-PESTAÑA 1: DISEÑO, DIFUSIÓN Y CONSOLIDACIÓN DIARIA
+    # =========================================================================
     with subtab_crear:
-        _render_diseno_y_difusion()
-    
-    with subtab_reportes:
-        _render_biblioteca_y_reportes(supabase)
+        st.markdown("### 📋 Estructura del Entrenamiento de Hoy")
+        st.caption("Diseña la sesión agregando bloques. Al finalizar, controla la asistencia para imputar la carga individual.")
 
-# --- FIN DEL CAPITULO 1 ---
-# --- CAPÍTULO 2: CAPA 1 - LÓGICA DE DISEÑO Y DIFUSIÓN ---
+        # Inicializar la pizarra en la memoria de sesión si no existe
+        if "pizarra_entrenamiento" not in st.session_state:
+            st.session_state.pizarra_entrenamiento = []
 
-def _render_diseno_y_difusion():
-    """
-    Contiene la lógica exacta del original: 
-    Formulario de series (c_rep, c_dist, c_est) y Módulo de Difusión.
-    """
-    st.markdown("### 📋 Estructura del Entrenamiento de Hoy")
-    st.caption("Diseña la sesión agregando bloques. Al finalizar, controla la asistencia para imputar la carga.")
+        # Formulario de ingreso rápido de series
+        with st.expander("➕ Añadir nueva serie al entrenamiento", expanded=True):
+            c_rep, c_dist, c_est = st.columns(3)
+            with c_rep:
+                repeticiones = st.number_input("Repeticiones", min_value=1, value=1, step=1, key="piz_rep")
+            with c_dist:
+                distancia = st.number_input("Distancia (m)", min_value=15, value=100, step=25, key="piz_dist")
+            with c_est:
+                estilo = st.selectbox("Estilo / Foco", ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Piernas", "Brazos", "Técnica / Drills", "Afloje"], key="piz_est")
+                
+            c_int, c_imp, c_not = st.columns(3)
+            with c_int:
+                intensidad = st.selectbox("Ritmo / Intensidad RPE", ["Suave (Aeróbico Ligero 3-4)", "Medio (Aeróbico Medio 5-6)", "Sostenido (Umbral 7-8)", "Ritmo de Competencia (Anaeróbico 9-10)", "Sprint (Máximo 10-11)"], key="piz_int")
+            with c_imp:
+                implementos = st.multiselect("Implementos", ["Aletas", "Paletas", "Tabla", "Pullbuoy", "Snorkel", "Paracaídas", "Ligas"], key="piz_imp")
+            with c_not:
+                notas = st.text_input("Instrucciones breves (Opcional)", placeholder="Ej: c/1:30 nado y descanso, Respiración c/3, Descanso 20s", key="piz_not")
 
-    # 1. Formulario de ingreso (Fidelidad total al original)
-    with st.expander("➕ Añadir nueva serie al entrenamiento", expanded=True):
-        c_rep, c_dist, c_est = st.columns(3)
-        with c_rep: repeticiones = st.number_input("Repeticiones:", min_value=1, value=1)
-        with c_dist: distancia = st.number_input("Distancia (m):", min_value=25, step=25, value=100)
-        with c_est: estilo = st.selectbox("Estilo:", ["Libre", "Espalda", "Pecho", "Mariposa", "Variado"])
-        
-        ejercicio = st.text_input("Descripción / Ejercicio:")
-        implementos = st.multiselect("Implementos:", ["Aletas", "Paletas", "Snorkel", "Tabla", "Pullbuoy"])
-        
-        if st.button("✅ Agregar a la Pizarra"):
-            st.session_state.pizarra_entrenamiento.append({
-                "rep": repeticiones, "dist": distancia, "est": estilo, 
-                "ej": ejercicio, "implementos": implementos
-            })
-            st.rerun()
-
-    # 2. Visualización y Gestión de la Pizarra
-    if st.session_state.pizarra_entrenamiento:
-        for idx, serie in enumerate(st.session_state.pizarra_entrenamiento):
-            st.write(f"**{serie['rep']} x {serie['dist']}m {serie['est']}** - {serie['ej']} ({', '.join(serie['implementos'])})")
-            if st.button(f"🗑️ Eliminar serie {idx + 1}", key=f"del_{idx}"):
-                st.session_state.pizarra_entrenamiento.pop(idx)
+            if st.button("Añadir a la sesión", use_container_width=True, key="btn_add_piz"):
+                bloque = {
+                    "reps": repeticiones,
+                    "dist": distancia,
+                    "estilo": estilo,
+                    "intensidad": intensidad,
+                    "implementos": implementos,
+                    "notas": notas
+                }
+                st.session_state.pizarra_entrenamiento.append(bloque)
                 st.rerun()
 
-        # 3. Módulo de Difusión (Irrenunciable)
-        st.divider()
-        st.markdown("#### 📤 Difusión del Entrenamiento")
-        texto_rutina = "Rutina del Día:\n" + "\n".join([f"- {s['rep']}x{s['dist']}m {s['est']}" for s in st.session_state.pizarra_entrenamiento])
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.download_button("📥 Descargar TXT", data=texto_rutina, file_name="rutina.txt")
-        with col2:
-            st.link_button("💬 WhatsApp", url=f"https://wa.me/?text={urllib.parse.quote(texto_rutina)}")
-        with col3:
-            st.link_button("📧 Enviar Correo", url=f"mailto:?subject=Rutina&body={urllib.parse.quote(texto_rutina)}")
-    else:
-        st.info("La pizarra está vacía. ¡Agrega series para comenzar!")
-
-# --- FIN DE LA CAPA 1 ---
-# --- CAPÍTULO 3: CAPA 2 - MOTOR DE REHIDRATACIÓN Y BIBLIOTECA ---
-
-def _render_biblioteca_y_reportes(supabase):
-    """
-    Motor de búsqueda histórica y rehidratación. 
-    Limpia las notas cronológicas para inyectar una rutina pura al diseñador.
-    """
-    st.markdown("#### 🔍 Biblioteca de Rutinas")
-    
-    # 1. Filtro de búsqueda (Buscamos rutinas de los últimos 60 días)
-    fecha_limite = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
-    try:
-        historial = supabase.table("pizarra_entrenamiento").select("*").gte("fecha", fecha_limite).order("fecha", desc=True).execute().data
-        
-        if historial:
-            df_hist = pd.DataFrame(historial)
-            # Selector de rutina para evitar el desorden de múltiples expanders
-            seleccion = st.dataframe(
-                df_hist[["fecha", "carril", "notas"]], 
-                use_container_width=True, 
-                selection_mode="single-row", 
-                on_select="rerun"
-            )
+        # Visualización del entrenamiento acumulado en la sesión activa
+        if st.session_state.pizarra_entrenamiento:
+            st.markdown("---")
+            volumen_total = 0
+            fecha_difusion = st.session_state.get("piz_date_input_save", datetime.date.today())
+            carril_difusion = st.session_state.get("piz_carril_input_save", "")
             
-            if len(seleccion["selection"]["rows"]) > 0:
-                idx = seleccion["selection"]["rows"][0]
-                rutina_sel = historial[idx]
-                
-                st.divider()
-                st.markdown(f"**Detalle de la rutina: {rutina_sel['fecha']} - {rutina_sel['carril']}**")
-                st.json(rutina_sel.get("bloques", []))
-                
-                if st.button("🔄 Reinyectar al Diseñador"):
-                    # MOTOR DE LIMPIEZA: Reconstrucción pura de bloques
-                    bloques_reconstruidos = []
-                    for bloque in rutina_sel.get("bloques", []):
-                        bloques_reconstruidos.append({
-                            "rep": bloque.get("rep"),
-                            "dist": bloque.get("dist"),
-                            "est": bloque.get("est"),
-                            "ej": bloque.get("ej"),
-                            "implementos": bloque.get("implementos", []),
-                            "notas": "" # ✨ LIMPIEZA: Removida anotación cronológica
-                        })
-                    st.session_state.pizarra_entrenamiento = bloques_reconstruidos
-                    st.success("¡Plan inyectado con éxito! Ve a 'Diseñar Menú del Día'.")
+            # Reconstrucción dinámica del string para difusión
+            texto_exportacion = f"🏊‍♂️ *PLAN DE ENTRENAMIENTO DEL DÍA* - Fecha: {fecha_difusion.strftime('%d/%m/%Y') if hasattr(fecha_difusion, 'strftime') else fecha_difusion}\n"
+            if carril_difusion:
+                texto_exportacion += f"📍 *Grupo/Carril:* {carril_difusion}\n"
+            
+            for idx, blk in enumerate(st.session_state.pizarra_entrenamiento, 1):
+                subtotal = blk['reps'] * blk['dist']
+                volumen_total += subtotal
+                txt_impl = f" [{', '.join(blk['implementos'])}]" if blk['implementos'] else ""
+                txt_not = f" - _{blk['notas']}_" if blk['notas'] else ""
+                texto_exportacion += f"• {blk['reps']} x {blk['dist']}m {blk['estilo']} | {blk['intensidad']}{txt_impl}{txt_not}\n"
+
+            texto_exportacion += f"\n📊 *Volumen Total:* {volumen_total:,} metros\n"
+            
+            # Panel Informativo Visual y Métrica
+            st.info(texto_exportacion)
+            st.metric("Volumen Total de la Sesión", f"{volumen_total:,} metros")
+            
+            c_undo, c_clear = st.columns(2)
+            with c_undo:
+                if st.button("⏪ Deshacer último bloque", use_container_width=True, key="piz_btn_undo"):
+                    st.session_state.pizarra_entrenamiento.pop()
                     st.rerun()
+            with c_clear:
+                if st.button("🗑️ Limpiar pizarra completa", use_container_width=True, key="piz_btn_clear"):
+                    st.session_state.pizarra_entrenamiento = []
+                    st.rerun()
+
+            # =============================================================================
+            # 📢 CENTRO DE DIFUSIÓN Y EXPORTACIÓN DE LA JORNADA
+            # =============================================================================
+            st.markdown("---")
+            st.markdown("### 📢 Centro de Difusión y Publicación de la Pizarra")
+            st.caption("Genera el formato de communication para enviar a los atletas por canales digitales o preparar la hoja impresa.")
+            
+            texto_url = urllib.parse.quote(texto_exportacion)
+            link_whatsapp = f"https://api.whatsapp.com/send?text={texto_url}"
+            link_correo = f"mailto:?subject=Plan%20de%20Entrenamiento%20{fecha_difusion}&body={texto_url}"
+
+            c_com1, c_com2, c_com3 = st.columns(3)
+            with c_com1:
+                st.link_button("🟢 Enviar por WhatsApp", link_whatsapp, use_container_width=True)
+            with c_com2:
+                st.link_button("📩 Enviar por Correo", link_correo, use_container_width=True)
+            with c_com3:
+                st.download_button(
+                    label="🖨️ Descargar Hoja de Carril (TXT)",
+                    data=texto_exportacion.replace("*", ""),
+                    file_name=f"pizarra_{fecha_difusion}_{str(carril_difusion).replace(' ', '_') if carril_difusion else 'general'}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+
+            with st.expander("👀 Ver vista previa del mensaje a enviar"):
+                st.code(texto_exportacion, language="markdown")
+
+            # =============================================================================
+            # 🔍 SECCIÓN DE SEGMENTACIÓN (ASISTENCIA/CARGA)
+            # =============================================================================
+            st.markdown("---")
+            st.markdown("### 🔍 Segmentación de Destinatarios (Asistencia/Carga)")
+            
+            col_foto1, col_foto2 = st.columns(2)
+            with col_foto1:
+                filtro_genero = st.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"], horizontal=True, key="piz_radio_genero_idx")
+            with col_foto2:
+                tipo_filtro = st.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"], horizontal=True, key="piz_radio_tipo_idx")
+
+            # Resolución del cliente Supabase activo
+            ctx_supabase = supabase if supabase else st.session_state.get("supabase_client")
+            atletas_pool = []
+
+            if ctx_supabase:
+                try:
+                    es_entrenador = st.session_state.get("rol") == "Entrenador"
+                    entrenador_id = st.session_state.get("usuario_id")
+                    permitir_consulta = True
+                    ids_autorizados = []
+
+                    if es_entrenador:
+                        if entrenador_id:
+                            resp_asig = ctx_supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", entrenador_id).execute()
+                            if resp_asig.data:
+                                ids_autorizados = [reg["atleta_id"] for reg in resp_asig.data]
+                            if not ids_autorizados:
+                                permitir_consulta = False
+                        else:
+                            st.error("❌ Error de sesión: No se encontró el ID del entrenador.")
+                            permitir_consulta = False
+
+                    if permitir_consulta:
+                        query_atletas = ctx_supabase.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo")
+                        if es_entrenador:
+                            query_atletas = query_atletas.in_("id", ids_autorizados)
+                        
+                        resp_sb = query_atletas.execute()
+                        if resp_sb.data:
+                            atletas_pool = resp_sb.data
+                    else:
+                        st.warning("⚠️ No tienes atletas asignados en tu perfil de Entrenador.")
+                except Exception as e:
+                    st.error(f"Error al cargar nómina desde Supabase: {e}")
+
+            # Filtrado por Género en memoria
+            if filtro_genero == "Femenino (F)":
+                atletas_pool = [a for a in atletas_pool if a.get("genero") == "F"]
+            elif filtro_genero == "Masculino (M)":
+                atletas_pool = [a for a in atletas_pool if a.get("genero") == "M"]
+
+            # Importación y cálculo dinámico de categorías (Feveda)
+            from formulas.formulas_lib_funciones import calcular_edad_tecnica_al_31_dic, calcular_categoria_competencia
+            
+            categorias_disponibles = sorted(list(set([
+                calcular_categoria_competencia(a["fecha_nacimiento"])[0] 
+                for a in atletas_pool if a.get("fecha_nacimiento")
+            ]))) if atletas_pool else []
+
+            dict_nom = {a["id"]: a["nombre"] for a in atletas_pool} if atletas_pool else {}
+            atletas_finales = []
+
+            if tipo_filtro == "Categoría Etaria":
+                cat_sel = st.selectbox("Seleccione la Categoría Etaria:", options=categorias_disponibles if categorias_disponibles else ["Cargando categorías activos..."], key="piz_selectbox_cat")
+                if categorias_disponibles:
+                    atletas_finales = [a for a in atletas_pool if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
+            elif tipo_filtro == "Atletas Específicos":
+                ids_sel = st.multiselect("Seleccione Nadador(es) Individual(es):", options=list(dict_nom.keys()), format_func=lambda x: dict_nom.get(x, "Cargando atleta..."), key="piz_multiselect_atletas")
+                if ids_sel:
+                    atletas_finales = [a for a in atletas_pool if a["id"] in ids_sel]
+            else:
+                atletas_finales = atletas_pool
+
+            if tipo_filtro == "Atletas Específicos" and not atletas_finales:
+                st.info("💡 Despliega el selector de arriba y marca al menos un nadador para habilitar el botón de consolidación.")
+            else:
+                st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")
+
+            # =============================================================================
+            # 4. CONSOLIDACIÓN E IMPUTACIÓN HISTÓRICA EN BITÁCORA
+            # =============================================================================
+            st.markdown("#### 💾 Consolidar y Registrar Jornada")
+            c_fecha, c_carril = st.columns(2)
+            with c_fecha:
+                fecha_jornada = st.date_input("Fecha de la sesión:", datetime.date.today(), key="piz_date_input_save")
+            with c_carril:
+                identificador_carril = st.text_input("Identificador / Carril (Opcional):", placeholder="Ej: Carril 3, Grupo Avanzado", key="piz_carril_input_save")
+
+            if st.button("💾 Consolidar Metros e Intensidades por Atleta", type="primary", use_container_width=True, key="btn_consolidar_piz"):
+                if atletas_finales:
+                    desglose_estilos = {}
+                    for blk in st.session_state.pizarra_entrenamiento:
+                        est = blk['estilo']
+                        mts = blk['reps'] * blk['dist']
+                        desglose_estilos[est] = desglose_estilos.get(est, 0) + mts
+                        
+                    desglose_intensidad = {}
+                    for blk in st.session_state.pizarra_entrenamiento:
+                        inte = blk['intensidad']
+                        mts = blk['reps'] * blk['dist']
+                        desglose_intensidad[inte] = desglose_intensidad.get(inte, 0) + mts
+
+                    registros_supabase = []
+                    for at_obj in atletas_finales:
+                        fila = {
+                            "fecha": str(fecha_jornada),
+                            "atleta_id": at_obj.get("id"),
+                            "identificador_carril": identificador_carril if identificador_carril else "Carril Único",
+                            "metros_totales": int(volumen_total),
+                            "desglose_estilos": desglose_estilos,
+                            "desglose_intensidad": desglose_intensidad,
+                            "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
+                        }
+                        registros_supabase.append(fila)
+
+                    if registros_supabase and ctx_supabase:
+                        try:
+                            ctx_supabase.table("bitacora_entrenamientos").insert(registros_supabase).execute()
+                            st.success(f"💥 ¡Base de datos actualizada! Se grabaron con éxito las cargas individuales para los {len(registros_supabase)} atleta(s).")
+                            st.session_state.pizarra_entrenamiento = []
+                            st.balloons()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error crítico al escribir en Supabase: {e}")
+                else:
+                    st.warning("⚠️ No hay atletas seleccionados en el grupo para consolidar.")
         else:
-            st.info("💡 No hay rutinas en el periodo seleccionado.")
+            st.info("💡 Diseña bloques en el formulario superior para inicializar la sesión del día.")
+
+    # =========================================================================
+    # SUB-PESTAÑA 2: HISTORIAL Y DISTRIBUCIÓN FISIOLÓGICA
+    # =========================================================================
+    with subtab_reportes:
+        st.markdown("### 📊 Historial y Distribución de Rutinas Consolidadas")
+        st.caption("Revisa el menú de entrenamientos de días anteriores basándose en la data consolidada del equipo técnico.")
+
+        ctx_supabase_rep = supabase if supabase else st.session_state.get("supabase_client")
+
+        if ctx_supabase_rep:
+            es_entrenador_rep = st.session_state.get("rol") == "Entrenador"
+            entrenador_id_rep = st.session_state.get("usuario_id")
             
-    except Exception as err:
-        st.error(f"Error procesando biblioteca: {err}")
+            permitir_consulta_rep = True
+            ids_autorizados_rep = []
 
-# --- FIN DE LA CAPA 2 ---
-# --- CAPÍTULO 4: CAPA 3 - CONSOLIDACIÓN FINAL E IMPUTACIÓN (VERSION FINAL) ---
+            if es_entrenador_rep:
+                if entrenador_id_rep:
+                    resp_asig_rep = ctx_supabase_rep.table("asignaciones").select("atleta_id").eq("entrenador_id", entrenador_id_rep).execute()
+                    if resp_asig_rep.data:
+                        ids_autorizados_rep = [reg["atleta_id"] for reg in resp_asig_rep.data]
+                    if not ids_autorizados_rep:
+                        permitir_consulta_rep = False
+                else:
+                    st.error("❌ Error de sesión: No se detectó ID único de Entrenador.")
+                    permitir_consulta_rep = False
 
-def _render_consolidacion_final(supabase):
-    """
-    Gestiona la lógica de consolidación: Filtra atletas mediante 
-    la biblioteca central y registra la carga en la bitácora.
-    """
-    st.divider()
-    st.markdown("#### 💾 Consolidar y Registrar Jornada")
-    
-    # 1. Obtención del pool de atletas (Función desde formulas_lib_funciones)
-    from formulas_lib_funciones import obtener_atletas_filtrados_supabase
-    atletas_pool = obtener_atletas_filtrados_supabase()
-    
-    # 2. UI: Filtros de selección de atletas
-    c_f1, c_f2 = st.columns(2)
-    with c_f1:
-        categorias = ["Todos"] + sorted(list(set(a.get('categoria', 'Sin Categoria') for a in atletas_pool)))
-        filtro_cat = st.selectbox("Categoría:", categorias)
-    with c_f2:
-        carril_imputacion = st.text_input("Identificador de Carril:", "Carril 1")
-    
-    atletas_finales = [a for a in atletas_pool if filtro_cat == "Todos" or a.get('categoria') == filtro_cat]
-    st.info(f"Atletas a imputar: {len(atletas_finales)}")
+            if permitir_consulta_rep:
+                try:
+                    c_b1, c_b2 = st.columns(2)
+                    with c_b1:
+                        f_desde = st.date_input("Buscar desde:", datetime.date.today() - datetime.timedelta(days=15), key="bib_f_desde")
+                    with c_b2:
+                        f_hasta = st.date_input("Hasta:", datetime.date.today(), key="bib_f_hasta")
 
-    # 3. Consolidación
-    if st.button("🚀 Consolidar en Base de Datos"):
-        if not st.session_state.pizarra_entrenamiento:
-            st.error("La pizarra está vacía.")
-            return
-            
-        # Cálculos de desglose (como en tu original)
-        volumen_total = sum(blk['rep'] * blk['dist'] for blk in st.session_state.pizarra_entrenamiento)
-        desglose_estilos = {}
-        desglose_int = {}
-        for blk in st.session_state.pizarra_entrenamiento:
-            mts = blk['rep'] * blk['dist']
-            desglose_estilos[blk['est']] = desglose_estilos.get(blk['est'], 0) + mts
-            # Nota: Asegúrate de capturar 'intensidad' en tu formulario de Capa 1 si la necesitas aquí
-        
-        # Preparación de registros masivos
-        registros = []
-        for at in atletas_finales:
-            registros.append({
-                "atleta_id": at['id'],
-                "fecha": str(datetime.date.today()),
-                "identificador_carril": carril_imputacion,
-                "metros_totales": int(volumen_total),
-                "desglose_estilos": desglose_estilos,
-                "desglose_intensidad": desglose_int,
-                "implementos_usados": list(set([imp for blk in st.session_state.pizarra_entrenamiento for imp in blk['implementos']]))
-            })
-            
-        try:
-            supabase.table("bitacora_entrenamientos").insert(registros).execute()
-            st.success(f"✅ Registro exitoso para {len(registros)} atletas.")
-            st.session_state.pizarra_entrenamiento = []
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error en consolidación: {e}")
+                    query_records = ctx_supabase_rep.table("bitacora_entrenamientos").select("fecha, identificador_carril, metros_totales, desglose_estilos, desglose_intensidad, implementos_usados, atleta_id").gte("fecha", str(f_desde)).lte("fecha", str(f_hasta))
+                    
+                    if es_entrenador_rep and ids_autorizados_rep:
+                        query_records = query_records.in_("atleta_id", ids_autorizados_rep)
+                        
+                    resp_bib = query_records.order("fecha", desc=True).execute()
 
-# --- FIN DE LA CAPA 3 ---
-with subtab_crear:
-        _render_diseno_y_difusion()      # Capa 1
-        _render_consolidacion_final(supabase) # Capa 3
+                    if resp_bib.data:
+                        # Agrupación por sesión única (Fecha y Carril)
+                        rutinas_unicas = {}
+                        for reg in resp_bib.data:
+                            llave = (reg["fecha"], reg["identificador_carril"])
+                            if llave not in rutinas_unicas:
+                                rutinas_unicas[llave] = reg
+
+                        st.markdown(f"#### 🔎 Rutinas encontradas ({len(rutinas_unicas)})")
+                        
+                        for (fecha_sesion, carril_sesion), datos_sesion in rutinas_unicas.items():
+                            total_metros = datos_sesion.get('metros_totales', 0)
+                            with st.expander(f"📋 {fecha_sesion} | 📍 Grupo-Carril: {carril_sesion} | Volumen: {total_metros:,}m"):
+                                
+                                # Reconstrucción del Plan
+                                texto_atleta = f"**PLAN DE ENTRENAMIENTO RECONSTRUIDO** - Fecha: {fecha_sesion}\n"
+                                if carril_sesion:
+                                    texto_atleta += f"📍 Grupo/Carril: {carril_sesion}\n"
+                                texto_atleta += f"📊 Volumen Total Consolidado: {total_metros:,} metros\n\n"
+                                
+                                dict_estilos = datos_sesion.get("desglose_estilos", {})
+                                for est, mts in dict_estilos.items():
+                                    texto_atleta += f"• Bloque enfocado en {est}: total de {mts:,} metros.\n"
+                                
+                                st.info(texto_atleta)
+                                
+                                # Distribución Fisiológica Real en Pantalla
+                                st.markdown("#### 📉 Distribución Fisiológica")
+                                c_dist1, c_dist2 = st.columns(2)
+                                with c_dist1:
+                                    st.markdown("**Porcentaje por Estilo:**")
+                                    if dict_estilos:
+                                        datos_estilo_df = [{"Estilo / Foco": est, "Metros": mts, "%": f"{(mts/total_metros)*100:.1f}%"} for est, mts in dict_estilos.items()]
+                                        st.dataframe(pd.DataFrame(datos_estilo_df), use_container_width=True, hide_index=True)
+                                with c_dist2:
+                                    st.markdown("**Porcentaje por Intensidad:**")
+                                    dict_intensidades = datos_sesion.get("desglose_intensidad", {})
+                                    if dict_intensidades:
+                                        datos_int_df = [{"Zona": inte.split("(")[0].strip(), "Metros": mts, "%": f"{(mts/total_metros)*100:.1f}%"} for inte, mts in dict_intensidades.items()]
+                                        st.dataframe(pd.DataFrame(datos_int_df), use_container_width=True, hide_index=True)
+
+                                st.markdown("---")
+                                
+                                # Panel de Acciones Auxiliares (Reutilización Segura)
+                                c_act1, c_act2 = st.columns(2)
+                                with c_act1:
+                                    if st.button("🔄 Cargar como Plantilla en Pizarra", key=f"btn_tpl_{fecha_sesion}_{carril_sesion}", use_container_width=True):
+                                        bloques_reconstruidos = []
+                                        for est, mts in dict_estilos.items():
+                                            bloques_reconstruidos.append({
+                                                "reps": 1,
+                                                "dist": int(mts),
+                                                "estilo": est,
+                                                "intensidad": "Medio (Aeróbico Medio 5-6)",
+                                                "implementos": datos_sesion.get("implementos_usados", []),
+                                                "notas": "" # Inyección limpia sin anotaciones cronológicas molestas
+                                            })
+                                        st.session_state.pizarra_entrenamiento = bloques_reconstruidos
+                                        st.success("¡Plan inyectado con éxito! Ve a la pestaña 'Diseñar Menú del Día' para adaptarlo.")
+                                        st.rerun()
+                                with c_act2:
+                                    st.download_button(
+                                        label="📋 Descargar Reporte (TXT)",
+                                        data=texto_atleta.replace("**", ""),
+                                        file_name=f"reporte_{fecha_sesion}.txt",
+                                        mime="text/plain",
+                                        key=f"dl_txt_{fecha_sesion}_{carril_sesion}",
+                                        use_container_width=True
+                                    )
+                    else:
+                        st.info("💡 No se encontraron rutinas registradas en el periodo seleccionado.")
+                except Exception as err:
+                    st.error(f"Error procesando biblioteca de rutinas: {err}")
+            else:
+                st.warning("⚠️ No posees atletas asignados en este momento bajo tu perfil de Entrenador.")
