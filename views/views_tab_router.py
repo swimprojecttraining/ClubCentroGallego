@@ -22,15 +22,16 @@ def mostrar_vista_enrutador():
     Captura los parámetros de la barra lateral y distribuye de forma aislada
     el flujo hacia archivos independientes dentro de la carpeta views.
     """
-    # Ejecutamos la barra lateral y extraemos su diccionario reactivo sin caché
+    # 1. Llamada a la sidebar
     datos_sidebar = renderizar_sidebar_acceso_y_gestion()
     
-    # 🔥 Paracaídas de seguridad: si la sidebar no devuelve nada, usamos valores por defecto
+    # 2. Blindaje: Si es None, inicializamos un diccionario vacío
     if datos_sidebar is None:
-        datos_sidebar = {"titulo_grafico": "Visión General"}
+        datos_sidebar = {}
     
+    # 3. Lectura segura con valores por defecto
     titulo_grafico = datos_sidebar.get("titulo_grafico", "Visión General")
-    simulacion_externa = datos_sidebar["simulacion_externa"]
+    simulacion_externa = datos_sidebar.get("simulacion_externa", False)
     modo_equipo = datos_sidebar.get("modo_equipo", False)
 
     # Encabezado dinámico según rol y simulación
