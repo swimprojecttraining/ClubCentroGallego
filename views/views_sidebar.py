@@ -26,7 +26,11 @@ def renderizar_sidebar_acceso_y_gestion():
     st.sidebar.divider()
     # 5. Panel de Navegación de Atletas (Conexión Real)
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
+    
     try:
+        # 🔥 FIX 1: Llamar a la conexión de Supabase que ya está en la memoria
+        supabase = st.session_state.supabase
+        
         # Lógica de carga según tu rol (Head Coach / Entrenador / Admin)
         if st.session_state.rol == "Entrenador":
             resp_asig = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
@@ -40,7 +44,9 @@ def renderizar_sidebar_acceso_y_gestion():
             resp_atletas = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").eq("estatus", "Activo").execute()
     
         if resp_atletas and resp_atletas.data:
+            import pandas as pd # Asegúrate de que pandas esté importado
             df_atl = pd.DataFrame(resp_atletas.data)
+            
             # Diccionario para que el selectbox muestre nombres pero maneje IDs
             dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
             
@@ -64,6 +70,16 @@ def renderizar_sidebar_acceso_y_gestion():
                 
         else:
             st.sidebar.warning("⚠️ No tienes nadadores asignados.")
+    
+    except Exception as e:
+        st.sidebar.error(f"Error en conexión: {e}")
+    
+    # 🔥 FIX 2: Asegurar que la función devuelva SIEMPRE un diccionario al final
+    # (Asegúrate de que este return esté al final de tu función renderizar_sidebar_acceso_y_gestion, 
+    # fuera del bloque try...except)
+    return {
+        "titulo_grafico": "Rendimiento del Atleta" 
+    }
     
     except Exception as e:
         st.sidebar.error(f"Error en conexión: {e}")
