@@ -64,23 +64,30 @@ def renderizar_sidebar_acceso_y_gestion():
                 key="selector_nadador_real"
             )
 # Si el usuario cambió la selección en el sidebar, actualizamos el estado
+# Si el usuario cambió la selección en el sidebar, actualizamos el estado
             if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
                 nadador_info = df_atl[df_atl['id'] == st.session_state.selector_nadador_real].iloc[0]
                 
                 st.session_state.nadador_seleccionado_id = st.session_state.selector_nadador_real
                 st.session_state.nadador_seleccionado_nombre = nadador_info['nombre']
-                
-                # Ahora esto leerá el dato real de la base de datos
                 st.session_state.nadador_seleccionado_genero = nadador_info.get('genero', 'N/A')
                 
-                # Cálculo dinámico usando tu función externa
+                # --- AQUÍ ESTÁ EL AJUSTE PARA LA FECHA ---
                 fecha_nac = nadador_info.get('fecha_nacimiento')
-                st.session_state.nadador_seleccionado_categoria = calcular_categoria_competencia(fecha_nac)
-                # ... después de llamar a la función
+                
+                # Forzamos que, si es una cadena, sea el formato ISO limpio 'YYYY-MM-DD'
+                # Esto previene que la función en formulas_lib_funciones devuelva el error
+                if fecha_nac and isinstance(fecha_nac, str):
+                    fecha_nac = fecha_nac.split('T')[0] # Elimina horas si vienen de Supabase
+                
                 resultado_cat = calcular_categoria_competencia(fecha_nac)
                 
                 # Extraemos solo el nombre de la categoría (índice 0)
-                st.session_state.nadador_seleccionado_categoria = resultado_cat[0] if isinstance(resultado_cat, tuple) else resultado_cat
+                if isinstance(resultado_cat, tuple):
+                    st.session_state.nadador_seleccionado_categoria = resultado_cat[0]
+                else:
+                    st.session_state.nadador_seleccionado_categoria = resultado_cat
+                
                 st.rerun()
                 
         else:
