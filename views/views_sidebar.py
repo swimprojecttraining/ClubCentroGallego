@@ -47,49 +47,34 @@ def renderizar_sidebar_acceso_y_gestion():
             # Head Coach y Admin tienen acceso global
             resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
     
-        if resp_atletas and resp_atletas.data:
+if resp_atletas and resp_atletas.data:
             df_atl = pd.DataFrame(resp_atletas.data)
-            
-            # Diccionario para que el selectbox muestre nombres pero maneje IDs
             dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
             
-            # Selección inicial segura
-            if "nadador_seleccionado_id" not in st.session_state:
-                st.session_state.nadador_seleccionado_id = list(dict_atletas.keys())[0]
-    
+            # Usamos key='selector_nadador_real' para detectar cambios
             sel_id = st.sidebar.selectbox(
                 "Monitorear Nadador:", 
                 options=list(dict_atletas.keys()), 
                 format_func=lambda x: dict_atletas[x],
                 key="selector_nadador_real"
             )
-# Si el usuario cambió la selección en el sidebar, actualizamos el estado
-# Si el usuario cambió la selección en el sidebar, actualizamos el estado
-            if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
-                nadador_info = df_atl[df_atl['id'] == st.session_state.selector_nadador_real].iloc[0]
-                
-                st.session_state.nadador_seleccionado_id = st.session_state.selector_nadador_real
-                st.session_state.nadador_seleccionado_nombre = nadador_info['nombre']
-                st.session_state.nadador_seleccionado_genero = nadador_info.get('genero', 'N/A')
-                
-                # --- AQUÍ ESTÁ EL AJUSTE PARA LA FECHA ---
-                fecha_nac = nadador_info.get('fecha_nacimiento')
-                
-                # Forzamos que, si es una cadena, sea el formato ISO limpio 'YYYY-MM-DD'
-                # Esto previene que la función en formulas_lib_funciones devuelva el error
-                if fecha_nac and isinstance(fecha_nac, str):
-                    fecha_nac = fecha_nac.split('T')[0] # Elimina horas si vienen de Supabase
-                
-                resultado_cat = calcular_categoria_competencia(fecha_nac)
-                
-                # Extraemos solo el nombre de la categoría (índice 0)
-                if isinstance(resultado_cat, tuple):
-                    st.session_state.nadador_seleccionado_categoria = resultado_cat[0]
-                else:
-                    st.session_state.nadador_seleccionado_categoria = resultado_cat
-                
-                st.rerun()
-                
+            
+            # Obtenemos la fila del atleta seleccionado
+            atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
+            
+            # --- CORRECCIÓN AQUÍ ---
+            # 1. Extraemos el resultado de la función
+            cat_resultado = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+            
+            # 2. Aseguramos que sea string (manejando la tupla)
+            categoria_str = cat_resultado[0] if isinstance(cat_resultado, tuple) else str(cat_resultado)
+            
+            # 3. Guardamos en el session_state
+            st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
+            st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
+            st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
+            st.session_state.nadador_seleccionado_categoria = categoria_str
+            
         else:
             st.sidebar.warning("⚠️ No tienes nadadores asignados.")
     
