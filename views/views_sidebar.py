@@ -47,7 +47,7 @@ def renderizar_sidebar_acceso_y_gestion():
             # Head Coach y Admin tienen acceso global
             resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
     
-if resp_atletas and resp_atletas.data:
+        if resp_atletas and resp_atletas.data:
             df_atl = pd.DataFrame(resp_atletas.data)
             dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
             
