@@ -25,7 +25,11 @@ def mostrar_vista_enrutador():
     # Ejecutamos la barra lateral y extraemos su diccionario reactivo sin caché
     datos_sidebar = renderizar_sidebar_acceso_y_gestion()
     
-    titulo_grafico = datos_sidebar["titulo_grafico"]
+    # 🔥 Paracaídas de seguridad: si la sidebar no devuelve nada, usamos valores por defecto
+    if datos_sidebar is None:
+        datos_sidebar = {"titulo_grafico": "Visión General"}
+    
+    titulo_grafico = datos_sidebar.get("titulo_grafico", "Visión General")
     simulacion_externa = datos_sidebar["simulacion_externa"]
     modo_equipo = datos_sidebar["modo_equipo"]
 
