@@ -2,39 +2,38 @@ import streamlit as st
 import pandas as pd
 from formulas_lib_funciones import calcular_categoria_competencia
 
-
 def renderizar_sidebar_acceso_y_gestion():
     # 1. Identificación de usuario registrado
-    # Se asume que estos valores ya vienen del sistema de login principal
     st.sidebar.markdown(f"**Usuario:** {st.session_state.get('nombre_usuario', 'Usuario')}")
     
     # 2. Nivel de acceso
     nivel = st.session_state.get('nivel_acceso', 'Invitado')
     st.sidebar.markdown(f"**Nivel:** :green[{nivel}]")
     
-    # 3. Botón de salir del sistema
+    # 3. Botones del sistema
     if st.sidebar.button("🚪 Salir del Sistema"):
-        # Lógica de limpieza de sesión
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
         
     st.sidebar.divider()
     
-    # 4. Botón de pánico de limpieza de caché
     if st.sidebar.button("🔄 Refrescar Datos (Limpiar Caché)"):
         st.cache_data.clear()
         st.rerun()
         
     st.sidebar.divider()
     
-    # 5. Panel de Navegación de Atletas (Conexión Real)
-    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
-        spc()
+    # 4. Panel de Navegación de Atletas
+    rol_actual = st.session_state.get('rol', 'Invitado')
+    
+    if rol_actual in ["Head Coach", "Entrenador", "Administrador"]:
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
+            supabase = st.session_state.supabase
+            
             # Filtrado basado en tu tabla intermedia "asignaciones"
-            if st.session_state.rol == "Entrenador":
+            if rol_actual == "Entrenador":
                 resp_asig = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).execute()
                 ids_asignados = [reg["atleta_id"] for reg in resp_asig.data] if resp_asig.data else []
                 
@@ -59,31 +58,23 @@ def renderizar_sidebar_acceso_y_gestion():
                 
                 # --- BLINDAJE DE LA CATEGORÍA ---
                 resultado_cat = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                # Si es tupla, tomamos el primer elemento; si es string (error), usamos eso.
                 st.session_state.nadador_seleccionado_categoria = resultado_cat[0] if isinstance(resultado_cat, tuple) else str(resultado_cat)
                 
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados.")
                 st.session_state.nadador_seleccionado_id = None
+                
         except Exception as e:
-            st.error(f"Error cargando nómina de atletas: {e}")
+            st.sidebar.error(f"Error cargando nómina de atletas: {e}")
+            
     else:
-        st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
-        st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
-        st.session_state.nadador_seleccionado_genero = st.session_state.genero
-        # Aseguramos que la categoría cargue del estado ya existente
+        # Lógica para cuando el usuario es "Nadador"
+        st.session_state.nadador_seleccionado_id = st.session_state.get('usuario_id')
+        st.session_state.nadador_seleccionado_nombre = st.session_state.get('nombre_nadador')
+        st.session_state.nadador_seleccionado_genero = st.session_state.get('genero')
         st.session_state.nadador_seleccionado_categoria = st.session_state.get('categoria_atleta', 'Sin Categoría')
-    
-    modo_equipo = False
-    tipo_filtro = "Todos los Atletas"
-    filtro_genero = "Todos"
-    cat_sel = None
-    ids_sel = []
-    
-    except Exception as e:
-        st.sidebar.error(f"Error en conexión: {e}")
-    
-    # 🔥 FIX: Diccionario completo sin excepts duplicados al final
+
+    # Retorno final que evita errores en views_tab_router
     return {
         "titulo_grafico": "Rendimiento del Atleta",
         "simulacion_externa": False
