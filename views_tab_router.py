@@ -22,12 +22,15 @@ def mostrar_vista_enrutador():
     Captura los parámetros de la barra lateral y distribuye de forma aislada
     el flujo hacia archivos independientes dentro de la carpeta views.
     """
-    # Ejecutamos la barra lateral y extraemos su diccionario reactivo sin caché
+# Ejecutamos la barra lateral y extraemos su diccionario
     datos_sidebar = renderizar_sidebar_completo()
     
-    titulo_grafico = datos_sidebar["titulo_grafico"]
-    simulacion_externa = datos_sidebar["simulacion_externa"]
-    modo_equipo = datos_sidebar["modo_equipo"]
+    # --- LA CORRECCIÓN: Actualizar session_state globalmente ---
+    st.session_state.update(datos_sidebar)
+    # A partir de aquí, las pestañas ya encontrarán los datos en st.session_state
+    titulo_grafico = st.session_state.get("titulo_grafico")
+    simulacion_externa = st.session_state.get("simulacion_externa")
+    modo_equipo = st.session_state.get("modo_equipo")
 
     # Encabezado dinámico según rol y simulación
     if modo_equipo:
