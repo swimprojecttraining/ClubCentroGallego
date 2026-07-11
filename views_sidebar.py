@@ -406,6 +406,7 @@ def renderizar_sidebar_completo():
         "filtro_genero": filtro_genero,
         "tipo_filtro": tipo_filtro,
         "cat_sel": cat_sel,
+        "cat_calc": cat_calc,
         "ids_sel": ids_sel,
         "t0": t0,
         "T0": T0,
