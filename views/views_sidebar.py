@@ -24,3 +24,5 @@ def renderizar_sidebar_acceso_y_gestion():
         st.rerun()
         
     st.sidebar.divider()
+# 5. Panel de Navegación de Atletas (Conexión Real)
+st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
