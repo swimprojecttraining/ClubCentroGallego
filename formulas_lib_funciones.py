@@ -66,7 +66,7 @@ def formatear_a_minutos(segundos_flotante: float) -> str:
         if minutos > 0:
             return f"{minutos}:{segundos:05.2f}"  # M:SS.hh (fuerza 2 dígitos en segundos)
         else:
-            return f"{segundos:.2f} s"            # Si es menor a un minuto, lo deja en segundos
+            return f"{segundos:.2f}"            # Si es menor a un minuto, lo deja en segundos
     except (ValueError, TypeError):
         return "-"
 
