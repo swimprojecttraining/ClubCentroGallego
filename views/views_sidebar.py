@@ -76,7 +76,11 @@ def renderizar_sidebar_acceso_y_gestion():
                 # Cálculo dinámico usando tu función externa
                 fecha_nac = nadador_info.get('fecha_nacimiento')
                 st.session_state.nadador_seleccionado_categoria = calcular_categoria_competencia(fecha_nac)
+                # ... después de llamar a la función
+                resultado_cat = calcular_categoria_competencia(fecha_nac)
                 
+                # Extraemos solo el nombre de la categoría (índice 0)
+                st.session_state.nadador_seleccionado_categoria = resultado_cat[0] if isinstance(resultado_cat, tuple) else resultado_cat
                 st.rerun()
                 
         else:
