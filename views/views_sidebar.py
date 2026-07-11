@@ -79,3 +79,8 @@ def renderizar_sidebar_acceso_y_gestion():
     return {
         "titulo_grafico": "Rendimiento del Atleta" 
     }
+# Asegurar que la función devuelva SIEMPRE un diccionario al final
+return {
+    "titulo_grafico": "Rendimiento del Atleta",
+    "simulacion_externa": False  # <-- Agrega esta línea con su coma arriba
+}
