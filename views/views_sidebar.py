@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 def renderizar_sidebar_acceso_y_gestion():
     # 1. Identificación de usuario registrado
@@ -24,11 +25,12 @@ def renderizar_sidebar_acceso_y_gestion():
         st.rerun()
         
     st.sidebar.divider()
+    
     # 5. Panel de Navegación de Atletas (Conexión Real)
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     
     try:
-        # 🔥 FIX 1: Llamar a la conexión de Supabase que ya está en la memoria
+        # Llamar a la conexión de Supabase que ya está en la memoria
         supabase = st.session_state.supabase
         
         # Lógica de carga según tu rol (Head Coach / Entrenador / Admin)
@@ -44,7 +46,6 @@ def renderizar_sidebar_acceso_y_gestion():
             resp_atletas = supabase.table("usuarios").select("id, nombre").eq("rol", "Nadador").eq("estatus", "Activo").execute()
     
         if resp_atletas and resp_atletas.data:
-            import pandas as pd # Asegúrate de que pandas esté importado
             df_atl = pd.DataFrame(resp_atletas.data)
             
             # Diccionario para que el selectbox muestre nombres pero maneje IDs
@@ -74,12 +75,7 @@ def renderizar_sidebar_acceso_y_gestion():
     except Exception as e:
         st.sidebar.error(f"Error en conexión: {e}")
     
-    # 🔥 FIX 2: Asegurar que la función devuelva SIEMPRE un diccionario al final
-    # (Asegúrate de que este return esté al final de tu función renderizar_sidebar_acceso_y_gestion, 
-    # fuera del bloque try...except)
+    # Asegurar que la función devuelva SIEMPRE un diccionario al final
     return {
         "titulo_grafico": "Rendimiento del Atleta" 
     }
-    
-    except Exception as e:
-        st.sidebar.error(f"Error en conexión: {e}")
