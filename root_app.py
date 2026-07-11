@@ -80,7 +80,7 @@ if not st.session_state["puente_validado"]:
 
 if st.session_state["puente_validado"]:
     # Inyección de estilos globales
-    from views.views_styles import aplicar_estilos_globales
+    from views_styles import aplicar_estilos_globales
     aplicar_estilos_globales()
 
     if "autenticado" not in st.session_state:
