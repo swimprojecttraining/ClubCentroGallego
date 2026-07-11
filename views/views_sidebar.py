@@ -75,8 +75,8 @@ def renderizar_sidebar_acceso_y_gestion():
     except Exception as e:
         st.sidebar.error(f"Error en conexión: {e}")
     
-# Asegurar que la función devuelva SIEMPRE un diccionario al final
-return {
-    "titulo_grafico": "Rendimiento del Atleta",
-    "simulacion_externa": False  # <-- Agrega esta línea con su coma arriba
-}
+    # 🔥 FIX: Diccionario completo sin excepts duplicados al final
+    return {
+        "titulo_grafico": "Rendimiento del Atleta",
+        "simulacion_externa": False
+    }
