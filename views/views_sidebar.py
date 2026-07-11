@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+from formulas_lib_funciones import calcular_categoria_competencia
+
 
 def renderizar_sidebar_acceso_y_gestion():
     # 1. Identificación de usuario registrado
@@ -43,7 +45,7 @@ def renderizar_sidebar_acceso_y_gestion():
                 resp_atletas = None
         else:
             # Head Coach y Admin tienen acceso global
-            resp_atletas = supabase.table("usuarios").select("id, nombre, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+            resp_atletas = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
     
         if resp_atletas and resp_atletas.data:
             df_atl = pd.DataFrame(resp_atletas.data)
@@ -62,15 +64,18 @@ def renderizar_sidebar_acceso_y_gestion():
                 key="selector_nadador_real"
             )
 # Si el usuario cambió la selección en el sidebar, actualizamos el estado
-            if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
-                # Obtenemos la fila completa del nadador seleccionado
+if st.session_state.selector_nadador_real != st.session_state.nadador_seleccionado_id:
                 nadador_info = df_atl[df_atl['id'] == st.session_state.selector_nadador_real].iloc[0]
                 
-                # Actualizamos todos los datos clave en el estado
                 st.session_state.nadador_seleccionado_id = st.session_state.selector_nadador_real
                 st.session_state.nadador_seleccionado_nombre = nadador_info['nombre']
-                st.session_state.nadador_seleccionado_genero = nadador_info.get('genero', 'F')
-                st.session_state.nadador_seleccionado_fecha_nacimiento = nadador_info.get('fecha_nacimiento', 'Sin Categoría')
+                
+                # Ahora esto leerá el dato real de la base de datos
+                st.session_state.nadador_seleccionado_genero = nadador_info.get('genero', 'N/A')
+                
+                # Cálculo dinámico usando tu función externa
+                fecha_nac = nadador_info.get('fecha_nacimiento')
+                st.session_state.nadador_seleccionado_categoria = calcular_categoria_competencia(fecha_nac)
                 
                 st.rerun()
                 
