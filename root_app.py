@@ -6,10 +6,6 @@ import base64
 import os
 import sys
 
-# 🛠️ Inyección de Rutas Absolutas: Enseña a Python a mirar dentro de 'views' de forma global
-directorio_raiz = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(directorio_raiz)
-sys.path.append(os.path.join(directorio_raiz, "views"))
 # **********************************************************************************
 # 1. CONFIGURACIÓN ÚNICA DE LA PÁGINA
 # **********************************************************************************
@@ -92,8 +88,8 @@ if st.session_state["puente_validado"]:
 
     # Renderizado directo sin recargas de servidor web
     if not st.session_state["autenticado"]:
-        from views.login_general_app import mostrar_pantalla_login
+        from login_general_app import mostrar_pantalla_login
         mostrar_pantalla_login()
     else:
-        from views.views_tab_router import mostrar_vista_enrutador
+        from views_tab_router import mostrar_vista_enrutador
         mostrar_vista_enrutador()
