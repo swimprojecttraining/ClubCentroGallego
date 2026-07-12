@@ -168,15 +168,23 @@ def sincronizar_hitos_competencias_atleta(nadador_id, fecha_nacimiento, genero_a
 # LÓGICA DE CATEGORÍAS ETARIAS (Edad cumplida al 31 de Diciembre)
 # -------------------------------------------------------------
 def calcular_categoria_competencia(fecha_nac_str):
+    # Imprime qué está llegando exactamente antes de hacer nada
+    print(f"DEBUG_INPUT: '{fecha_nac_str}' tipo: {type(fecha_nac_str)}")
+    
     if not fecha_nac_str:
         return "Desconocida", 0
+    
     try:
-        fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str))
-    except Exception:
-        return "Error Formato", 0
-        
-    ano_actual = datetime.date.today().year 
+        # Intentamos convertir
+        fecha_limpia = str(fecha_nac_str).split(" ")[0].strip()
+        fecha_nac = datetime.date.fromisoformat(fecha_limpia)
+    except Exception as e:
+        # ESTO ES LO QUE NECESITAMOS VER: El error real
+        return f"Error Real: {e}", 0
+
+    ano_actual = datetime.date.today().year
     edad_competencia = ano_actual - fecha_nac.year
+    # ... resto de tu lógica ...
     
     if 5 <= edad_competencia <= 6:
         cat = "Preinfantil A"
