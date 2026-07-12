@@ -39,7 +39,7 @@ def mostrar_vista_enrutador():
         st.markdown(f"### 🧪 Simulación de Escenarios: {titulo_grafico}")
     else:
         st.markdown(f"### 🏊‍♂️ Planificación y control de resultados de competencia: {st.session_state.nadador_seleccionado_nombre}")
-    print(f"DEBUG_CATEGORIA: {type(st.session_state.nadador_seleccionado_categoria)} - Valor: {st.session_state.nadador_seleccionado_categoria}")
+    st.write(f"DEBUG_CATEGORIA: {type(st.session_state.nadador_seleccionado_categoria)} - Valor: {st.session_state.nadador_seleccionado_categoria}")
     st.markdown(f"**Género:** {'Masculino (M)' if st.session_state.nadador_seleccionado_genero == 'M' else 'Femenino (F)'} | **Categoría de Competencia Activa:** `{st.session_state.nadador_seleccionado_categoria}`")
     st.markdown("---")
 
