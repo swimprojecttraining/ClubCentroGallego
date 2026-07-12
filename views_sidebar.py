@@ -88,7 +88,7 @@ def renderizar_sidebar_completo():
                 else:
                     cat_final = str(resultado_cat)
 
-st.session_state.nadador_seleccionado_categoria = cat_final
+                st.session_state.nadador_seleccionado_categoria = cat_final
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
                 st.session_state.nadador_seleccionado_id = None
