@@ -12,9 +12,7 @@ from formulas_lib_funciones import (
 # 🎨 IMPORTACIÓN DESDE TU MÓDULO DE ESTILOS VISUALES
 from views_styles import spc
 
-# FORZAR RESETEO: Si la variable contiene el error, la borramos para que se recalcule
-if st.session_state.get("nadador_seleccionado_categoria") == "Error Formato":
-    del st.session_state["nadador_seleccionado_categoria"]
+
 def renderizar_sidebar_completo():
     """
     Renderiza el centro de mandos interactivo (SIDEBAR) respetando rigurosamente
@@ -80,17 +78,10 @@ def renderizar_sidebar_completo():
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
                 st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
-                
-                # Modifica la asignación para limpiar cualquier formato inesperado
-                resultado_cat = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                
-                # Si es una tupla o lista, tomamos solo el primer elemento y lo convertimos a texto
-                if isinstance(resultado_cat, (tuple, list)):
-                    cat_final = str(resultado_cat[0])
-                else:
-                    cat_final = str(resultado_cat)
+                st.sidebar.write(f"DEBUG: El dato enviado es: {atleta_row['fecha_nacimiento']}")
+                cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+                st.session_state.nadador_seleccionado_categoria = cat_calc
 
-                st.session_state.nadador_seleccionado_categoria = cat_final
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
                 st.session_state.nadador_seleccionado_id = None
