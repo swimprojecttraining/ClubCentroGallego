@@ -237,6 +237,7 @@ def renderizar_tab_grafico(datos_sidebar):
         with c1: st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k:.4f}")
         with c2: st.metric(label="Margen de Deriva de Seguridad (D)", value=f"{(T_pb - T_target):.2f} s")
         with c3: 
+            st.write("DEBUG VALORES:", t0, T0, t_pb, T_pb, t_peak, T_target, k, h))
             T_intermedia_val = float(calcular_curva_atleta([t_intermedia], t0, T0, t_pb, T_pb, t_peak, T_target, k, h)[0])
             tiempo_formateado = formatear_a_minutos(T_intermedia_val) 
             st.metric(label=f"Proyección a los {t_intermedia:.1f} años", value=tiempo_formateado)
