@@ -78,12 +78,12 @@ def renderizar_sidebar_completo():
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
                 st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
-                st.sidebar.write(f"DEBUG: El dato enviado es: {atleta_row['fecha_nacimiento']}")
+
                 cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                st.session_state.nadador_seleccionado_categoria = cat_calc
+                st.session_state.nadador_seleccionado_categoria = str(cat_calc)
 
             else:
-                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
+                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Deben ser asignados por el Head Coach)")
                 st.session_state.nadador_seleccionado_id = None
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
