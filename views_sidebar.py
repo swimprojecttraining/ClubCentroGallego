@@ -80,7 +80,7 @@ def renderizar_sidebar_completo():
                 st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
 
                 cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                st.session_state.nadador_seleccionado_categoria = str(cat_calc)
+                st.session_state.cat_final_debug = str(cat_calc)
 
             else:
                 st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Deben ser asignados por el Head Coach)")
