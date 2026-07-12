@@ -12,7 +12,9 @@ from formulas_lib_funciones import (
 # 🎨 IMPORTACIÓN DESDE TU MÓDULO DE ESTILOS VISUALES
 from views_styles import spc
 
-
+# FORZAR RESETEO: Si la variable contiene el error, la borramos para que se recalcule
+if st.session_state.get("nadador_seleccionado_categoria") == "Error Formato":
+    del st.session_state["nadador_seleccionado_categoria"]
 def renderizar_sidebar_completo():
     """
     Renderiza el centro de mandos interactivo (SIDEBAR) respetando rigurosamente
