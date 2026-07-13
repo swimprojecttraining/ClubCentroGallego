@@ -37,11 +37,16 @@ def renderizar_tab_grafico(datos_sidebar):
     genero = datos_sidebar.get("genero", datos_sidebar.get("genero_atleta", "M"))
     categoria = datos_sidebar.get("categoria", datos_sidebar.get("categoria_atleta", ""))
     usuario_id = datos_sidebar.get("usuario_id", datos_sidebar.get("id", ""))
+    m_ano = float(datos_sidebar.get("m_ano", 0.0))
+    m_panam_b = float(datos_sidebar.get("m_panam_b", 0.0))
+    m_panam_a = float(datos_sidebar.get("m_panam_a", 0.0))
+    m_wa_b = float(datos_sidebar.get("m_wa_b", 0.0))
+    m_wa_a = float(datos_sidebar.get("m_wa_a", 0.0))
+    wr = float(datos_sidebar.get("m_wr", 25.0))
     # =====================================================================
     # 2. CONSULTAS A LA CACHÉ DE SUPABASE (INDEPENDIENTES DEL SIDEBAR)
     # =====================================================================
-    # CORRECCIÓN: Se cambió "no" por "not"
-    if not simulacion_externa and not modo_equipo:
+        if not simulacion_externa and not modo_equipo:
     # 1. Llama a la función solo con los 3 argumentos que acepta
         referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
         hitos_raw = obtener_historial_hitos_cache(usuario_id)
@@ -54,18 +59,7 @@ def renderizar_tab_grafico(datos_sidebar):
             m_wa_b = float(ref_data.get("m_wa_b", 0.0))
             m_wa_a = float(ref_data.get("m_wa_a", 0.0))
             wr = float(ref_data.get("m_wr", 25.0))
-        else:
-    # Valores por defecto si la base de datos no retorna información
-            m_ano = float(m_ano) if m_ano else 0.0
-            m_panam_b = float(m_panam_b) if m_panam_b else 0.0
-            m_panam_a = float(m_panam_a) if m_panam_a else 0.0
-            m_wa_b = float(m_wa_b) if m_wa_b else 0.0
-            m_wa_a = float(m_wa_a) if m_wa_a else 0.0
-            wr = float(wr) if wr else 25.0
-        
-    else:
-        referencias_raw = []
-        hitos_raw = []
+
 
     # =====================================================================
     # 3. GESTIÓN DE ENCABEZADOS E INTERFAZ
