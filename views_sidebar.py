@@ -104,7 +104,14 @@ def renderizar_sidebar_completo():
     filtro_genero = "Todos"
     cat_sel = None
     ids_sel = []
+# 1. Definir la prueba / título ANTES de usarla en consultas
+    prueba_seleccionada = st.session_state.get("prueba_seleccionada", "50m Libre")
+    titulo_grafico = prueba_seleccionada
 
+    # 2. Ahora sí consulta marcas del equipo (ya titulo_grafico existe en scope)
+    df_global = pd.DataFrame()
+    if modo_equipo and ids_consulta:
+        df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_consulta, titulo_grafico)
     # -------------------------------------------------------------
     # 👥 ANÁLISIS COLECTIVO (Con Caché)
     # -------------------------------------------------------------
