@@ -37,13 +37,6 @@ def renderizar_tab_grafico(datos_sidebar):
     genero = datos_sidebar.get("genero", datos_sidebar.get("genero_atleta", "M"))
     categoria = datos_sidebar.get("categoria", datos_sidebar.get("categoria_atleta", ""))
     usuario_id = datos_sidebar.get("usuario_id", datos_sidebar.get("id", ""))
-# NUEVO: Desempaquetar las variables que faltaban
-    m_ano = datos_sidebar.get("m_ano", 0.0)
-    m_panam_b = datos_sidebar.get("m_panam_b", 0.0)
-    m_panam_a = datos_sidebar.get("m_panam_a", 0.0)
-    m_wa_b = datos_sidebar.get("m_wa_b", 0.0)
-    m_wa_a = datos_sidebar.get("m_wa_a", 0.0)
-    wr = datos_sidebar.get("m_wr", 25.0)
     # =====================================================================
     # 2. CONSULTAS A LA CACHÉ DE SUPABASE (INDEPENDIENTES DEL SIDEBAR)
     # =====================================================================
