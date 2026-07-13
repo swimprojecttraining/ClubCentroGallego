@@ -55,8 +55,13 @@ def renderizar_tab_grafico(datos_sidebar):
         m_wa_a = float(ref_data.get("m_wa_a", 0.0))
         wr = float(ref_data.get("m_wr", 25.0))
     else:
-        # Valores por defecto si no se encuentran referencias
-        m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
+# Valores por defecto si la base de datos no retorna información
+        m_ano = float(m_ano) if m_ano else 0.0
+        m_panam_b = float(m_panam_b) if m_panam_b else 0.0
+        m_panam_a = float(m_panam_a) if m_panam_a else 0.0
+        m_wa_b = float(m_wa_b) if m_wa_b else 0.0
+        m_wa_a = float(m_wa_a) if m_wa_a else 0.0
+        wr = float(wr) if wr else 25.0
     
     else:
         referencias_raw = []
