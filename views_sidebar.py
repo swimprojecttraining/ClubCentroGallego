@@ -366,6 +366,9 @@ def renderizar_sidebar_completo():
         st.sidebar.markdown("---")
         st.sidebar.caption("📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar marcas, asistir a campeonatos y optar por becas universitarias nacionales e internacionales.*")
 
+df_global = obtener_marcas_equipo_cache(supabase, ids_sel, prueba_actual)
+datos_sidebar["df_global_marcas"] = df_global
+
     # Retorno unificado de empaquetado para el script principal
     return {
         "titulo_grafico": titulo_grafico,
@@ -387,4 +390,5 @@ def renderizar_sidebar_completo():
         "factor_h": h,
         "t_intermedia": t_intermedia,
         "df_procesado": df_procesado
+        "df_global_marcas": df_global
     }
