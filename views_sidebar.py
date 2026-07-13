@@ -398,8 +398,11 @@ def renderizar_sidebar_completo():
         else:
             st.warning("No hay atletas detectados con los filtros actuales.")
 
-    # Retorno unificado de empaquetado para el script principal
+# Retorno unificado de empaquetado para el script principal
     return {
+        "usuario_id": st.session_state.get("nadador_seleccionado_id"),
+        "genero": st.session_state.get("nadador_seleccionado_genero", "M"),
+        "categoria": st.session_state.get("nadador_seleccionado_categoria", ""),
         "titulo_grafico": titulo_grafico,
         "simulacion_externa": simulacion_externa,
         "modo_equipo": modo_equipo,
