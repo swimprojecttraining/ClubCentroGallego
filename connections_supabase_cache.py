@@ -3,12 +3,36 @@
 # -------------------------------------------------------------
 import streamlit as st
 
-# --- FUNCIÓN AUXILIAR DE ACCESO ---
 def _get_db():
-    """Retorna la instancia de Supabase de la sesión o None."""
     return st.session_state.get("supabase")
 
-# --- CACHÉ INTELIGENTE ---
+@st.cache_data(ttl=3600, show_spinner=False)
+def obtener_atletas_asignados_cache(entrenador_id):
+    supabase = _get_db()
+    if not supabase: return []
+    try:
+        resp = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", entrenador_id).eq("activo", True).execute()
+        return [reg["atleta_id"] for reg in resp.data] if resp.data else []
+    except: return []
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def obtener_nadadores_activos_cache():
+    supabase = _get_db()
+    if not supabase: return []
+    try:
+        resp = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+        return resp.data if resp.data else []
+    except: return []
+
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_marcas_historicas_cache(prueba, usuario_id):
+    supabase = _get_db()
+    if not supabase: return []
+    try:
+        response = supabase.table("marcas_historicas").select("id, edad, tiempo, nota") \
+            .eq("prueba", prueba).eq("usuario_id", usuario_id).order("edad", desc=False).execute()
+        return response.data if response.data else []
+    except: return []
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def obtener_marcas_referencia_cache(prueba, genero, categoria):
@@ -18,7 +42,7 @@ def obtener_marcas_referencia_cache(prueba, genero, categoria):
         ref_resp = supabase.table("marcas_referencia").select("*") \
             .eq("prueba", prueba).eq("genero", genero).eq("categoria", categoria).execute()
         return ref_resp.data if ref_resp.data else []
-    except Exception: return []
+    except: return []
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def obtener_usuario_por_id_cache(usuario_id):
@@ -42,16 +66,6 @@ def obtener_historial_hitos_cache(nadador_id):
         return res.data if res.data else []
     except Exception: return []
 
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_marcas_historicas_cache(prueba, usuario_id):
-    supabase = _get_db()
-    if not supabase: return []
-    try:
-        response = supabase.table("marcas_historicas").select("id, edad, tiempo, nota") \
-            .eq("prueba", prueba).eq("usuario_id", usuario_id).order("edad", desc=False).execute()
-        return response.data if response.data else []
-    except Exception: return []
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def obtener_catalogo_competencias_cache():
     supabase = _get_db()
@@ -60,3 +74,5 @@ def obtener_catalogo_competencias_cache():
         response = supabase.table("catalogo_competencias").select("*").execute()
         return response.data if response.data else []
     except Exception: return []
+
+
