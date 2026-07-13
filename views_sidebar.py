@@ -7,16 +7,20 @@ from formulas_lib_funciones import (
     calcular_categoria_competencia,
     formatear_a_minutos,
     convertir_string_a_segundos,
-    procesar_mejor_marca_historica
+    procesar_mejor_marca_historica  # <- Nueva función que procesa el PB
+)
+
+# 🚀 IMPORTACIÓN DESDE TU CAPA DE CACHÉ
+# (Asegúrate de que el nombre coincida con tu archivo real, ej: conections_supabase_cache)
+from conections_supabase_cache import (
+    obtener_atletas_asignados_cache,
+    obtener_nadadores_activos_cache,
+    obtener_marcas_historicas_cache,
+    obtener_marcas_referencia_cache
 )
 
 # 🎨 IMPORTACIÓN DESDE TU MÓDULO DE ESTILOS VISUALES
 from views_styles import spc
-
-from conections_supabase_cache import (
-    obtener_atletas_asignados_cache, obtener_nadadores_activos_cache,
-    obtener_marcas_historicas_cache, obtener_marcas_referencia_cache
-)
 
 
 def renderizar_sidebar_completo():
@@ -28,8 +32,6 @@ def renderizar_sidebar_completo():
     if "supabase" not in st.session_state or st.session_state.supabase is None:
         st.error("No hay una conexión activa a la base de datos de ningún club.")
         st.stop()
-        
-    supabase_local = st.session_state.supabase
 
     # -------------------------------------------------------------
     # CONTROL DE SESIÓN GENERAL
@@ -39,7 +41,7 @@ def renderizar_sidebar_completo():
         st.session_state.autenticado = False
         st.rerun()
 
-    # 🔄 BOTÓN DE ACTUALIZACIÓN CON RESGUARDO DE CONEXIÓN (NOMBRE INTUITIVO)
+    # 🔄 BOTÓN DE ACTUALIZACIÓN CON RESGUARDO DE CONEXIÓN
     with st.sidebar:
         st.markdown("<hr style='width: 30%; margin: 8px auto; border-top: 1px solid #ccc;'/>", unsafe_allow_html=True)
         if st.sidebar.button("🔄 Actualizar datos"):
@@ -55,27 +57,24 @@ def renderizar_sidebar_completo():
             st.rerun()
 
     # -------------------------------------------------------------
-    # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Filtros por Rol)
+    # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Filtros por Rol con Caché)
     # -------------------------------------------------------------
     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
-            if st.session_state.rol == "Entrenador":
-                # Consulta filtrada por la tabla intermedia 'asignaciones'
-                resp_asig = supabase_local.table("asignaciones").select("atleta_id").eq("entrenador_id", st.session_state.usuario_id).eq("activo", True).execute()
-                ids_asignados = [reg["atleta_id"] for reg in resp_asig.data] if resp_asig.data else []
-                
-                if ids_asignados:
-                    resp_atletas = supabase_local.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").in_("id", ids_asignados).execute()
-                else:
-                    resp_atletas = None  # No tiene nadadores asignados activos
-            else:
-                # Head Coach y Administrador tienen acceso global
-                resp_atletas = supabase_local.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+            # Reemplazo de consulta directa por Caché
+            atletas_disponibles = obtener_nadadores_activos_cache()
             
-            if resp_atletas and resp_atletas.data:
-                df_atl = pd.DataFrame(resp_atletas.data)
+            if st.session_state.rol == "Entrenador":
+                ids_asignados = obtener_atletas_asignados_cache(st.session_state.usuario_id)
+                if ids_asignados:
+                    atletas_disponibles = [a for a in atletas_disponibles if a["id"] in ids_asignados]
+                else:
+                    atletas_disponibles = [] # No tiene nadadores asignados activos
+            
+            if atletas_disponibles:
+                df_atl = pd.DataFrame(atletas_disponibles)
                 dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
                 
                 sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
@@ -84,12 +83,11 @@ def renderizar_sidebar_completo():
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
                 st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
-
+                
                 cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-                st.session_state.nadador_seleccionado_categoria = str(cat_calc)
-
+                st.session_state.nadador_seleccionado_categoria = cat_calc
             else:
-                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Deben ser asignados por el Head Coach)")
+                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
                 st.session_state.nadador_seleccionado_id = None
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
@@ -107,7 +105,7 @@ def renderizar_sidebar_completo():
     ids_sel = []
 
     # -------------------------------------------------------------
-    # 👥 ANÁLISIS COLECTIVO
+    # 👥 ANÁLISIS COLECTIVO (Con Caché)
     # -------------------------------------------------------------
     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         spc()
@@ -121,8 +119,7 @@ def renderizar_sidebar_completo():
             tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
             
             try:
-                resp_preload = supabase_local.table("usuarios").select("id, nombre, fecha_nacimiento, genero").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-                atletas_preload = resp_preload.data if resp_preload.data else []
+                atletas_preload = obtener_nadadores_activos_cache()
                 
                 if filtro_genero == "Femenino (F)":
                     atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
@@ -193,17 +190,14 @@ def renderizar_sidebar_completo():
     m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
 
     # -------------------------------------------------------------
-    # 🏁 EXTRACCIÓN ALINEADA CON 'marcas_referencia' (Tipos Numeric)
+    # 🏁 EXTRACCIÓN ALINEADA CON 'marcas_referencia' (Con Caché)
     # -------------------------------------------------------------
     if es_preinfantil:
         def get_m_ano_infantil_a(prueba_str):
             try:
-                resp = supabase_local.table("marcas_referencia").select("m_ano")\
-                    .eq("prueba", prueba_str)\
-                    .eq("genero", st.session_state.nadador_seleccionado_genero)\
-                    .eq("categoria", "Infantil A").execute()
-                if resp.data and resp.data[0].get("m_ano") is not None:
-                    return float(resp.data[0]["m_ano"])  # Cast de numeric a float seguro
+                ref_resp = obtener_marcas_referencia_cache(prueba_str, st.session_state.nadador_seleccionado_genero, "Infantil A")
+                if ref_resp and ref_resp[0].get("m_ano") is not None:
+                    return float(ref_resp[0]["m_ano"])  
             except Exception:
                 pass
             return 0.0
@@ -229,12 +223,9 @@ def renderizar_sidebar_completo():
             m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
     else:
         try:
-            ref_resp = supabase_local.table("marcas_referencia").select("m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr")\
-                .eq("prueba", titulo_grafico)\
-                .eq("genero", st.session_state.nadador_seleccionado_genero)\
-                .eq("categoria", st.session_state.nadador_seleccionado_categoria).execute()
-            if ref_resp.data:
-                ref_data = ref_resp.data[0]
+            ref_resp = obtener_marcas_referencia_cache(titulo_grafico, st.session_state.nadador_seleccionado_genero, st.session_state.nadador_seleccionado_categoria)
+            if ref_resp:
+                ref_data = ref_resp[0]
                 m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] is not None else 0.0
                 m_panam_b = float(ref_data["m_panam_b"]) if ref_data["m_panam_b"] is not None else 0.0
                 m_panam_a = float(ref_data["m_panam_a"]) if ref_data["m_panam_a"] is not None else 0.0
@@ -245,50 +236,21 @@ def renderizar_sidebar_completo():
             st.error(f"Error extrayendo marcas de la categoría: {e}")
 
     # -------------------------------------------------------------
-    # 🚨 MODO SIMULACIÓN Y EXTRACCIÓN HISTÓRICA DE PB
+    # 🚨 MODO SIMULACIÓN Y EXTRACCIÓN HISTÓRICA DE PB (Con Caché y Lógica Centralizada)
     # -------------------------------------------------------------
     spc()
     st.sidebar.subheader("🚨 Simulación de Escenarios")
     simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
     try:
-        response = supabase_local.table("marcas_historicas") \
-            .select("id, edad, tiempo, nota") \
-            .eq("prueba", titulo_grafico) \
-            .eq("usuario_id", st.session_state.nadador_seleccionado_id) \
-            .order("edad", desc=False).execute() 
+        datos_historicos = obtener_marcas_historicas_cache(titulo_grafico, st.session_state.nadador_seleccionado_id)
             
-        if response.data:
-            df_procesado = pd.DataFrame(response.data)
+        if datos_historicos:
+            df_procesado = pd.DataFrame(datos_historicos)
             df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
             
-            df_procesado["Edad"] = pd.to_numeric(df_procesado["Edad"], errors='coerce')
-            df_procesado["Tiempo"] = pd.to_numeric(df_procesado["Tiempo"], errors='coerce')
-            df_procesado = df_procesado.dropna(subset=["Edad", "Tiempo"]).sort_values("Edad").reset_index(drop=True)
-            
-            db_t0 = float(df_procesado.iloc[0]["Edad"])
-            db_T0 = float(df_procesado.iloc[0]["Tiempo"])
-            n_registros = len(df_procesado)
-            
-            if n_registros == 1:
-                db_t_pb, db_T_pb = db_t0, db_T0
-            elif n_registros == 2:
-                if float(df_procesado.iloc[-1]["Tiempo"]) <= float(df_procesado.iloc[-2]["Tiempo"]):
-                    db_t_pb, db_T_pb = float(df_procesado.iloc[-1]["Edad"]), float(df_procesado.iloc[-1]["Tiempo"])
-                else:
-                    db_t_pb, db_T_pb = float(df_procesado.iloc[-2]["Edad"]), float(df_procesado.iloc[-2]["Tiempo"])
-            else:
-                indice_min_tiempo = df_procesado["Tiempo"].idxmin()
-                posicion_desde_el_final = (n_registros - 1) - indice_min_tiempo
-                
-                if posicion_desde_el_final >= 2:
-                    db_t_pb, db_T_pb = float(df_procesado.iloc[-1]["Edad"]), float(df_procesado.iloc[-1]["Tiempo"])
-                else:
-                    t_ultima, t_penultima = float(df_procesado.iloc[-1]["Tiempo"]), float(df_procesado.iloc[-2]["Tiempo"])
-                    if t_ultima <= t_penultima:
-                        db_t_pb, db_T_pb = float(df_procesado.iloc[-1]["Edad"]), t_ultima
-                    else:
-                        db_t_pb, db_T_pb = float(df_procesado.iloc[-2]["Edad"]), t_penultima
+            # Llama a la función centralizada de formulas_lib_funciones.py
+            db_t0, db_T0, db_t_pb, db_T_pb = procesar_mejor_marca_historica(df_procesado)
         else:
             df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
             db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
