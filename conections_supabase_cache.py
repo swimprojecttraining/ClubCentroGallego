@@ -75,4 +75,39 @@ def obtener_catalogo_competencias_cache():
         return response.data if response.data else []
     except Exception: return []
 
+import pandas as pd
+
+def obtener_marcas_equipo_cache(supabase, lista_ids_nadadores, prueba_seleccionada):
+    """
+    Consulta el historial de tiempos para un grupo de nadadores en una prueba específica.
+    """
+    if not lista_ids_nadadores:
+        return pd.DataFrame() # Retorna un DataFrame vacío si no hay selección
+
+    try:
+        # Asegúrate de cambiar "marcas" por el nombre real de tu tabla de tiempos
+        respuesta = supabase.table("marcas") \
+            .select("usuario_id, nombre, genero, prueba, tiempo_segundos, fecha_competencia") \
+            .eq("prueba", prueba_seleccionada) \
+            .in_("usuario_id", lista_ids_nadadores) \
+            .execute()
+
+        datos = respuesta.data
+
+        if datos:
+            # Convertimos directamente el JSON (lista de diccionarios) a Pandas
+            df_marcas = pd.DataFrame(datos)
+            
+            # Aseguramos que la columna de tiempo sea numérica
+            df_marcas["tiempo_segundos"] = pd.to_numeric(df_marcas["tiempo_segundos"], errors="coerce")
+            
+            return df_marcas
+        else:
+            return pd.DataFrame()
+
+    except Exception as e:
+        # Silenciamos el error en la interfaz, pero puedes imprimirlo en consola para debug
+        print(f"Error al consultar marcas del equipo: {e}")
+        return pd.DataFrame()
+
 
