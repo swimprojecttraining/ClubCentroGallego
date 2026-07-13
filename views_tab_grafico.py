@@ -79,7 +79,7 @@ def renderizar_tab_grafico(datos_sidebar):
             t_pb = float(df_procesado.loc[idx_pb, "Edad"])
             T_pb = float(df_procesado.loc[idx_pb, "Tiempo"])
             
-            if tipo_vista == "Micro (Ventana Anual)":
+            if "Micro" in tipo_vista:
                 edad_min_zoom = datos_sidebar.get("edad_min_zoom", t0)
                 edad_max_zoom = datos_sidebar.get("edad_max_zoom", t_peak)
 
@@ -94,12 +94,11 @@ def renderizar_tab_grafico(datos_sidebar):
 
     # Cálculos Comunes (Atleta Principal / Simulación)
     if not modo_equipo or (modo_equipo and T0 != 0.0):
-        # Usamos las funciones matemáticas importadas de la librería
         k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
         c1 = k
         c2 = T_pb - T_target
         
-        edades_curva = np.linspace(t0, t_peak + 3, 300) # Extendido un poco post-peak para ver deriva
+        edades_curva = np.linspace(t0, t_peak + 3, 300) 
         curva_ind = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
         
         c3 = np.interp(edad_intermedia, edades_curva, curva_ind)
@@ -135,10 +134,9 @@ def renderizar_tab_grafico(datos_sidebar):
         if simulacion_externa:
             ax.set_xlim([t0 - 0.5, t_peak + 1.0])
         else:
-            # Usando mayúsculas correctas según lo que procesa formulas_lib_funciones
             ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], 'ro-', label="Marcas Reales", markersize=4)
             
-            if tipo_vista == "Micro (Ventana Anual)":
+            if "Micro" in tipo_vista:
                 ax.set_xlim([edad_min_zoom, edad_max_zoom])
             else:
                 ax.set_xlim([t0 - 0.5, t_peak + 1.0])
@@ -146,10 +144,11 @@ def renderizar_tab_grafico(datos_sidebar):
         # =====================================================================
         # 6. DIBUJO DE PUNTOS CRÍTICOS Y ETIQUETAS
         # =====================================================================
+        # Extraemos los límites primero para que estén disponibles en el bloque 7
+        lim_x_min, lim_x_max = ax.get_xlim()
+        lim_y_inferior, lim_y_superior = ax.get_ylim()
+
         if not simulacion_externa:
-            lim_x_min, lim_x_max = ax.get_xlim()
-            lim_y_inferior, lim_y_superior = ax.get_ylim()
-            
             offset_y = (lim_y_superior - lim_y_inferior) * 0.025
             estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
@@ -157,7 +156,7 @@ def renderizar_tab_grafico(datos_sidebar):
                 ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real (PBs)")
                 ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
-            # Puntos de Control: Start, PB, Consulta e Hito Peak
+            # Puntos de Control
             if lim_x_min <= t0 <= lim_x_max and lim_y_inferior <= T0 <= lim_y_superior:
                 ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
                 ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{formatear_a_minutos(T0)}", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
@@ -179,24 +178,62 @@ def renderizar_tab_grafico(datos_sidebar):
                 ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
 
         # =====================================================================
-        # 7. TABLAS NATIVAS INFERIORES DE MATPLOTLIB
+        # 7. LÍNEAS DE REFERENCIA (AMBOS) Y HITOS DE COMPETENCIA (SOLO MICRO)
         # =====================================================================
-        df_table_render = datos_sidebar.get("df_procesado") # Se renderiza la tabla histórica procesada
+        if not simulacion_externa:
+            x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
+            
+            # --- LÍNEAS HORIZONTALES (Marcas Mínimas) ---
+            # Aplicable tanto a gráfico Macro como Micro
+            referencias = datos_sidebar.get("referencias_lineas", [])
+            for r in referencias:
+                if r.get("val", 0) > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
+                    ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+                    desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+                    tiempo_lbl_formateado = formatear_a_minutos(r["val"]).replace(" s", "")
+                    ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl_formateado}", color=r["col"], fontsize=7, va=r["va"], ha="left")
+
+            # --- LÍNEAS VERTICALES (Hitos de Competencia) ---
+            # Exclusivo para la Vista Micro
+            if "Micro" in tipo_vista:
+                hitos_procesados = datos_sidebar.get("hitos_procesados", [])
+                for hito in hitos_procesados:
+                    edad_hito = hito.get("edad", 0)
+                    if lim_x_min <= edad_hito <= lim_x_max:
+                        color_linea = "#2ECC71" if hito.get("elegible", False) else "#E74C3C" 
+                        estilo_linea = "--" if hito.get("elegible", False) else ":"
+                        
+                        ax.axvline(x=edad_hito, color=color_linea, linestyle=estilo_linea, linewidth=0.7, alpha=0.6, zorder=5)
+                        y_pos = lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.03)
+                        
+                        ax.text(
+                            x=edad_hito + 0.015, y=y_pos, 
+                            s=f"{hito.get('nombre_corto', '')} {hito.get('fecha_str', '')}", 
+                            color=color_linea, fontsize=7.5, weight="light",
+                            rotation=90, va="bottom", ha="left", alpha=0.85, zorder=6
+                        )
+
+        # =====================================================================
+        # 8. TABLAS NATIVAS INFERIORES DE MATPLOTLIB
+        # =====================================================================
+        # Usamos df_table_render si existe, sino usamos el procesado por defecto
+        df_table_render = datos_sidebar.get("df_table_render", datos_sidebar.get("df_procesado"))
         
         if not simulacion_externa and df_table_render is not None and not df_table_render.empty:
             
-            # Preparamos la tabla para que se vea bonita (evitamos mostrar el ID si está)
             if 'id' in df_table_render.columns:
                 df_table_render = df_table_render.drop(columns=['id'])
                 
-            # Formateamos la columna 'Tiempo' para la tabla
             df_vista_tabla = df_table_render.copy()
-            df_vista_tabla['Tiempo'] = df_vista_tabla['Tiempo'].apply(lambda x: formatear_a_minutos(x).replace(" s", ""))
+            if 'Tiempo' in df_vista_tabla.columns:
+                df_vista_tabla['Tiempo'] = df_vista_tabla['Tiempo'].apply(lambda x: formatear_a_minutos(x).replace(" s", "") if isinstance(x, (int, float)) else x)
             
             total_filas = len(df_vista_tabla)
             limite_filas_por_bloque = 18
             
-            anchos_columnas = [0.15, 0.25, 0.60] # Edad, Tiempo, Evento
+            # Ajuste de ancho de columnas según si estamos en modo Micro o Macro
+            es_modo_micro_tabla = ("Micro" in tipo_vista)
+            anchos_columnas = [0.25, 0.25, 0.25, 0.25] if es_modo_micro_tabla and len(df_vista_tabla.columns) == 4 else [0.15, 0.25, 0.60]
             
             def estilizar_tabla_nativo(instancia_tabla):
                 instancia_tabla.auto_set_font_size(False)
@@ -226,16 +263,14 @@ def renderizar_tab_grafico(datos_sidebar):
                 df_bloque_izq = df_vista_tabla.iloc[:limite_filas_por_bloque]
                 df_bloque_der = df_vista_tabla.iloc[limite_filas_por_bloque:]
                 
-                anchos_doble = [0.15, 0.25, 0.60]
-                
                 ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.48])
                 ax_table1.axis('off')
-                mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
+                mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_columnas)
                 estilizar_tabla_nativo(mpl_table1)
                 
                 ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.54])
                 ax_table2.axis('off')
-                mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
+                mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=anchos_columnas)
                 estilizar_tabla_nativo(mpl_table2)
 
         # Configuración final de títulos y leyendas
