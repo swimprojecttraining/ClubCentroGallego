@@ -63,9 +63,9 @@ def renderizar_tab_grafico(datos_sidebar):
         wr = float(ref_data.get("m_wr", wr))
 
     if not simulacion_externa and not modo_equipo:
-# 1. Llama a la función solo con los 3 argumentos que acepta
-    referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
-    hitos_raw = obtener_historial_hitos_cache(usuario_id)
+        # 1. Llama a la función solo con los 3 argumentos que acepta
+        referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
+        hitos_raw = obtener_historial_hitos_cache(usuario_id)
 
 
     # =====================================================================
