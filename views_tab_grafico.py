@@ -44,7 +44,7 @@ def renderizar_tab_grafico(datos_sidebar):
     if not simulacion_externa and not modo_equipo:
     # 1. Llama a la función solo con los 3 argumentos que acepta
         referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
-        hitos_raw = obtener_historial_hitos_cache(usuario_id, competencia_id, elegible)
+        hitos_raw = obtener_historial_hitos_cache(usuario_id)
     # 2. Si la consulta devolvió datos, extrae los valores de la lista
         if referencias_raw:
             ref_data = referencias_raw[0] # Tomamos la primera coincidencia
