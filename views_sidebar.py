@@ -113,7 +113,7 @@ def renderizar_sidebar_completo():
         st.sidebar.subheader("👥 Análisis Colectivo")
         modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
         
-if modo_equipo:
+    if modo_equipo:
         spc()
         st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
         filtro_genero = st.sidebar.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
