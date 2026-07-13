@@ -11,7 +11,6 @@ from formulas_lib_funciones import (
 )
 
 # 🚀 IMPORTACIÓN DESDE TU CAPA DE CACHÉ
-# (Asegúrate de que el nombre coincida con tu archivo real, ej: conections_supabase_cache)
 from conections_supabase_cache import (
     obtener_atletas_asignados_cache,
     obtener_nadadores_activos_cache,
@@ -26,8 +25,8 @@ from views_styles import spc
 
 def renderizar_sidebar_completo():
     """
-    Renderiza el centro de mandos interactivo (SIDEBAR) respetando rigurosamente
-    las posiciones, variables de simulación y controles del modelo original.
+    Renderiza el centro de mandos interactivo (SIDEBAR) con código depurado,
+    lógica secuencial correcta y sin redundancias de consultas.
     """
     # 🔐 Garantizar el aislamiento usando la conexión dinámica del club seleccionado
     if "supabase" not in st.session_state or st.session_state.supabase is None:
@@ -46,7 +45,6 @@ def renderizar_sidebar_completo():
     with st.sidebar:
         st.markdown("<hr style='width: 30%; margin: 8px auto; border-top: 1px solid #ccc;'/>", unsafe_allow_html=True)
         if st.sidebar.button("🔄 Actualizar datos"):
-            # Resguardo preventivo anti-desconexión
             conexion_segura = st.session_state.supabase
             autenticado_seguro = st.session_state.autenticado
             
@@ -58,13 +56,12 @@ def renderizar_sidebar_completo():
             st.rerun()
 
     # -------------------------------------------------------------
-    # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Filtros por Rol con Caché)
+    # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Individual)
     # -------------------------------------------------------------
     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
-            # Reemplazo de consulta directa por Caché
             atletas_disponibles = obtener_nadadores_activos_cache()
             
             if st.session_state.rol == "Entrenador":
@@ -72,7 +69,7 @@ def renderizar_sidebar_completo():
                 if ids_asignados:
                     atletas_disponibles = [a for a in atletas_disponibles if a["id"] in ids_asignados]
                 else:
-                    atletas_disponibles = [] # No tiene nadadores asignados activos
+                    atletas_disponibles = [] 
             
             if atletas_disponibles:
                 df_atl = pd.DataFrame(atletas_disponibles)
@@ -88,7 +85,7 @@ def renderizar_sidebar_completo():
                 cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
                 st.session_state.nadador_seleccionado_categoria = cat_calc
             else:
-                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento. (Por defecto asignados al Head Coach)")
+                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento.")
                 st.session_state.nadador_seleccionado_id = None
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
@@ -98,75 +95,8 @@ def renderizar_sidebar_completo():
         st.session_state.nadador_seleccionado_genero = st.session_state.genero
         st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-    # Variables colectivas inicializadas exactamente igual al modelo original
-    modo_equipo = False
-    tipo_filtro = "Todos los Atletas"
-    filtro_genero = "Todos"
-    cat_sel = None
-    ids_sel = []
-# 1. Definir la prueba / título ANTES de usarla en consultas
-    prueba_seleccionada = st.session_state.get("prueba_seleccionada", "50m Libre")
-    titulo_grafico = prueba_seleccionada
-
-    # 2. Ahora sí consulta marcas del equipo (ya titulo_grafico existe en scope)
-    df_global = pd.DataFrame()
-    if modo_equipo and ids_consulta:
-        df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_consulta, titulo_grafico)
     # -------------------------------------------------------------
-    # 👥 ANÁLISIS COLECTIVO (Con Caché)
-    # -------------------------------------------------------------
-    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
-        spc()
-        st.sidebar.subheader("👥 Análisis Colectivo")
-# 👥 ANÁLISIS COLECTIVO (Versión de Depuración)
-        modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
-        
-        # --- INICIALIZACIÓN SEGURA Y OBLIGATORIA ---
-        lista_atletas = []
-        df_global = pd.DataFrame()
-        
-        if modo_equipo:
-            spc()
-            st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
-            filtro_genero = st.sidebar.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
-            tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
-
-            # --- SIN TRY/EXCEPT PARA VER EL ERROR REAL ---
-            atletas_preload = obtener_nadadores_activos_cache()
-            
-            # Debug: ¿Qué nos trae el caché?
-            if atletas_preload is None:
-                st.sidebar.error("Error: obtener_nadadores_activos_cache() devuelve None")
-            else:
-                # 1. Filtro Género
-                if filtro_genero == "Femenino (F)":
-                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "F"]
-                elif filtro_genero == "Masculino (M)":
-                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "M"]
-
-                # 2. Asignación y otros filtros
-                if tipo_filtro == "Todos los Atletas":
-                    lista_atletas = atletas_preload
-                
-                elif tipo_filtro == "Categoría Etaria":
-                    # Usamos .get() por seguridad
-                    categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] for a in atletas_preload if a.get("fecha_nacimiento")])))
-                    if categorias_disponibles:
-                        cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
-                        lista_atletas = [a for a in atletas_preload if calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] == cat_sel]
-                
-                elif tipo_filtro == "Atletas Específicos":
-                    dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
-                    ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
-                    lista_atletas = [a for a in atletas_preload if a["id"] in ids_sel]
-
-                # 3. Consulta final
-                if lista_atletas:
-                    ids_consulta = [a["id"] for a in lista_atletas]
-                    df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_consulta, titulo_grafico)
-
-    # -------------------------------------------------------------
-    # 📊 AJUSTES DINÁMICOS POR CATEGORÍA Y LISTADO DE PRUEBAS
+    # 📊 SELECCIÓN DE PRUEBA (Debe ir antes del Análisis Colectivo)
     # -------------------------------------------------------------
     spc()
     st.sidebar.subheader("📊 Ajustes por prueba")
@@ -213,12 +143,70 @@ def renderizar_sidebar_completo():
         st.sidebar.info("👆 Selecciona una distancia específica en el menú superior para ver o editar los datos.")
         st.stop()
 
+    st.session_state["prueba_seleccionada"] = titulo_grafico
+
+    # -------------------------------------------------------------
+    # 👥 ANÁLISIS COLECTIVO (Equipo)
+    # -------------------------------------------------------------
+    modo_equipo = False
+    tipo_filtro = "Todos los Atletas"
+    filtro_genero = "Todos"
+    cat_sel = None
+    ids_sel = []
+    lista_atletas = []
+    df_global = pd.DataFrame()
+
+    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+        spc()
+        st.sidebar.subheader("👥 Análisis Colectivo")
+        modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
+        
+        if modo_equipo:
+            spc()
+            st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
+            filtro_genero = st.sidebar.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
+            tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
+
+            try:
+                atletas_preload = obtener_nadadores_activos_cache() or []
+                
+                # 1. Filtro Género
+                if filtro_genero == "Femenino (F)":
+                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "F"]
+                elif filtro_genero == "Masculino (M)":
+                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "M"]
+
+                # 2. Asignación y otros filtros
+                if tipo_filtro == "Todos los Atletas":
+                    lista_atletas = atletas_preload
+                
+                elif tipo_filtro == "Categoría Etaria":
+                    categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] for a in atletas_preload if a.get("fecha_nacimiento")])))
+                    if categorias_disponibles:
+                        cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
+                        lista_atletas = [a for a in atletas_preload if calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] == cat_sel]
+                
+                elif tipo_filtro == "Atletas Específicos":
+                    dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
+                    ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
+                    lista_atletas = [a for a in atletas_preload if a["id"] in ids_sel]
+
+                # 3. Consulta final optimizada (una sola vez)
+                if lista_atletas:
+                    ids_consulta = [a["id"] for a in lista_atletas]
+                    df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_consulta, titulo_grafico)
+                else:
+                    st.sidebar.warning("⚠️ No hay atletas detectados con los filtros actuales.")
+
+            except Exception as e:
+                st.sidebar.error(f"Error procesando la nómina del equipo: {e}")
+
+    # -------------------------------------------------------------
+    # 🏁 EXTRACCIÓN ALINEADA CON 'marcas_referencia' 
+    # -------------------------------------------------------------
     contenedor_sliders = st.sidebar.container()
     m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
 
-    # -------------------------------------------------------------
-    # 🏁 EXTRACCIÓN ALINEADA CON 'marcas_referencia' (Con Caché)
-    # -------------------------------------------------------------
     if es_preinfantil:
         def get_m_ano_infantil_a(prueba_str):
             try:
@@ -263,7 +251,7 @@ def renderizar_sidebar_completo():
             st.error(f"Error extrayendo marcas de la categoría: {e}")
 
     # -------------------------------------------------------------
-    # 🚨 MODO SIMULACIÓN Y EXTRACCIÓN HISTÓRICA DE PB (Con Caché y Lógica Centralizada)
+    # 🚨 MODO SIMULACIÓN Y EXTRACCIÓN HISTÓRICA DE PB
     # -------------------------------------------------------------
     spc()
     st.sidebar.subheader("🚨 Simulación de Escenarios")
@@ -275,8 +263,6 @@ def renderizar_sidebar_completo():
         if datos_historicos:
             df_procesado = pd.DataFrame(datos_historicos)
             df_procesado = df_procesado.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-            
-            # Llama a la función centralizada de formulas_lib_funciones.py
             db_t0, db_T0, db_t_pb, db_T_pb = procesar_mejor_marca_historica(df_procesado)
         else:
             df_procesado = pd.DataFrame(columns=["id", "Edad", "Tiempo", "Evento / Fecha"])
@@ -292,7 +278,6 @@ def renderizar_sidebar_completo():
     val_t_pb = db_t_pb if (db_t_pb is not None) else 12.0
     val_T_pb = db_T_pb if (db_T_pb is not None) else float(round(m_wr * 1.3, 2))
 
-    # Guardar en el buzón global para que la pestaña del gráfico las pueda leer
     st.session_state["val_t0"] = val_t0
     st.session_state["val_T0"] = val_T0
     st.session_state["val_t_pb"] = val_t_pb
@@ -312,10 +297,8 @@ def renderizar_sidebar_completo():
     else:
         st.sidebar.subheader("📐 Parámetros de Límites y PB 🔒")
 
-    # 1. Edad Start (t0)
     t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.1, disabled=inputs_bloqueados)
 
-    # 2. Tiempo Inicial (T0)
     T0_str = st.sidebar.text_input(
         "2. Tiempo Inicial (T0):", 
         value=formatear_a_minutos(val_T0).replace(" s", ""), 
@@ -328,10 +311,8 @@ def renderizar_sidebar_completo():
         st.sidebar.error("❌ Formato T0 inválido. Use 'mm:ss.00'")
         T0 = float(val_T0)
 
-    # 3. Edad Peak Proyectado
     t_peak = st.sidebar.number_input("3. Edad Peak Proyectado (t_peak):", min_value=5.0, max_value=30.0, step=1.0, value=23.0)
 
-    # 4. Tiempo Objetivo Peak (T_target)
     T_target_str = st.sidebar.text_input(
         "4. Tiempo Objetivo Peak (T_target):", 
         value=formatear_a_minutos(val_T_target).replace(" s", ""),
@@ -343,10 +324,8 @@ def renderizar_sidebar_completo():
         st.sidebar.error("❌ Formato T_target inválido. Use 'mm:ss.00'")
         T_target = float(val_T_target)
 
-    # 5. Edad del PB de Control (t_pb)
     t_pb = st.sidebar.number_input("5. Edad del PB de Control (t_pb):", min_value=4.0, value=val_t_pb, step=0.05, disabled=inputs_bloqueados)
 
-    # 6. Tiempo del PB de Control (T_pb)
     T_pb_str = st.sidebar.text_input(
         "6. Tiempo del PB de Control (T_pb):", 
         value=formatear_a_minutos(val_T_pb).replace(" s", ""), 
@@ -359,13 +338,12 @@ def renderizar_sidebar_completo():
         st.sidebar.error("❌ Formato T_pb inválido. Use 'mm:ss.00'")
         T_pb = float(val_T_pb)
 
-    # 💾 ACTUALIZACIÓN INMEDIATA DEL CACHÉ EN SESSION STATE
     st.session_state["t0_segundos"] = T0
     st.session_state["ttarget_segundos"] = T_target
     st.session_state["tpb_segundos"] = T_pb
 
     # -------------------------------------------------------------
-    # 🔎 CONTROLES DE VISTA CON LÍMITES DINÁMICOS Y COMPLETO
+    # 🔎 CONTROLES DE VISTA
     # -------------------------------------------------------------
     tipo_vista = st.sidebar.selectbox("Enfoque del Gráfico", ["Macro (Historial Completo)", "Micro (Ventana Anual)"])
     if tipo_vista == "Micro (Ventana Anual)":
@@ -381,31 +359,19 @@ def renderizar_sidebar_completo():
         edad_min_zoom = 0.0
         edad_max_zoom = 100.0
 
-# ⏱️ CONTENEDOR INYECTADO
     with contenedor_sliders:
         spc()
         st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
         h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.35, step=0.05)
         t_intermedia = st.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-    # Clausula informativa obligatoria para nadadores no colectivos
     if not modo_equipo and st.session_state.rol == "Nadador":
         st.sidebar.markdown("---")
         st.sidebar.caption("📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar marcas, asistir a campeonatos y optar por becas universitarias nacionales e internacionales.*")
 
-# --- LÓGICA CORREGIDA PARA DF_GLOBAL ---
-    df_global = pd.DataFrame() 
-    
-    if modo_equipo:
-        # Si ids_sel está vacío pero tenemos lista_atletas, extraemos los IDs de allí
-        ids_para_consulta = ids_sel if ids_sel else [a["id"] for a in lista_atletas]
-        
-        if ids_para_consulta: # Solo consultamos si tenemos algo que buscar
-            df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_para_consulta, titulo_grafico)
-        else:
-            st.warning("No hay atletas detectados con los filtros actuales.")
-
-# Retorno unificado de empaquetado para el script principal
+    # -------------------------------------------------------------
+    # 📦 RETORNO DE DATOS EMPAQUETADOS
+    # -------------------------------------------------------------
     return {
         "usuario_id": st.session_state.get("nadador_seleccionado_id"),
         "genero": st.session_state.get("nadador_seleccionado_genero", "M"),
@@ -417,6 +383,8 @@ def renderizar_sidebar_completo():
         "tipo_filtro": tipo_filtro,
         "cat_sel": cat_sel,
         "ids_sel": ids_sel,
+        "lista_atletas_filtrados": lista_atletas, 
+        "df_global_marcas": df_global,
         "t0": t0,
         "T0": T0,
         "t_peak": t_peak,
@@ -429,7 +397,6 @@ def renderizar_sidebar_completo():
         "factor_h": h,
         "t_intermedia": t_intermedia,
         "df_procesado": df_procesado,
-        "df_global_marcas": df_global,
         "m_ano": m_ano,
         "m_panam_b": m_panam_b,
         "m_panam_a": m_panam_a,
