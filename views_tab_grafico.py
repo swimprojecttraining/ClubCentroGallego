@@ -150,13 +150,15 @@ def renderizar_tab_grafico(datos_sidebar):
         lim_x_min, lim_x_max = ax.get_xlim()
         lim_y_inferior, lim_y_superior = ax.get_ylim()
 
-        # =====================================================================
+# =====================================================================
         # 7. DIBUJO DE PUNTOS CRÍTICOS Y ETIQUETAS
         # =====================================================================
-        if not simulacion_externa:
-            offset_y = (lim_y_superior - lim_y_inferior) * 0.025
-            estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
+        
+        # Definimos el estilo de las etiquetas una sola vez para que aplique a ambos modos
+        offset_y = (lim_y_superior - lim_y_inferior) * 0.025
+        estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
+        if not simulacion_externa:
             if df_procesado is not None and not df_procesado.empty:
                 ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real")
                 ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
@@ -181,6 +183,43 @@ def renderizar_tab_grafico(datos_sidebar):
                 ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=4, label="Meta Peak")
                 ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{formatear_a_minutos(T_target)}", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
                 ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
+        
+        elif simulacion_externa:  # <-- CORRECCIÓN: Agregado el guion bajo
+            
+            # --- WIDGETS DE STREAMLIT (Entradas del usuario) ---
+            st.markdown("### 🔍 Consultar Proyección en Edad Específica")
+            t_intermedia = st.slider("Edad a consultar:", 
+                                     min_value=float(t0), 
+                                     max_value=float(t_peak), 
+                                     value=float(t_pb), 
+                                     step=0.25)
+            
+            # Cálculo de la curva de simulación usando la constante k calculada previamente
+            # NOTA: Asegúrate de que la variable "k_simulada" exista en tu código más arriba
+            T_intermedia = T0 * np.exp(-k_simulada * (t_intermedia - t0)) 
+            
+            # --- DIBUJO DE PUNTOS EN MODO SIMULACIÓN ---
+            # 1. Punto T0 (Inicio)
+            ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=5)
+            ax.text(t0 + 0.1, T0, f"Inicio Sim.\n{formatear_a_minutos(T0)}", va="bottom", ha="left", bbox=estilo_bbox, fontsize=8)
+            ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
+            
+            # 2. Punto T_pb (Personal Best de Control)
+            ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5)
+            ax.text(t_pb + 0.15, T_pb, f"PB Control\n{formatear_a_minutos(T_pb)}", va="center", ha="left", bbox=estilo_bbox, fontsize=8)
+            ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
+            
+            # 3. Punto T_target (Meta en el Peak)
+            ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=5)
+            ax.text(t_peak - 0.1, T_target, f"Meta Sim.\n{formatear_a_minutos(T_target)}", va="bottom", ha="right", bbox=estilo_bbox, fontsize=8)
+            ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
+            
+            # 4. Punto de Consulta (T_intermedia)
+            ax.scatter(t_intermedia, T_intermedia, color="purple", marker="X", edgecolor="black", s=60, zorder=6)
+            ax.text(t_intermedia, T_intermedia + offset_y, f"Proyección: {t_intermedia}a\n{formatear_a_minutos(T_intermedia)}", va="bottom", ha="center", bbox=estilo_bbox, fontsize=8, color="purple")
+            ax.axvline(x=t_intermedia, color="purple", linestyle=":", linewidth=0.7, alpha=0.4)
+            
+            st.info(f"⏱️ Tiempo proyectado a los **{t_intermedia} años**: {formatear_a_minutos(T_intermedia)}")
 
         # =====================================================================
         # 8. MARCAS DE REFERENCIA E HITOS (DATOS CACHÉ DE SUPABASE)
