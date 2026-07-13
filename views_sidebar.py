@@ -7,7 +7,7 @@ from formulas_lib_funciones import (
     calcular_categoria_competencia,
     formatear_a_minutos,
     convertir_string_a_segundos,
-    procesar_mejor_marca_historica  # <- Nueva función que procesa el PB
+    procesar_mejor_marca_historica
 )
 
 # 🚀 IMPORTACIÓN DESDE TU CAPA DE CACHÉ
