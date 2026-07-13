@@ -43,8 +43,8 @@ def renderizar_tab_grafico(datos_sidebar):
     # =====================================================================
     # CORRECCIÓN: Se cambió "no" por "not"
     if not simulacion_externa and not modo_equipo:
-        referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
-        hitos_raw = obtener_historial_hitos_cache(usuario_id)
+        referencias_raw = obtener_marcas_referencia_cache(prueba, genero, m_ano, m_panam_b,m_panam_a, m_wa_b, m_wa_a, wr, categoria)
+        hitos_raw = obtener_historial_hitos_cache(usuario_id, competencia_id, elegible)
     else:
         referencias_raw = []
         hitos_raw = []
