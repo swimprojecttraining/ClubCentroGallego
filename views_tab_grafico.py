@@ -32,16 +32,15 @@ def renderizar_tab_grafico(datos_sidebar):
     h = float(datos_sidebar.get("factor_h", 0.35))
     edad_intermedia = float(datos_sidebar.get("t_intermedia", 18.0))
 
-    # Variables de contexto para Supabase (con mapeo seguro)
-    prueba = datos_sidebar.get("prueba", datos_sidebar.get("prueba_seleccionada", ""))
-    genero = datos_sidebar.get("genero", datos_sidebar.get("genero_atleta", "M"))
-    categoria = datos_sidebar.get("categoria", datos_sidebar.get("categoria_atleta", ""))
-    usuario_id = datos_sidebar.get("usuario_id", datos_sidebar.get("id", ""))
+    # Contexto mapeado desde el Sidebar
+    prueba = titulo_grafico
+    genero = datos_sidebar.get("genero", "M")
+    categoria = datos_sidebar.get("categoria", "")
+    usuario_id = datos_sidebar.get("usuario_id", None)
 
     # =====================================================================
-    # 2. CONSULTAS A LA CACHÉ DE SUPABASE (INDEPENDIENTES DEL SIDEBAR)
-# =====================================================================
-# 1. Inicialización obligatoria (Valores por defecto del Sidebar)
+    # 2. VALORES POR DEFECTO Y CONSULTAS A CACHÉ SUPABASE
+    # =====================================================================
     m_ano = float(datos_sidebar.get("m_ano", 0.0))
     m_panam_b = float(datos_sidebar.get("m_panam_b", 0.0))
     m_panam_a = float(datos_sidebar.get("m_panam_a", 0.0))
@@ -49,24 +48,22 @@ def renderizar_tab_grafico(datos_sidebar):
     m_wa_a = float(datos_sidebar.get("m_wa_a", 0.0))
     wr = float(datos_sidebar.get("m_wr", 25.0))
 
-    # 2. Consulta a Supabase
-    referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
-
-    # 3. Actualización (Solo ocurre si hay datos en Supabase)
-    if referencias_raw:
-        ref_data = referencias_raw[0]
-        m_ano = float(ref_data.get("m_ano", m_ano))
-        m_panam_b = float(ref_data.get("m_panam_b", m_panam_b))
-        m_panam_a = float(ref_data.get("m_panam_a", m_panam_a))
-        m_wa_b = float(ref_data.get("m_wa_b", m_wa_b))
-        m_wa_a = float(ref_data.get("m_wa_a", m_wa_a))
-        wr = float(ref_data.get("m_wr", wr))
+    referencias_raw = []
+    hitos_raw = []
 
     if not simulacion_externa and not modo_equipo:
-        # 1. Llama a la función solo con los 3 argumentos que acepta
         referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
-        hitos_raw = obtener_historial_hitos_cache(usuario_id)
+        if usuario_id:
+            hitos_raw = obtener_historial_hitos_cache(usuario_id)
 
+        if referencias_raw:
+            ref_data = referencias_raw[0]
+            m_ano = float(ref_data.get("m_ano", m_ano))
+            m_panam_b = float(ref_data.get("m_panam_b", m_panam_b))
+            m_panam_a = float(ref_data.get("m_panam_a", m_panam_a))
+            m_wa_b = float(ref_data.get("m_wa_b", m_wa_b))
+            m_wa_a = float(ref_data.get("m_wa_a", m_wa_a))
+            wr = float(ref_data.get("m_wr", wr))
 
     # =====================================================================
     # 3. GESTIÓN DE ENCABEZADOS E INTERFAZ
@@ -82,12 +79,14 @@ def renderizar_tab_grafico(datos_sidebar):
     # =====================================================================
     # 4. RECOPILACIÓN ORGANIZADA DE DATOS SEGÚN ESCENARIO
     # =====================================================================
+    t0, T0, t_pb, T_pb = 10.0, 0.0, 12.0, 0.0
+    df_procesado = None
+
     if modo_equipo:
         lista_atletas = datos_sidebar.get("lista_atletas_filtrados", [])
         df_global = datos_sidebar.get("df_global_marcas", pd.DataFrame())
-        st.write("Contenido de df_global:", df_global) 
         if df_global.empty:
-            st.warning("El DataFrame está vacío. Verifica si la consulta a la BD trajo resultados.")
+            st.warning("El DataFrame global está vacío. Verifica si la consulta trajo resultados.")
         if not lista_atletas or df_global.empty:
             st.info("No hay atletas que cumplan con los filtros seleccionados.")
             return
@@ -162,21 +161,17 @@ def renderizar_tab_grafico(datos_sidebar):
         if simulacion_externa:
             ax.set_xlim([t0 - 0.5, t_peak + 1.0])
         else:
-            ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], 'ro-', label="Marcas Reales", markersize=4)
             if "Micro" in tipo_vista:
                 ax.set_xlim([datos_sidebar.get("edad_min_zoom", t0), datos_sidebar.get("edad_max_zoom", t_peak)])
             else:
                 ax.set_xlim([t0 - 0.5, t_peak + 1.0])
 
-        # Extraer límites actuales para cálculos de posiciones
         lim_x_min, lim_x_max = ax.get_xlim()
         lim_y_inferior, lim_y_superior = ax.get_ylim()
 
-# =====================================================================
+        # =====================================================================
         # 7. DIBUJO DE PUNTOS CRÍTICOS Y ETIQUETAS
         # =====================================================================
-        
-        # Definimos el estilo de las etiquetas una sola vez para que aplique a ambos modos
         offset_y = (lim_y_superior - lim_y_inferior) * 0.025
         estilo_bbox = dict(boxstyle="round,pad=0.25", fc="#F8F9F9", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
 
@@ -185,7 +180,6 @@ def renderizar_tab_grafico(datos_sidebar):
                 ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", linestyle="--", linewidth=1.0, alpha=0.6, label="Evolución Real")
                 ax.scatter(df_procesado["Edad"], df_procesado["Tiempo"], color="#D55E00", edgecolor="black", s=25, linewidths=0.6, zorder=3)
 
-            # Puntos de Control: Start, PB, Consulta e Hito Peak
             if lim_x_min <= t0 <= lim_x_max and lim_y_inferior <= T0 <= lim_y_superior:
                 ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=4)
                 ax.text(t0 + 0.1, T0, f"P. Start\n{t0:.2f}a\n{formatear_a_minutos(T0)}", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
@@ -206,66 +200,60 @@ def renderizar_tab_grafico(datos_sidebar):
                 ax.text(t_peak - 0.1, T_target, f"Meta Peak\n{t_peak:.2f}a\n{formatear_a_minutos(T_target)}", fontsize=8, va="bottom", ha="right", bbox=estilo_bbox)
                 ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
         
-        elif simulacion_externa:  # <-- CORRECCIÓN: Agregado el guion bajo
-            
-            # --- WIDGETS DE STREAMLIT (Entradas del usuario) ---
+        elif simulacion_externa:
             st.markdown("### 🔍 Consultar Proyección en Edad Específica")
-            t_intermedia = st.slider("Edad a consultar:", 
+            t_intermedia_sim = st.slider("Edad a consultar:", 
                                      min_value=float(t0), 
                                      max_value=float(t_peak), 
                                      value=float(t_pb), 
                                      step=0.25)
             
-            # Cálculo de la curva de simulación usando la constante k calculada previamente
-            # NOTA: Asegúrate de que la variable "k_simulada" exista en tu código más arriba
-            T_intermedia = T0 * np.exp(-k_simulada * (t_intermedia - t0)) 
-            
-            # --- DIBUJO DE PUNTOS EN MODO SIMULACIÓN ---
-            # 1. Punto T0 (Inicio)
+            k_sim = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
+            curva_sim = calcular_curva_atleta(np.array([t_intermedia_sim]), t0, T0, t_pb, T_pb, t_peak, T_target, k_sim, h)
+            T_intermedia = curva_sim[0]
+
             ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, linewidths=0.6, zorder=5)
             ax.text(t0 + 0.1, T0, f"Inicio Sim.\n{formatear_a_minutos(T0)}", va="bottom", ha="left", bbox=estilo_bbox, fontsize=8)
             ax.axvline(x=t0, color="#7F8C8D", linestyle=":", linewidth=0.7, alpha=0.5)
             
-            # 2. Punto T_pb (Personal Best de Control)
             ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=100, linewidths=0.6, zorder=5)
             ax.text(t_pb + 0.15, T_pb, f"PB Control\n{formatear_a_minutos(T_pb)}", va="center", ha="left", bbox=estilo_bbox, fontsize=8)
             ax.axvline(x=t_pb, color="red", linestyle="--", linewidth=0.7, alpha=0.4)
             
-            # 3. Punto T_target (Meta en el Peak)
             ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=35, linewidths=0.6, zorder=5)
             ax.text(t_peak - 0.1, T_target, f"Meta Sim.\n{formatear_a_minutos(T_target)}", va="bottom", ha="right", bbox=estilo_bbox, fontsize=8)
             ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
             
-            # 4. Punto de Consulta (T_intermedia)
-            ax.scatter(t_intermedia, T_intermedia, color="purple", marker="X", edgecolor="black", s=60, zorder=6)
-            ax.text(t_intermedia, T_intermedia + offset_y, f"Proyección: {t_intermedia}a\n{formatear_a_minutos(T_intermedia)}", va="bottom", ha="center", bbox=estilo_bbox, fontsize=8, color="purple")
-            ax.axvline(x=t_intermedia, color="purple", linestyle=":", linewidth=0.7, alpha=0.4)
+            ax.scatter(t_intermedia_sim, T_intermedia, color="purple", marker="X", edgecolor="black", s=60, zorder=6)
+            ax.text(t_intermedia_sim, T_intermedia + offset_y, f"Proyección: {t_intermedia_sim}a\n{formatear_a_minutos(T_intermedia)}", va="bottom", ha="center", bbox=estilo_bbox, fontsize=8, color="purple")
+            ax.axvline(x=t_intermedia_sim, color="purple", linestyle=":", linewidth=0.7, alpha=0.4)
             
-            st.info(f"⏱️ Tiempo proyectado a los **{t_intermedia} años**: {formatear_a_minutos(T_intermedia)}")
+            st.info(f"⏱️ Tiempo proyectado a los **{t_intermedia_sim} años**: {formatear_a_minutos(T_intermedia)}")
 
         # =====================================================================
-        # 8. MARCAS DE REFERENCIA E HITOS (DATOS CACHÉ DE SUPABASE)
+        # 8. MARCAS DE REFERENCIA E HITOS (DIBUJO DERECHO EN EL GRÁFICO)
         # =====================================================================
         if not simulacion_externa:
             x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.02
             
             # --- Líneas Horizontales (Marcas Mínimas Supabase) ---
-            if isinstance(referencias_raw, list):
-                for ref in referencias_raw:
-                    val_str = ref.get("tiempo", 0)
-                    try:
-                        val = float(val_str)
-                    except (ValueError, TypeError):
-                        continue
-                        
-                    if val > 0 and lim_y_inferior <= val <= lim_y_superior:
-                        nombre_marca = ref.get("nombre_marca", ref.get("nombre", "Marca Mínima"))
-                        ax.axhline(y=val, color="gray", linestyle=":", linewidth=0.6, alpha=0.7)
-                        desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.008
-                        ax.text(x_texto, val + desplazamiento_y, f"{nombre_marca}: {formatear_a_minutos(val)}", color="gray", fontsize=7.5, va="bottom", ha="left")
+            dict_marcas_ref = {
+                "M. Año": m_ano,
+                "Panam B": m_panam_b,
+                "Panam A": m_panam_a,
+                "WA B": m_wa_b,
+                "WA A": m_wa_a,
+                "R. Mundial": wr
+            }
+            
+            for nombre_marca, val in dict_marcas_ref.items():
+                if val > 0 and lim_y_inferior <= val <= lim_y_superior:
+                    ax.axhline(y=val, color="gray", linestyle=":", linewidth=0.7, alpha=0.7)
+                    desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.008
+                    ax.text(x_texto, val + desplazamiento_y, f"{nombre_marca}: {formatear_a_minutos(val)}", color="#555555", fontsize=7.5, va="bottom", ha="left")
 
             # --- Líneas Verticales (Hitos y Competencias) SOLO MICRO ---
-            if "Micro" in tipo_vista and isinstance(hitos_raw, list):
+            if "Micro" in tipo_vista and hitos_raw and isinstance(hitos_raw, list):
                 for hito in hitos_raw:
                     edad_hito_str = hito.get("edad", 0)
                     try:
@@ -274,14 +262,13 @@ def renderizar_tab_grafico(datos_sidebar):
                         continue
                         
                     if lim_x_min <= edad_hito <= lim_x_max:
-                        # Extraer el nombre de la competencia desde el cruce de tablas
                         comp_data = hito.get("catalogo_competencias", {})
                         if isinstance(comp_data, dict):
-                            nombre_evento = comp_data.get("nombre_corto", "Competencia")
+                            nombre_evento = comp_data.get("nombre_corto", comp_data.get("nombre", "Competencia"))
                         else:
-                            nombre_evento = "Evento Programado"
+                            nombre_evento = hito.get("evento", "Evento Programado")
 
-                        ax.axvline(x=edad_hito, color="#2ECC71", linestyle="--", linewidth=0.8, alpha=0.6, zorder=5)
+                        ax.axvline(x=edad_hito, color="#2ECC71", linestyle="--", linewidth=0.8, alpha=0.8, zorder=5)
                         y_pos = lim_y_inferior + ((lim_y_superior - lim_y_inferior) * 0.03)
                         ax.text(
                             x=edad_hito + 0.02, y=y_pos, 
@@ -291,7 +278,7 @@ def renderizar_tab_grafico(datos_sidebar):
                         )
 
         # =====================================================================
-        # 9. TABLAS NATIVAS INFERIORES (SOLO INDIVIDUAL/REAL)
+        # 9. TABLAS NATIVAS INFERIORES
         # =====================================================================
         df_table_render = datos_sidebar.get("df_procesado")
         
@@ -348,8 +335,6 @@ def renderizar_tab_grafico(datos_sidebar):
     ax.grid(True, linestyle=':', alpha=0.6)
     ax.legend(loc='upper right', fontsize=9)
 
-    # 🚀 Renderizado final (Evita el Deprecation Warning)
+    # Renderizado y limpieza de memoria
     st.pyplot(fig, width='stretch')
-
-    # 🧹 LIMPIEZA DE MEMORIA (EVITA EL SEGMENTATION FAULT)
     plt.close(fig)
