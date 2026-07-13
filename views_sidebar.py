@@ -6,11 +6,17 @@ import datetime
 from formulas_lib_funciones import (
     calcular_categoria_competencia,
     formatear_a_minutos,
-    convertir_string_a_segundos
+    convertir_string_a_segundos,
+    procesar_mejor_marca_historica
 )
 
 # 🎨 IMPORTACIÓN DESDE TU MÓDULO DE ESTILOS VISUALES
 from views_styles import spc
+
+from conections_supabase_cache import (
+    obtener_atletas_asignados_cache, obtener_nadadores_activos_cache,
+    obtener_marcas_historicas_cache, obtener_marcas_referencia_cache
+)
 
 
 def renderizar_sidebar_completo():
