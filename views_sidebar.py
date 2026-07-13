@@ -418,6 +418,12 @@ def renderizar_sidebar_completo():
         "edad_max_zoom": edad_max_zoom,
         "factor_h": h,
         "t_intermedia": t_intermedia,
-        "df_procesado": df_procesado, # Coma agregada aquí
-        "df_global_marcas": df_global
+        "df_procesado": df_procesado,
+        "df_global_marcas": df_global,
+        "m_ano": m_ano,
+        "m_panam_b": m_panam_b,
+        "m_panam_a": m_panam_a,
+        "m_wa_b": m_wa_b,
+        "m_wa_a": m_wa_a,
+        "m_wr": m_wr
     }
