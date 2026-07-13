@@ -113,40 +113,56 @@ def renderizar_sidebar_completo():
         st.sidebar.subheader("👥 Análisis Colectivo")
         modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
         
+        # Inicializamos variables de control fuera de los ifs para que SIEMPRE existan
+        lista_atletas = []
+        df_global = pd.DataFrame()
+
         if modo_equipo:
             spc()
             st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
             filtro_genero = st.sidebar.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
             tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
-    
+
             try:
-                # Inicializamos la lista para evitar errores
-                lista_atletas = [] 
+                # 1. Obtención base
                 atletas_preload = obtener_nadadores_activos_cache()
-    
-                # Filtro de Género
+
+                # 2. APLICAR FILTRO DE ENTRENADOR (El faltante que mencionaste)
+                if st.session_state.rol == "Entrenador":
+                    ids_asignados = obtener_atletas_asignados_cache(st.session_state.usuario_id)
+                    if ids_asignados:
+                        atletas_preload = [a for a in atletas_preload if a["id"] in ids_asignados]
+                    else:
+                        atletas_preload = [] # Entrenador sin nadadores
+
+                # 3. Filtro de Género
                 if filtro_genero == "Femenino (F)":
                     atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
                 elif filtro_genero == "Masculino (M)":
                     atletas_preload = [a for a in atletas_preload if a["genero"] == "M"]
-    
-                # Lógica de asignación de lista_atletas
+
+                # 4. Lógica de selección según el tipo de filtro
                 if tipo_filtro == "Todos los Atletas":
                     lista_atletas = atletas_preload
                 
                 elif tipo_filtro == "Categoría Etaria" and atletas_preload:
-                    categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
-                    if categorias_disponibles:
-                        cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
+                    cats = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
+                    if cats:
+                        cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=cats)
                         lista_atletas = [a for a in atletas_preload if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
                 
                 elif tipo_filtro == "Atletas Específicos" and atletas_preload:
                     dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
                     ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
                     lista_atletas = [a for a in atletas_preload if a["id"] in ids_sel]
-    
+
+                # 5. Consulta a BD (solo si tenemos lista_atletas)
+                if lista_atletas:
+                    ids_consulta = [a["id"] for a in lista_atletas]
+                    df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_consulta, titulo_grafico)
+            
             except Exception as e:
-                st.sidebar.error("Error cargando los filtros secundarios.")
+                st.sidebar.error("Error procesando filtros de equipo.")
                 lista_atletas = []
 
     # -------------------------------------------------------------
