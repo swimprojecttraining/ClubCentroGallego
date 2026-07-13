@@ -113,31 +113,41 @@ def renderizar_sidebar_completo():
         st.sidebar.subheader("👥 Análisis Colectivo")
         modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
         
-        if modo_equipo:
-            spc()
-            st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
-            filtro_genero = st.sidebar.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
-            tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
-            
-            try:
-                atletas_preload = obtener_nadadores_activos_cache()
-                
-                if filtro_genero == "Femenino (F)":
-                    atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
-                elif filtro_genero == "Masculino (M)":
-                    atletas_preload = [a for a in atletas_preload if a["genero"] == "M"]
+if modo_equipo:
+        spc()
+        st.sidebar.subheader("🔍 Filtros de Segmentación de Equipo")
+        filtro_genero = st.sidebar.radio("Segmentar por Género:", options=["Todos", "Femenino (F)", "Masculino (M)"])
+        tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
 
-                if tipo_filtro == "Categoría Etaria" and atletas_preload:
-                    categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
-                    if categorias_disponibles:
-                        cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
-                        
-                elif tipo_filtro == "Atletas Específicos" and atletas_preload:
-                    dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
-                    if dict_nom:
-                        ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
-            except Exception as e:
-                st.sidebar.error("Error cargando los filtros secundarios.")
+        try:
+            # Inicializamos la lista para evitar errores
+            lista_atletas = [] 
+            atletas_preload = obtener_nadadores_activos_cache()
+
+            # Filtro de Género
+            if filtro_genero == "Femenino (F)":
+                atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
+            elif filtro_genero == "Masculino (M)":
+                atletas_preload = [a for a in atletas_preload if a["genero"] == "M"]
+
+            # Lógica de asignación de lista_atletas
+            if tipo_filtro == "Todos los Atletas":
+                lista_atletas = atletas_preload
+            
+            elif tipo_filtro == "Categoría Etaria" and atletas_preload:
+                categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
+                if categorias_disponibles:
+                    cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
+                    lista_atletas = [a for a in atletas_preload if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
+            
+            elif tipo_filtro == "Atletas Específicos" and atletas_preload:
+                dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
+                ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
+                lista_atletas = [a for a in atletas_preload if a["id"] in ids_sel]
+
+        except Exception as e:
+            st.sidebar.error("Error cargando los filtros secundarios.")
+            lista_atletas = []
 
     # -------------------------------------------------------------
     # 📊 AJUSTES DINÁMICOS POR CATEGORÍA Y LISTADO DE PRUEBAS
