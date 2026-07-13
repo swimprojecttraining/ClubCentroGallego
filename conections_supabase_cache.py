@@ -40,7 +40,7 @@ def obtener_marcas_referencia_cache(prueba, genero, categoria):
     if not supabase: return []
     try:
         ref_resp = supabase.table("marcas_referencia").select("*") \
-            .eq("prueba", prueba).eq("genero", genero).eq("categoria", categoria).eq("m_ano", m_ano).eq("m_panam_b", m_panam_b).eq("m_panam_a", m_panam_a).eq("m_wa_b", m_wa_b).eq("m_wa_a", m_wa_a).eq("m_wr", m_wr).execute()
+            .eq("prueba", prueba).eq("genero", genero).eq("categoria", categoria).execute()
         return ref_resp.data if ref_resp.data else []
     except: return []
 
