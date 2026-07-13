@@ -39,7 +39,8 @@ def renderizar_tab_grafico(datos_sidebar):
     # =====================================================================
     # 2. CONSULTAS A LA CACHÉ DE SUPABASE (INDEPENDIENTES DEL SIDEBAR)
     # =====================================================================
-    if no simulacion_externa and not modo_equipo:
+    # CORRECCIÓN: Se cambió "no" por "not"
+    if not simulacion_externa and not modo_equipo:
         referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
         hitos_raw = obtener_historial_hitos_cache(usuario_id)
     else:
@@ -92,7 +93,6 @@ def renderizar_tab_grafico(datos_sidebar):
     # =====================================================================
     # 5. CONFIGURACIÓN DEL LIENZO MATPLOTLIB
     # =====================================================================
-    # Se crea la figura completa que acomodará gráfico y tablas
     fig = plt.figure(figsize=(8.5, 11.0))
     ax = fig.add_axes([0.14, 0.58, 0.72, 0.33])
     
