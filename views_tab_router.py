@@ -66,14 +66,14 @@ def mostrar_vista_enrutador():
         with tab_pizarra:
             renderizar_tab_pizarra(datos_sidebar)
         with tab_reportes:
-            renderizar_tab_reportes(datos_sidebar=None)
+            renderizar_tab_reportes(datos_sidebar)
         with tab_marcas:
-            renderizar_tab_marcas(datos_sidebar=None)
+            renderizar_tab_marcas(datos_sidebar)
         with tab_entrenador:
-            renderizar_tab_entrenador(datos_sidebar=None)
+            renderizar_tab_entrenador(datos_sidebar)
         with tab_asignaciones:
-            renderizar_tab_asignaciones(datos_sidebar=None)
+            renderizar_tab_asignaciones(datos_sidebar)
         with tab_calendario:
-            renderizar_tab_calendario(datos_sidebar=None)
+            renderizar_tab_calendario(datos_sidebar)
         with tab_admin:
-            renderizar_tab_admin(datos_sidebar=None)
+            renderizar_tab_admin(datos_sidebar)
