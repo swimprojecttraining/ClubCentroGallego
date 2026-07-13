@@ -365,7 +365,7 @@ def renderizar_sidebar_completo():
         edad_min_zoom = 0.0
         edad_max_zoom = 100.0
 
-    # ⏱️ CONTENEDOR INYECTADO (Aparece visualmente arriba de los parámetros)
+# ⏱️ CONTENEDOR INYECTADO
     with contenedor_sliders:
         spc()
         st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
@@ -377,8 +377,11 @@ def renderizar_sidebar_completo():
         st.sidebar.markdown("---")
         st.sidebar.caption("📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar marcas, asistir a campeonatos y optar por becas universitarias nacionales e internacionales.*")
 
-df_global = obtener_marcas_equipo_cache(supabase, ids_sel, prueba_actual)
-datos_sidebar["df_global_marcas"] = df_global
+    # --- LÓGICA CORREGIDA PARA DF_GLOBAL ---
+    df_global = pd.DataFrame() # Inicializar siempre
+    if modo_equipo and ids_sel:
+        # Usamos st.session_state.supabase y la variable titulo_grafico
+        df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_sel, titulo_grafico)
 
     # Retorno unificado de empaquetado para el script principal
     return {
@@ -400,6 +403,6 @@ datos_sidebar["df_global_marcas"] = df_global
         "edad_max_zoom": edad_max_zoom,
         "factor_h": h,
         "t_intermedia": t_intermedia,
-        "df_procesado": df_procesado
+        "df_procesado": df_procesado, # Coma agregada aquí
         "df_global_marcas": df_global
     }
