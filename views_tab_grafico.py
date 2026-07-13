@@ -37,28 +37,35 @@ def renderizar_tab_grafico(datos_sidebar):
     genero = datos_sidebar.get("genero", datos_sidebar.get("genero_atleta", "M"))
     categoria = datos_sidebar.get("categoria", datos_sidebar.get("categoria_atleta", ""))
     usuario_id = datos_sidebar.get("usuario_id", datos_sidebar.get("id", ""))
+
+    # =====================================================================
+    # 2. CONSULTAS A LA CACHÉ DE SUPABASE (INDEPENDIENTES DEL SIDEBAR)
+# =====================================================================
+# 1. Inicialización obligatoria (Valores por defecto del Sidebar)
     m_ano = float(datos_sidebar.get("m_ano", 0.0))
     m_panam_b = float(datos_sidebar.get("m_panam_b", 0.0))
     m_panam_a = float(datos_sidebar.get("m_panam_a", 0.0))
     m_wa_b = float(datos_sidebar.get("m_wa_b", 0.0))
     m_wa_a = float(datos_sidebar.get("m_wa_a", 0.0))
     wr = float(datos_sidebar.get("m_wr", 25.0))
-    # =====================================================================
-    # 2. CONSULTAS A LA CACHÉ DE SUPABASE (INDEPENDIENTES DEL SIDEBAR)
-    # =====================================================================
-        if not simulacion_externa and not modo_equipo:
-    # 1. Llama a la función solo con los 3 argumentos que acepta
-        referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
-        hitos_raw = obtener_historial_hitos_cache(usuario_id)
-    # 2. Si la consulta devolvió datos, extrae los valores de la lista
-        if referencias_raw:
-            ref_data = referencias_raw[0] # Tomamos la primera coincidencia
-            m_ano = float(ref_data.get("m_ano", 0.0))
-            m_panam_b = float(ref_data.get("m_panam_b", 0.0))
-            m_panam_a = float(ref_data.get("m_panam_a", 0.0))
-            m_wa_b = float(ref_data.get("m_wa_b", 0.0))
-            m_wa_a = float(ref_data.get("m_wa_a", 0.0))
-            wr = float(ref_data.get("m_wr", 25.0))
+
+    # 2. Consulta a Supabase
+    referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
+
+    # 3. Actualización (Solo ocurre si hay datos en Supabase)
+    if referencias_raw:
+        ref_data = referencias_raw[0]
+        m_ano = float(ref_data.get("m_ano", m_ano))
+        m_panam_b = float(ref_data.get("m_panam_b", m_panam_b))
+        m_panam_a = float(ref_data.get("m_panam_a", m_panam_a))
+        m_wa_b = float(ref_data.get("m_wa_b", m_wa_b))
+        m_wa_a = float(ref_data.get("m_wa_a", m_wa_a))
+        wr = float(ref_data.get("m_wr", wr))
+
+    if not simulacion_externa and not modo_equipo:
+# 1. Llama a la función solo con los 3 argumentos que acepta
+    referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
+    hitos_raw = obtener_historial_hitos_cache(usuario_id)
 
 
     # =====================================================================
