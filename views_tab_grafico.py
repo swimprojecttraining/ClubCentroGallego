@@ -49,8 +49,22 @@ def renderizar_tab_grafico(datos_sidebar):
     # =====================================================================
     # CORRECCIÓN: Se cambió "no" por "not"
     if not simulacion_externa and not modo_equipo:
-        referencias_raw = obtener_marcas_referencia_cache(prueba, genero, m_ano, m_panam_b,m_panam_a, m_wa_b, m_wa_a, wr, categoria)
+    # 1. Llama a la función solo con los 3 argumentos que acepta
+        referencias_raw = obtener_marcas_referencia_cache(prueba, genero, categoria)
         hitos_raw = obtener_historial_hitos_cache(usuario_id, competencia_id, elegible)
+    # 2. Si la consulta devolvió datos, extrae los valores de la lista
+    if referencias_raw:
+        ref_data = referencias_raw[0] # Tomamos la primera coincidencia
+        m_ano = float(ref_data.get("m_ano", 0.0))
+        m_panam_b = float(ref_data.get("m_panam_b", 0.0))
+        m_panam_a = float(ref_data.get("m_panam_a", 0.0))
+        m_wa_b = float(ref_data.get("m_wa_b", 0.0))
+        m_wa_a = float(ref_data.get("m_wa_a", 0.0))
+        wr = float(ref_data.get("m_wr", 25.0))
+    else:
+        # Valores por defecto si no se encuentran referencias
+        m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, wr = 0.0, 0.0, 0.0, 0.0, 0.0, 25.0
+    
     else:
         referencias_raw = []
         hitos_raw = []
