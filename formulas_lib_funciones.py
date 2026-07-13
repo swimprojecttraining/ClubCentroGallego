@@ -316,3 +316,46 @@ def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak,
             T_t = eq_T_pb - D_eq * (1 - np.exp(-h_eq * (t - eq_t_pb)))
         tiempos.append(T_t)
     return np.array(tiempos)
+
+def procesar_mejor_marca_historica(df_procesado):
+    """
+    Calcula los puntos t0, T0, t_pb, T_pb extraídos de la lógica histórica.
+    Centralizado para limpieza de Sidebar.
+    """
+    if df_procesado.empty:
+        return None, None, None, None
+    
+    # Asegurar tipos
+    df = df_procesado.copy()
+    df["Edad"] = pd.to_numeric(df["Edad"], errors='coerce')
+    df["Tiempo"] = pd.to_numeric(df["Tiempo"], errors='coerce')
+    df = df.dropna(subset=["Edad", "Tiempo"]).sort_values("Edad").reset_index(drop=True)
+    
+    if df.empty:
+        return None, None, None, None
+
+    db_t0 = float(df.iloc[0]["Edad"])
+    db_T0 = float(df.iloc[0]["Tiempo"])
+    n_registros = len(df)
+    
+    if n_registros == 1:
+        db_t_pb, db_T_pb = db_t0, db_T0
+    elif n_registros == 2:
+        if float(df.iloc[-1]["Tiempo"]) <= float(df.iloc[-2]["Tiempo"]):
+            db_t_pb, db_T_pb = float(df.iloc[-1]["Edad"]), float(df.iloc[-1]["Tiempo"])
+        else:
+            db_t_pb, db_T_pb = float(df.iloc[-2]["Edad"]), float(df.iloc[-2]["Tiempo"])
+    else:
+        indice_min_tiempo = df["Tiempo"].idxmin()
+        posicion_desde_el_final = (n_registros - 1) - indice_min_tiempo
+        
+        if posicion_desde_el_final >= 2:
+            db_t_pb, db_T_pb = float(df.iloc[-1]["Edad"]), float(df.iloc[-1]["Tiempo"])
+        else:
+            t_ultima, t_penultima = float(df.iloc[-1]["Tiempo"]), float(df.iloc[-2]["Tiempo"])
+            if t_ultima <= t_penultima:
+                db_t_pb, db_T_pb = float(df.iloc[-1]["Edad"]), t_ultima
+            else:
+                db_t_pb, db_T_pb = float(df.iloc[-2]["Edad"]), t_penultima
+    
+    return db_t0, db_T0, db_t_pb, db_T_pb
