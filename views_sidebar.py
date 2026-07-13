@@ -377,11 +377,17 @@ def renderizar_sidebar_completo():
         st.sidebar.markdown("---")
         st.sidebar.caption("📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar marcas, asistir a campeonatos y optar por becas universitarias nacionales e internacionales.*")
 
-    # --- LÓGICA CORREGIDA PARA DF_GLOBAL ---
-    df_global = pd.DataFrame() # Inicializar siempre
-    if modo_equipo and ids_sel:
-        # Usamos st.session_state.supabase y la variable titulo_grafico
-        df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_sel, titulo_grafico)
+# --- LÓGICA CORREGIDA PARA DF_GLOBAL ---
+    df_global = pd.DataFrame() 
+    
+    if modo_equipo:
+        # Si ids_sel está vacío pero tenemos lista_atletas, extraemos los IDs de allí
+        ids_para_consulta = ids_sel if ids_sel else [a["id"] for a in lista_atletas]
+        
+        if ids_para_consulta: # Solo consultamos si tenemos algo que buscar
+            df_global = obtener_marcas_equipo_cache(st.session_state.supabase, ids_para_consulta, titulo_grafico)
+        else:
+            st.warning("No hay atletas detectados con los filtros actuales.")
 
     # Retorno unificado de empaquetado para el script principal
     return {
