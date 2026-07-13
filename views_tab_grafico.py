@@ -66,6 +66,9 @@ def renderizar_tab_grafico(datos_sidebar):
     if modo_equipo:
         lista_atletas = datos_sidebar.get("lista_atletas_filtrados", [])
         df_global = datos_sidebar.get("df_global_marcas", pd.DataFrame())
+        st.write("Contenido de df_global:", df_global) 
+        if df_global.empty:
+            st.warning("El DataFrame está vacío. Verifica si la consulta a la BD trajo resultados.")
         if not lista_atletas or df_global.empty:
             st.info("No hay atletas que cumplan con los filtros seleccionados.")
             return
