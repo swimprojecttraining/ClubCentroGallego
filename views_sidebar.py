@@ -62,12 +62,12 @@ def renderizar_sidebar_completo():
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
-            atletas_disponibles = obtener_nadadores_activos_cache()
+            atletas_disponibles = obtener_nadadores_activos_cache() or []
             
             if st.session_state.rol == "Entrenador":
                 ids_asignados = obtener_atletas_asignados_cache(st.session_state.usuario_id)
                 if ids_asignados:
-                    atletas_disponibles = [a for a in atletas_disponibles if a["id"] in ids_asignados]
+                    atletas_disponibles = [a for a in atletas_disponibles if a.get("id") in ids_asignados]
                 else:
                     atletas_disponibles = [] 
             
@@ -145,7 +145,7 @@ def renderizar_sidebar_completo():
 
     st.session_state["prueba_seleccionada"] = titulo_grafico
 
-# -------------------------------------------------------------
+    # -------------------------------------------------------------
     # 👥 ANÁLISIS COLECTIVO (MODO EQUIPO)
     # -------------------------------------------------------------
     modo_equipo = False
@@ -153,8 +153,8 @@ def renderizar_sidebar_completo():
     filtro_genero = "Todos"
     cat_sel = None
     ids_sel = []
-    lista_atletas = []      # Variable que usaremos para empaquetar
-    df_global = pd.DataFrame() # DataFrame que viajará al gráfico
+    lista_atletas = []      # Variable empaquetada
+    df_global = pd.DataFrame() # DataFrame empaquetado
 
     if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
         spc()
@@ -168,40 +168,45 @@ def renderizar_sidebar_completo():
             tipo_filtro = st.sidebar.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"])
             
             try:
-                atletas_preload = obtener_nadadores_activos_cache()
+                atletas_preload = obtener_nadadores_activos_cache() or []
                 
-                # Si es Entrenador, restringir a asignados
+                # Restringir asignados si es Entrenador
                 if st.session_state.rol == "Entrenador":
                     ids_asignados = obtener_atletas_asignados_cache(st.session_state.usuario_id)
-                    atletas_preload = [a for a in atletas_preload if a["id"] in ids_asignados] if ids_asignados else []
+                    atletas_preload = [a for a in atletas_preload if a.get("id") in ids_asignados] if ids_asignados else []
 
                 # 2. Aplicar Filtro de Género
                 if filtro_genero == "Femenino (F)":
-                    atletas_preload = [a for a in atletas_preload if a["genero"] == "F"]
+                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "F"]
                 elif filtro_genero == "Masculino (M)":
-                    atletas_preload = [a for a in atletas_preload if a["genero"] == "M"]
+                    atletas_preload = [a for a in atletas_preload if a.get("genero") == "M"]
 
-                # 3. Aplicar Filtro Secundario y asignar a lista_atletas
+                # 3. Aplicar Filtro Secundario
                 if tipo_filtro == "Categoría Etaria" and atletas_preload:
-                    categorias_disponibles = sorted(list(set([calcular_categoria_competencia(a["fecha_nacimiento"])[0] for a in atletas_preload])))
+                    cat_list = [
+                        calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] 
+                        for a in atletas_preload if a.get("fecha_nacimiento")
+                    ]
+                    categorias_disponibles = sorted(list(set(cat_list)))
                     if categorias_disponibles:
                         cat_sel = st.sidebar.selectbox("Seleccione la categoría:", options=categorias_disponibles)
-                        lista_atletas = [a for a in atletas_preload if calcular_categoria_competencia(a["fecha_nacimiento"])[0] == cat_sel]
+                        lista_atletas = [
+                            a for a in atletas_preload 
+                            if a.get("fecha_nacimiento") and calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] == cat_sel
+                        ]
                 
                 elif tipo_filtro == "Atletas Específicos" and atletas_preload:
-                    dict_nom = {a["id"]: a["nombre"] for a in atletas_preload}
+                    dict_nom = {a["id"]: a["nombre"] for a in atletas_preload if "id" in a and "nombre" in a}
                     if dict_nom:
                         ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
-                        lista_atletas = [a for a in atletas_preload if a["id"] in ids_sel]
+                        lista_atletas = [a for a in atletas_preload if a.get("id") in ids_sel]
                 else:
                     lista_atletas = atletas_preload
 
-                # 4. CONSULTA DE MARCAS HISTÓRICAS DEL EQUIPO
-                # (Se ejecuta usando los IDs resultantes y la prueba seleccionada)
+                # 4. Consulta de marcas usando conexión de la sesión
                 if lista_atletas and titulo_grafico and not titulo_grafico.startswith("---"):
-                    lista_ids_filtrados = [a["id"] for a in lista_atletas]
-                    supabase_conn = _get_db()
-                    df_global = obtener_marcas_equipo_cache(supabase_conn, lista_ids_filtrados, titulo_grafico)
+                    lista_ids_filtrados = [a["id"] for a in lista_atletas if "id" in a]
+                    df_global = obtener_marcas_equipo_cache(st.session_state.supabase, lista_ids_filtrados, titulo_grafico)
 
             except Exception as e:
                 st.sidebar.error(f"Error cargando los filtros secundarios: {e}")
