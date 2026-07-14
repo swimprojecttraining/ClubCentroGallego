@@ -245,7 +245,7 @@ def renderizar_tab_grafico(datos_sidebar):
         # =====================================================================
         # 9. TABLAS NATIVAS INFERIORES (SOLO INDIVIDUAL/REAL)
         # =====================================================================
-	df_table_render = None
+		df_table_render = None
         es_modo_micro_tabla = (tipo_vista == "Micro (Ventana Anual)")
     
         if es_modo_micro_tabla:
