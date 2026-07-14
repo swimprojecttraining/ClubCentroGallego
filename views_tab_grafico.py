@@ -13,7 +13,7 @@ from formulas_lib_funciones import (
     procesar_mejor_marca_historica,
     calcular_puntos_wa
 )
-from connections_supabase_cache import (
+from conections_supabase_cache import (
     obtener_historial_hitos_cache
 )
 
