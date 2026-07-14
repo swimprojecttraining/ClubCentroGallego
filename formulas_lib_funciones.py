@@ -22,7 +22,37 @@ def desencriptar_credencial(texto_cifrado: str, llave_maestra: str) -> str:
     except Exception as e:
         st.error(f"Error crítico de descifrado de credenciales: {e}")
         st.stop()
+# -------------------------------------------------------------
+# GESTIÓN DE CORREOS AUTOMATIZADOS (SMTP)
+# -------------------------------------------------------------
+def enviar_email(destinatario: str, asunto: str, cuerpo_html: str) -> tuple:
+    """Envía notificaciones automatizadas utilizando las credenciales de entorno."""
+    try:
+        # Extracción de credenciales desde los secretos del entorno
+        remitente = st.secrets["smtp"]["email"]
+        password = st.secrets["smtp"]["password"]
+        servidor = st.secrets["smtp"]["server"]
+        puerto = st.secrets["smtp"].get("port", 587)
 
+        # Configuración del mensaje
+        msg = MIMEMultipart()
+        msg['From'] = remitente
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(cuerpo_html, 'html'))
+
+        # Conexión al servidor SMTP
+        server = smtplib.SMTP(servidor, puerto)
+        server.starttls()
+        server.login(remitente, password)
+        server.send_message(msg)
+        server.quit()
+        
+        return True, "Correo enviado correctamente."
+    except Exception as e:
+        error_msg = f"Error en el servidor SMTP: {e}"
+        print(error_msg)
+        return False, error_msg
 # -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
