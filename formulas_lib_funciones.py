@@ -176,6 +176,22 @@ def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
         return round(edad_decimal, 2)
     except Exception:
         return None
+# -------------------------------------------------------------
+# FUNCIÓN CALCULAR PUNTOS WA
+# -------------------------------------------------------------
+@st.cache_data(ttl=300, show_spinner=False)
+def calcular_puntos_wa(tiempo_atleta: float, record_mundial: float) -> int:
+    """
+    Calcula los puntos WA basándose en el WR específico de la prueba y género activos.
+    """
+    try:
+        t = float(tiempo_atleta)
+        wr = float(record_mundial)
+        if t <= 0 or wr <= 0:
+            return 0
+        return max(0, int(1000 * ((wr / t) ** 3)))
+    except (ValueError, TypeError):
+        return 0
 
 # -------------------------------------------------------------
 # MOTOR MATEMÁTICO DOBLE CALCULO DE CURVA AJUSTADO
