@@ -1,262 +1,416 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import io
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+import plotly.graph_objects as go
+from datetime import datetime
 
-# 📦 IMPORTACIONES LOCALES
-from formulas_lib_funciones import (
-    resolver_k_individual, 
-    calcular_curva_atleta, 
-    formatear_a_minutos, 
-    calcular_edad_decimal
+# --- IMPORTACIONES DEL ECOSISTEMA MODULAR ---
+# Asumiendo que los archivos están en el mismo directorio raíz según las instrucciones
+from formulas_lib_funciones_2 import (
+    resolver_k_individual,
+    calcular_curva_atleta,
+    formatear_a_minutos,
+    procesar_mejor_marca_historica,
+    calcular_puntos_wa
+)
+from connections_supabase_cache_2 import (
+    obtener_historial_hitos_cache
 )
 
-def renderizar_tab_grafico(datos_sidebar):
-    # =====================================================================
-    # 1. EXTRACCIÓN DE VARIABLES LOCALES (RÁPIDA, SIN CONSULTAS A BD)
-    # =====================================================================
-    modo_equipo = datos_sidebar.get("modo_equipo", False)
-    simulacion_externa = datos_sidebar.get("simulacion_externa", False)
+def renderizar_tab_grafico(payload: dict):
+    """
+    Motor principal de renderizado para la pestaña de gráficos.
+    Procesa el payload emitido por views_sidebar.py y genera las proyecciones.
+    """
+    # ---------------------------------------------------------
+    # 1. DESEMPAQUETADO DEL PAYLOAD (SIDEBAR)
+    # ---------------------------------------------------------
+    usuario_id = payload.get("usuario_id")
+    genero = payload.get("genero", "M")
+    categoria = payload.get("categoria", "")
+    prueba = payload.get("titulo_grafico", "")
+    simulacion_externa = payload.get("simulacion_externa", False)
+    modo_equipo = payload.get("modo_equipo", False)
     
-    # Textos
-    nombre_atleta = datos_sidebar.get("nadador_seleccionado_nombre", datos_sidebar.get("nombre", "Atleta Seleccionado"))
-    categoria = datos_sidebar.get("categoria", datos_sidebar.get("categoria_atleta", "Sin Categoría"))
-    prueba = datos_sidebar.get("prueba", datos_sidebar.get("prueba_seleccionada", "Prueba no definida"))
-
-    # Parámetros Matemáticos
-    t_peak = float(datos_sidebar.get("t_peak", 23.0))
-    T_target = float(datos_sidebar.get("T_target", 0.0))
-    h = float(datos_sidebar.get("factor_h", 0.35))
-    edad_intermedia = float(datos_sidebar.get("t_intermedia", 16.1)) # Viene directo del sidebar
+    # Parámetros Matemáticos y Limites
+    t0 = float(payload.get("t0", 10.0))
+    T0 = float(payload.get("T0", 100.0))
+    t_peak = float(payload.get("t_peak", 23.0))
+    T_target = float(payload.get("T_target", 50.0))
+    t_pb = float(payload.get("t_pb", 12.0))
+    T_pb = float(payload.get("T_pb", 80.0))
+    factor_h = float(payload.get("factor_h", 0.35))
+    t_intermedia = float(payload.get("t_intermedia", 16.40))
     
-    # Referencias (directo del sidebar para máxima velocidad)
-    m_ano = float(datos_sidebar.get("m_ano", 0.0))
-    m_panam_b = float(datos_sidebar.get("m_panam_b", 0.0))
-    m_panam_a = float(datos_sidebar.get("m_panam_a", 0.0))
-    m_wa_b = float(datos_sidebar.get("m_wa_b", 0.0))
-    m_wa_a = float(datos_sidebar.get("m_wa_a", 0.0))
-    wr = float(datos_sidebar.get("m_wr", 23.59))
+    # Control de Vista
+    tipo_vista = payload.get("tipo_vista", "Macro (Historial Completo)")
+    edad_min_zoom = payload.get("edad_min_zoom", 0)
+    edad_max_zoom = payload.get("edad_max_zoom", 100)
+    
+    # Datos y Referencias
+    df_procesado = payload.get("df_procesado", pd.DataFrame())
+    df_global_marcas = payload.get("df_global_marcas", pd.DataFrame())
+    lista_atletas_filtrados = payload.get("lista_atletas_filtrados", [])
+    
+    m_ano = payload.get("m_ano", 0.0)
+    m_panam_b = payload.get("m_panam_b", 0.0)
+    m_panam_a = payload.get("m_panam_a", 0.0)
+    m_wa_b = payload.get("m_wa_b", 0.0)
+    m_wa_a = payload.get("m_wa_a", 0.0)
+    m_wr = payload.get("m_wr", 25.0)
 
-    # =====================================================================
-    # 2. GESTIÓN DE DATOS Y ENCABEZADOS (MÉTRICAS)
-    # =====================================================================
-    df_procesado = pd.DataFrame()
-    t0 = T0 = t_pb = T_pb = 0.0
-
-    if modo_equipo:
-        lista_atletas = datos_sidebar.get("lista_atletas_filtrados", datos_sidebar.get("atletas_seleccionados", []))
-        df_global = datos_sidebar.get("df_global_marcas", datos_sidebar.get("df_global", pd.DataFrame()))
-        if df_global is None or df_global.empty or not lista_atletas:
-            st.warning("No hay datos suficientes para dibujar el modo equipo.")
-            return
+    # ---------------------------------------------------------
+    # 1.1 LÓGICA DE FUENTE DE DATOS (BIFURCACIÓN)
+    # ---------------------------------------------------------
+    if simulacion_externa:
+        # MODO SIMULACIÓN: Usamos estrictamente los inputs del Sidebar
+        eff_t0 = float(payload.get("t0", 10.0))
+        eff_T0 = float(payload.get("T0", 100.0))
+        
+        # El resto de parámetros de simulación vienen del payload
+        k_global = resolver_k_individual(eff_t0, eff_T0, t_pb, T_pb, t_peak, T_target)
+        
+        # En simulación, el historial suele estar vacío o no debe usarse para el trazado
+        df_plot = pd.DataFrame() 
     else:
-        if simulacion_externa:
-            t0 = float(datos_sidebar.get("t0", 10.0))
-            T0 = float(datos_sidebar.get("T0", 0.0))
-            t_pb = float(datos_sidebar.get("t_pb", 12.0))
-            T_pb = float(datos_sidebar.get("T_pb", 0.0))
-            if T0 == 0.0 or T_pb == 0.0: return
+        # MODO NORMAL: Extraemos valores reales de la BD vía la función histórica
+        res_historico = procesar_mejor_marca_historica(df_procesado)
+        if res_historico:
+            eff_t0, eff_T0, _, _ = res_historico
         else:
-            df_procesado = datos_sidebar.get("df_procesado")
-            if df_procesado is None or df_procesado.empty: return
-            df_procesado = df_procesado.sort_values(by="Edad").reset_index(drop=True)
-            t0 = float(df_procesado.iloc[0]["Edad"])
-            T0 = float(df_procesado.iloc[0]["Tiempo"])
-            idx_pb = df_procesado["Tiempo"].idxmin()
-            t_pb = float(df_procesado.loc[idx_pb, "Edad"])
-            T_pb = float(df_procesado.loc[idx_pb, "Tiempo"])
-
-    # MÉTRICAS SUPERIORES (Idénticas a la Imagen 1)
-    if not modo_equipo and T0 != 0.0 and T_pb != 0.0:
-        k_principal = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
-        D_principal = T_pb - T_target
-        c3_val = np.interp(edad_intermedia, np.linspace(t0, t_peak, 300), calcular_curva_atleta(np.linspace(t0, t_peak, 300), t0, T0, t_pb, T_pb, t_peak, T_target, k_principal, h))
-        
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric(label="Factor de Ajuste Fisiológico (k)", value=f"{k_principal:.4f}")
-        with c2:
-            st.metric(label="Margen de Deriva de Seguridad...", value=f"{D_principal:.2f} s")
-        with c3:
-            st.metric(label=f"Proyección a los {edad_intermedia} años", value=f"{c3_val:.2f} s")
-
-    # =====================================================================
-    # 3. CONFIGURACIÓN DEL LIENZO MATPLOTLIB (EXACTO A IMAGEN 1)
-    # =====================================================================
-    fig = plt.figure(figsize=(8.5, 11.0))
-    # Eje principal del gráfico (Ajustado para no aplastar la curva)
-    ax = fig.add_axes([0.14, 0.52, 0.76, 0.35])
-    
-    formatter = FuncFormatter(lambda y, pos: f"{y:.2f} s")
-    ax.yaxis.set_major_formatter(formatter)
-
-    # Título nativo dentro del gráfico
-    if not modo_equipo:
-        ax.set_title(f"Curva de Rendimiento Asintótica - {prueba}\nAtleta: {nombre_atleta} | Categoría: {categoria}", fontsize=12, pad=15)
-
-    if not modo_equipo or (modo_equipo and T0 != 0.0):
-        k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
-        edades_curva = np.linspace(t0, t_peak, 300) 
-        curva_ind = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
-
-    # =====================================================================
-    # 4. DIBUJO DE CURVAS Y MARGENES
-    # =====================================================================
-    if modo_equipo:
-        colores_equipo = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
-        for idx, atleta in enumerate(lista_atletas):
-            atleta_id = atleta.get("id", atleta.get("usuario_id"))
-            col_id = "usuario_id" if "usuario_id" in df_global.columns else "id"
-            df_atleta = df_global[df_global[col_id] == atleta_id].copy()
-            if df_atleta.empty: continue
+            eff_t0, eff_T0 = t0, T0 # Fallback
             
-            df_atleta = df_atleta.sort_values(by="Edad").reset_index(drop=True)
-            t0_i = float(df_atleta.iloc[0]["Edad"])
-            T0_i = float(df_atleta.iloc[0]["Tiempo"])
-            idx_pb_i = df_atleta["Tiempo"].idxmin()
-            t_pb_i = float(df_atleta.loc[idx_pb_i, "Edad"])
-            T_pb_i = float(df_atleta.loc[idx_pb_i, "Tiempo"])
-            
-            color_actual = colores_equipo[idx % len(colores_equipo)]
-            k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
-            curva_i = calcular_curva_atleta(np.linspace(t0_i, t_peak, 300), t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
-            
-            ax.plot(np.linspace(t0_i, t_peak, 300), curva_i, label=atleta.get("nombre", f"Atleta {idx+1}"), color=color_actual, linewidth=1.5)
-            ax.plot(df_atleta["Edad"], df_atleta["Tiempo"], color=color_actual, linestyle="--", marker='o', markersize=4)
-            ax.scatter(t_pb_i, T_pb_i, color=color_actual, marker="*", edgecolor="black", s=80, zorder=5)
+        k_global = resolver_k_individual(eff_t0, eff_T0, t_pb, T_pb, t_peak, T_target)
+        df_plot = df_procesado
+    # ---------------------------------------------------------
+    # 2. ENCABEZADOS Y ALERTAS
+    # ---------------------------------------------------------
+    if simulacion_externa:
+        st.markdown(f"## 🎢 Simulación de Escenarios: {prueba}")
+        st.markdown(f"**Género:** {genero} | **Categoría de Competencia Activa:** `{categoria}`")
+        st.info("⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control de marcas se encuentra oculto para evitar alteraciones accidentales en la base de datos real.")
+    elif modo_equipo:
+        st.markdown(f"## 👥 Planificación y control de resultados de competencia: Comparativo")
+        st.markdown(f"**Género:** {payload.get('filtro_genero', 'Todos')} | **Categoría de Competencia Activa:** `{categoria if payload.get('tipo_filtro') == 'Categoría Etaria' else 'Múltiple'}`")
     else:
-        # Curva de Proyección (Teal) y Marcas Reales (Naranja Punteado)
-        ax.plot(edades_curva, curva_ind, color='teal', label='Proyección Fisiológica', linewidth=1.8)
-        if not simulacion_externa:
-            ax.plot(df_procesado["Edad"], df_procesado["Tiempo"], color='#d35400', linestyle="--", marker='o', markersize=4, label="Evolución Real (PBs)")
-            
-        # Elementos invisibles solo para rellenar la Leyenda como en la Imagen 1
-        ax.scatter([], [], color='#F1C40F', marker='*', edgecolor='black', s=100, label='PB Actual de Control')
-        ax.scatter([], [], color='red', marker='o', s=35, label='Punto Consultado')
-        ax.scatter([], [], color='#2ECC71', marker='s', edgecolor='black', s=35, label='Meta Peak')
+        nombre_atleta = st.session_state.get("nadador_seleccionado_nombre", "Atleta")
+        st.markdown(f"## 📈 Curva de Rendimiento Asintótica - {prueba}")
+        st.markdown(f"**Género:** {genero} | **Categoría de Competencia Activa:** `{categoria}`")
 
-    # Ajuste de Márgenes (X y Y) para respiración visual
-    if not modo_equipo:
-        margen_y = (T0 - T_target) * 0.15
-        ax.set_xlim([t0 - 0.8, t_peak + 1.0])
-        ax.set_ylim([T_target - margen_y, T0 + margen_y])
-    
-    lim_x_min, lim_x_max = ax.get_xlim()
-    lim_y_inferior, lim_y_superior = ax.get_ylim()
-
-    # =====================================================================
-    # 5. DIBUJO DE PUNTOS CRÍTICOS (ETIQUETAS EXACTAS)
-    # =====================================================================
-    estilo_bbox = dict(boxstyle="round,pad=0.3", fc="white", ec="#BDC3C7", alpha=0.9, linewidth=0.5)
-
-    if not modo_equipo:
-        # Start
-        ax.scatter(t0, T0, color="#7F8C8D", edgecolor="black", s=35, zorder=4)
-        ax.text(t0 + 0.15, T0, f"P. Start\n{t0:.2f}a\n{T0:.2f} s", fontsize=8, va="bottom", ha="left", bbox=estilo_bbox)
-
-        # PB Actual
-        ax.scatter(t_pb, T_pb, color="#F1C40F", marker="*", edgecolor="black", s=120, zorder=5)
-        ax.text(t_pb + 0.15, T_pb, f"PB Actual\n{t_pb:.2f}a\n{T_pb:.2f} s", fontsize=8, va="center", ha="left", bbox=estilo_bbox)
-
-        # Meta Peak
-        ax.scatter(t_peak, T_target, color="#2ECC71", marker="s", edgecolor="black", s=40, zorder=4)
-        ax.text(t_peak, T_target + 0.5, f"Meta Peak\n{t_peak:.2f}a\n{T_target:.2f} s", fontsize=8, va="bottom", ha="center", bbox=estilo_bbox)
-    
-        # Punto Consultado (T_intermedia del Sidebar)
-        k_sim = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
-        T_dinamico = np.interp(edad_intermedia, np.linspace(t0, t_peak, 300), calcular_curva_atleta(np.linspace(t0, t_peak, 300), t0, T0, t_pb, T_pb, t_peak, T_target, k_sim, h))
-        
-        ax.scatter(edad_intermedia, T_dinamico, color="red", marker="o", edgecolor="black", s=40, zorder=6)
-        ax.text(edad_intermedia, T_dinamico + 0.8, f"Consulta: {edad_intermedia}a\n{T_dinamico:.2f} s", va="bottom", ha="center", bbox=estilo_bbox, fontsize=8)
-
-    # =====================================================================
-    # 6. DIBUJO DE MARCAS MÍNIMAS (COLORES SOLICITADOS)
-    # =====================================================================
-    if not simulacion_externa:
-        x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.02
-        
-        # Mapeo exacto de Nombres y Colores
-        # Naranja, Verde, Cyan, Morado, Rojo, Azul
-        referencias = [
-            ("Mín. Año", m_ano, "#E67E22"),      # Naranja
-            ("PANAM Jr B", m_panam_b, "#2ECC71"), # Verde
-            ("PANAM Jr A", m_panam_a, "#00BCD4"), # Cyan
-            ("WA B", m_wa_b, "#9B59B6"),          # Morado
-            ("WA A", m_wa_a, "#E74C3C"),          # Rojo
-            ("World Record", wr, "#3498DB")       # Azul
-        ]
-        
-        for nombre_marca, valor_tiempo, color_linea in referencias:
-            if valor_tiempo > 0 and lim_y_inferior <= valor_tiempo <= lim_y_superior:
-                ax.axhline(y=valor_tiempo, color=color_linea, linestyle=":", linewidth=0.8, alpha=0.8)
-                desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.008
-                ax.text(x_texto, valor_tiempo + desplazamiento_y, f"{nombre_marca}: {valor_tiempo:.2f}", color=color_linea, fontsize=7.5, va="bottom", ha="left")
-
-    # =====================================================================
-    # 7. TABLA INFERIOR (EXACTA A IMAGEN 1)
-    # =====================================================================
-    df_table_render = datos_sidebar.get("df_procesado")
-    
-    if not simulacion_externa and not modo_equipo and df_table_render is not None and not df_table_render.empty:
-        df_vista_tabla = df_table_render.drop(columns=['id', 'usuario_id'], errors='ignore').copy()
-        if 'Tiempo' in df_vista_tabla.columns:
-            df_vista_tabla['Tiempo'] = df_vista_tabla['Tiempo'].apply(lambda x: f"{x:.2f} s" if isinstance(x, (int, float)) else x)
-        if 'Edad' in df_vista_tabla.columns:
-            df_vista_tabla['Edad'] = df_vista_tabla['Edad'].apply(lambda x: f"{x:.2f} a" if isinstance(x, (int, float)) else x)
-        
-        ax_table = fig.add_axes([0.14, 0.02, 0.76, 0.40]) # Ubicada justo debajo
-        ax_table.axis('off')
-        
-        anchos_cols = [0.15, 0.15, 0.15, 0.55] if len(df_vista_tabla.columns) == 4 else [1/len(df_vista_tabla.columns)] * len(df_vista_tabla.columns)
-        
-        t_obj = ax_table.table(cellText=df_vista_tabla.values, colLabels=df_vista_tabla.columns, cellLoc='center', loc='upper center', colWidths=anchos_cols)
-        t_obj.auto_set_font_size(False)
-        t_obj.set_fontsize(8.5)
-        t_obj.scale(1.0, 1.4)
-        
-        for (r, c), cell in t_obj.get_celld().items():
-            cell.set_linewidth(0.5)            
-            cell.set_edgecolor('#E5E7EB')       
-            if r == 0:
-                cell.set_text_props(color='black', weight='bold')
-                cell.set_facecolor('#C0C0C0')
-            else:
-                cell.set_facecolor('#F8F9F9' if r % 2 == 0 else 'white')
-
-    ax.set_xlabel("Edad del Atleta (Años)", fontsize=10)
-    ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=10)
-    ax.grid(True, linestyle=':', alpha=0.6)
-    if not simulacion_externa:
-        ax.legend(loc='upper right', fontsize=8, framealpha=0.9, edgecolor="#BDC3C7")
-
-    st.pyplot(fig, width='stretch')
-
-    # =====================================================================
-    # 8. CENTRO DE EXPORTACIÓN
-    # =====================================================================
     st.markdown("---")
-    st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
-    
-    export_df = pd.DataFrame()
-    if modo_equipo and "df_global_marcas" in datos_sidebar and not datos_sidebar["df_global_marcas"].empty:
-        export_df = datos_sidebar["df_global_marcas"].drop(columns=["id", "usuario_id"], errors="ignore")
-    elif not modo_equipo and df_procesado is not None and not df_procesado.empty:
-        export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
-    
-    if len(export_df) > 0:
-        csv_data = export_df.to_csv(index=False).encode('utf-8')
-        img_buffer = io.BytesIO()
-        fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
-        img_buffer.seek(0)
-        
-        c_exp1, c_exp2, c_exp3 = st.columns(3)
-        with c_exp1:
-            st.download_button("📥 Descargar Historial (CSV)", data=csv_data, file_name="marcas_export.csv", mime="text/csv")
-        with c_exp3:
-            st.download_button("🖼️ Guardar Gráfico Completo", data=img_buffer, file_name="grafico_export.png", mime="image/png")
 
-    plt.close(fig)
+    # ---------------------------------------------------------
+    # 3. CÁLCULO DE MÉTRICAS GLOBALES (PANEL SUPERIOR)
+    # ---------------------------------------------------------
+    # Para el panel superior, usamos los valores del sidebar (el principal)
+    try:
+        k_global = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
+        margen_d = round(T_pb - T_target, 2)
+        arr_t_int = np.array([t_intermedia])
+        T_intermedia = calcular_curva_atleta(arr_t_int, t0, T0, t_pb, T_pb, t_peak, T_target, k_global, factor_h)[0]
+    except Exception:
+        k_global, margen_d, T_intermedia = 0.0, 0.0, 0.0
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Factor de Ajuste Fisiológico (k)", f"{k_global:.4f}")
+    col2.metric("Margen de Deriva de Seguridad (D)", f"{margen_d:.2f} s")
+    col3.metric(f"Proyección a los {t_intermedia:.1f} años", f"{T_intermedia:.2f} s")
+
+    st.write("") # Espaciador
+
+    # ---------------------------------------------------------
+    # 4. CONFIGURACIÓN BASE DEL GRÁFICO PLOTLY
+    # ---------------------------------------------------------
+    fig = go.Figure()
+
+    # Añadir Líneas de Referencia Horizontales (Piso del Gráfico)
+    referencias = [
+        ("Mín. Año", m_ano, "orange"),
+        ("PANAM Jr B", m_panam_b, "teal"),
+        ("PANAM Jr A", m_panam_a, "blue"),
+        ("WA B", m_wa_b, "brown"),
+        ("WA A", m_wa_a, "red"),
+        ("World Record", m_wr, "black")
+    ]
+    
+    for nombre_ref, valor_ref, color in referencias:
+        if valor_ref and valor_ref > 0:
+            fig.add_hline(
+                y=valor_ref, 
+                line_dash="dot", 
+                line_width=1, 
+                line_color=color,
+                annotation_text=f"{nombre_ref}: {formatear_a_minutos(valor_ref)}",
+                annotation_position="bottom left",
+                annotation_font=dict(size=10, color=color)
+            )
+
+    # ---------------------------------------------------------
+    # 5. RENDERIZADO: MODO EQUIPO
+    # ---------------------------------------------------------
+    if modo_equipo:
+        titulo_figura = f"Análisis Comparativo de Equipo - {prueba}"
+        
+        if df_global_marcas.empty or not lista_atletas_filtrados:
+            st.warning("No hay marcas registradas para los atletas y filtros seleccionados en esta prueba.")
+        else:
+            colores = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+            
+            for idx, atleta in enumerate(lista_atletas_filtrados):
+                atleta_id = atleta["id"]
+                nombre_atleta = atleta["nombre"]
+                color_atleta = colores[idx % len(colores)]
+                
+                df_atleta = df_global_marcas[df_global_marcas["usuario_id"] == atleta_id].copy()
+                if df_atleta.empty:
+                    continue
+                    
+                df_atleta = df_atleta.sort_values(by="edad").reset_index(drop=True)
+                
+                # Obtener variables históricas reales del atleta
+                a_t0, a_T0, a_t_pb, a_T_pb = procesar_mejor_marca_historica(
+                    df_atleta.rename(columns={"edad": "Edad", "tiempo": "Tiempo"})
+                )
+                
+                if a_t0 is None:
+                    continue
+                
+                # Proyección Fisiológica Estimada (Línea Gris Punteada)
+                a_k = resolver_k_individual(a_t0, a_T0, a_t_pb, a_T_pb, t_peak, T_target)
+                edades_proy = np.linspace(a_t0, t_peak, 100)
+                tiempos_proy = calcular_curva_atleta(edades_proy, a_t0, a_T0, a_t_pb, a_T_pb, t_peak, T_target, a_k, factor_h)
+                
+                # Trazo de Proyección (Solo se muestra en leyenda una vez)
+                fig.add_trace(go.Scatter(
+                    x=edades_proy, y=tiempos_proy, mode='lines',
+                    line=dict(color='gray', dash='dot', width=1.5),
+                    name="Proyección fisiológica estimada",
+                    showlegend=(idx == 0), hoverinfo='skip'
+                ))
+                
+                # Evolución Real (Línea Continua + Puntos)
+                fig.add_trace(go.Scatter(
+                    x=df_atleta["edad"], y=df_atleta["tiempo"], mode='lines+markers',
+                    name=f"Evolución real - {nombre_atleta}",
+                    line=dict(color=color_atleta, width=2),
+                    marker=dict(size=6, symbol='circle'),
+                    text=[formatear_a_minutos(t) for t in df_atleta["tiempo"]],
+                    hovertemplate="<b>%{text}</b><br>Edad: %{x:.2f}a<extra></extra>"
+                ))
+                
+                # Marcador Final (Estrella)
+                fig.add_trace(go.Scatter(
+                    x=[df_atleta["edad"].iloc[-1]], y=[df_atleta["tiempo"].iloc[-1]], mode='markers',
+                    marker=dict(size=10, symbol='star', color=color_atleta, line=dict(width=1, color='black')),
+                    showlegend=False, hoverinfo='skip'
+                ))
+                
+        df_export = df_global_marcas # Para la tabla de exportación
+
+    # ---------------------------------------------------------
+    # 6. RENDERIZADO: MODO INDIVIDUAL / SIMULACIÓN
+    # ---------------------------------------------------------
+    else:
+        titulo_figura = f"Curva de Rendimiento Asintótica - {prueba}<br>Atleta: {st.session_state.get('nadador_seleccionado_nombre', 'N/A')} | Categoría: {categoria}"
+        df_export = df_procesado.copy()
+        
+        # Generar Curva Continua Matemática Principal
+        edades_proy = np.linspace(t0, t_peak, 150)
+        tiempos_proy = calcular_curva_atleta(edades_proy, t0, T0, t_pb, T_pb, t_peak, T_target, k_global, factor_h)
+        
+        fig.add_trace(go.Scatter(
+            x=edades_proy, y=tiempos_proy, mode='lines',
+            line=dict(color='#008080', width=3), # Teal
+            name="Proyección Fisiológica",
+            text=[formatear_a_minutos(t) for t in tiempos_proy],
+            hovertemplate="Edad: %{x:.2f}a<br>Proyección: <b>%{text}</b><extra></extra>"
+        ))
+        
+        # Historial Real (PBs)
+        if not df_procesado.empty:
+            fig.add_trace(go.Scatter(
+                x=df_procesado["Edad"], y=df_procesado["Tiempo"], mode='lines+markers',
+                line=dict(color='#e67e22', width=1.5, dash='dash'), # Naranja punteado
+                marker=dict(size=6, color='#e67e22'),
+                name="Evolución Real (PBs)",
+                text=[formatear_a_minutos(t) for t in df_procesado["Tiempo"]],
+                hovertemplate="Edad: %{x:.2f}a<br>Marca: <b>%{text}</b><extra></extra>"
+            ))
+            
+        # Puntos Claves: Start, PB Actual, Punto Consultado, Meta Peak
+        puntos_x = [t0, t_pb, t_intermedia, t_peak]
+        puntos_y = [T0, T_pb, T_intermedia, T_target]
+        textos = ["P. Start", "PB Actual", f"Consulta: {t_intermedia:.2f}a", "Meta Peak"]
+        colores_pt = ['gray', 'gold', 'red', 'mediumseagreen']
+        simbolos = ['circle', 'star', 'circle', 'square']
+        nombres_leyenda = ['P. Start', 'PB Actual de Control', 'Punto Consultado', 'Meta Peak']
+        
+        for px, py, txt, c, sym, leg_name in zip(puntos_x, puntos_y, textos, colores_pt, simbolos, nombres_leyenda):
+            # Solo mostrar Start en leyenda si se desea, por simplicidad replicamos estilo de imagen
+            mostrar_leyenda = True if leg_name in ['PB Actual de Control', 'Punto Consultado', 'Meta Peak'] else False
+            
+            fig.add_trace(go.Scatter(
+                x=[px], y=[py], mode='markers+text',
+                marker=dict(size=12 if sym == 'star' else 8, symbol=sym, color=c, line=dict(width=1, color='black')),
+                name=leg_name,
+                text=[f"{txt}<br>{formatear_a_minutos(py)}"],
+                textposition="top center" if txt != "PB Actual" else "bottom center",
+                showlegend=mostrar_leyenda,
+                hoverinfo='skip'
+            ))
+
+        # --- LÓGICA VISTA MICRO (VENTANA ANUAL) ---
+        if tipo_vista == "Micro (Ventana Anual)":
+            fig.update_xaxes(range=[edad_min_zoom, edad_max_zoom])
+            
+            # Obtener competencias futuras del caché para marcarlas en la ventana
+            hitos = obtener_historial_hitos_cache(usuario_id)
+            if hitos:
+                for hito in hitos:
+                    edad_h = hito.get("edad_hito")
+                    if edad_h and (edad_min_zoom <= edad_h <= edad_max_zoom):
+                        fecha_str = hito.get("fecha_evento", "")
+                        nombre_ev = hito.get("nombre_hito", "Evento")
+                        # Calcular tiempo proyectado para ese hito
+                        arr_h = np.array([edad_h])
+                        t_proy_h = calcular_curva_atleta(arr_h, t0, T0, t_pb, T_pb, t_peak, T_target, k_global, factor_h)[0]
+                        
+                        fig.add_vline(
+                            x=edad_h, line_width=1, line_dash="dash", line_color="mediumseagreen",
+                            annotation_text=f"{nombre_ev} - {fecha_str}",
+                            annotation_position="bottom right",
+                            annotation_textangle=-90,
+                            annotation_font=dict(color="mediumseagreen", size=10)
+                        )
+
+    # ---------------------------------------------------------
+    # 7. ESTILIZACIÓN FINAL DEL GRÁFICO
+    # ---------------------------------------------------------
+    fig.update_layout(
+        title=dict(text=f"<b>{titulo_figura}</b>", x=0.5, font=dict(size=18), y=0.95),
+        xaxis=dict(title="Edad del Atleta (Años)", gridcolor='rgba(0,0,0,0.05)', showline=True, linewidth=1, linecolor='black'),
+        yaxis=dict(
+            title="Tiempo de Carrera (Segundos)", 
+            gridcolor='rgba(0,0,0,0.05)',
+            showline=True, linewidth=1, linecolor='black',
+            tickformat=".2f" # Fallback visual, idealmente se usa tickvals/ticktext para formato M:SS
+        ),
+        template="plotly_white",
+        legend=dict(
+            orientation="v", y=0.99, x=0.75, 
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="lightgray", borderwidth=1
+        ),
+        margin=dict(l=50, r=30, t=80, b=50),
+        height=550
+    )
+
+    # Convertir el eje Y a etiquetas amigables MM:SS
+    if df_export is not None and not df_export.empty:
+        # Extraer min y max aproximado de tiempos para generar los ticks
+        if modo_equipo:
+            y_min = df_global_marcas['tiempo'].min() * 0.9
+            y_max = df_global_marcas['tiempo'].max() * 1.1
+        else:
+            y_min = min(T_target, T_intermedia) * 0.9
+            y_max = max(T0, T_pb) * 1.1
+            
+        tick_vals = np.linspace(y_min, y_max, num=8)
+        fig.update_layout(
+            yaxis=dict(
+                tickmode='array',
+                tickvals=tick_vals,
+                ticktext=[formatear_a_minutos(val) for val in tick_vals]
+            )
+        )
+
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+    # ---------------------------------------------------------
+    # 8. TABLA DE DATOS INFERIOR
+    # ---------------------------------------------------------
+    st.write("")
+    df_tabla = pd.DataFrame()
+    
+    if modo_equipo:
+        # En modo equipo, la tabla de exportación maneja la raw data.
+        st.caption("Los datos detallados del equipo están disponibles en el Centro de Exportación.")
+    else:
+        if tipo_vista == "Macro (Historial Completo)":
+            if not df_procesado.empty:
+                df_tabla = df_procesado.copy()
+                df_tabla["Tiempo"] = df_tabla["Tiempo"].apply(lambda x: formatear_a_minutos(float(x)))
+                df_tabla["Edad"] = df_tabla["Edad"].apply(lambda x: f"{float(x):.2f} a")
+                df_tabla["WA"] = df_procesado["Tiempo"].apply(lambda x: f"{calcular_puntos_wa(x, m_wr)} pts")
+                # Reorganizar columnas
+                df_tabla = df_tabla[["Edad", "Tiempo", "WA", "Evento / Fecha"]]
+                st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+            else:
+                st.dataframe(pd.DataFrame({"Edad":["-"], "Tiempo":["-"], "WA":["-"], "Evento / Fecha":["Sin marcas históricas registradas"]}), use_container_width=True, hide_index=True)
+                
+        elif tipo_vista == "Micro (Ventana Anual)":
+            # Tabla de proyecciones para competencias futuras
+            hitos = obtener_historial_hitos_cache(usuario_id)
+            datos_tabla_micro = []
+            if hitos:
+                for hito in hitos:
+                    edad_h = hito.get("edad_hito")
+                    if edad_h and (edad_min_zoom <= edad_h <= edad_max_zoom):
+                        arr_h = np.array([edad_h])
+                        t_proy_h = calcular_curva_atleta(arr_h, t0, T0, t_pb, T_pb, t_peak, T_target, k_global, factor_h)[0]
+                        datos_tabla_micro.append({
+                            "Competencia / Evento": hito.get("nombre_hito", ""),
+                            "Fecha": hito.get("fecha_evento", ""),
+                            "Edad": f"{edad_h:.2f} a",
+                            "Marca Proyectada": formatear_a_minutos(t_proy_h) + " s"
+                        })
+            if datos_tabla_micro:
+                df_tabla = pd.DataFrame(datos_tabla_micro)
+                st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay competencias programadas en el rango de edad seleccionado.")
+
+    st.markdown("---")
+
+    # ---------------------------------------------------------
+    # 9. CENTRO DE EXPORTACIÓN DE REPORTES Y GRÁFICOS
+    # ---------------------------------------------------------
+    st.subheader("🖨️ Centro de Exportación de Reportes y Gráficos")
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
+    
+    # 9.1 Exportar Historial a CSV
+    csv_data = df_export.to_csv(index=False).encode('utf-8') if df_export is not None else b""
+    col_dl1.download_button(
+        label="📥 Descargar Historial (CSV)",
+        data=csv_data,
+        file_name=f"historial_{prueba.replace(' ', '_').lower()}.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+    
+    # 9.2 Exportar Datos a TXT (Resumen del modelo)
+    txt_content = f"--- Resumen de Proyección: {prueba} ---\n"
+    txt_content += f"Atleta/Modo: {'Equipo' if modo_equipo else st.session_state.get('nadador_seleccionado_nombre')}\n"
+    txt_content += f"Factor k: {k_global:.4f}\nMargen D: {margen_d:.2f} s\n"
+    col_dl2.download_button(
+        label="📄 Descargar Datos (TXT)",
+        data=txt_content.encode('utf-8'),
+        file_name=f"resumen_{prueba.replace(' ', '_').lower()}.txt",
+        mime="text/plain",
+        use_container_width=True
+    )
+    
+    # 9.3 Exportar Gráfico a PNG
+    try:
+        # Requiere el paquete 'kaleido' instalado en el entorno
+        img_bytes = fig.to_image(format="png", engine="kaleido", width=1000, height=600, scale=2)
+        col_dl3.download_button(
+            label="🖼️ Guardar Gráfico (Imagen PNG)",
+            data=img_bytes,
+            file_name=f"proyeccion_{prueba.replace(' ', '_').lower()}.png",
+            mime="image/png",
+            use_container_width=True
+        )
+    except Exception as e:
+        # Fallback si 'kaleido' no está disponible
+        col_dl3.button("🖼️ Guardar Gráfico (Imagen PNG)", disabled=True, help="El motor de exportación PNG ('kaleido') no está instalado o falló.", use_container_width=True)
