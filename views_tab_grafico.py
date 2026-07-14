@@ -50,17 +50,6 @@ def renderizar_tab_grafico(datos_sidebar):
         hitos_raw = []
 
     # =====================================================================
-    # 3. GESTIÓN DE ENCABEZADOS E INTERFAZ
-    # =====================================================================
-    if simulacion_externa:
-        st.warning("⚠️ Modo Simulación Activo: Proyecciones basadas estrictamente en los parámetros ingresados.")
-        st.subheader("Modo Simulación Externa (Proyección Aislada)")
-    elif modo_equipo:
-        st.subheader(f"Modo Equipo: {titulo_grafico}")
-    else:
-        st.subheader(f"Modo Individual - Vista {tipo_vista}: {titulo_grafico}")
-
-    # =====================================================================
     # 4. RECOPILACIÓN ORGANIZADA DE DATOS SEGÚN ESCENARIO
     # =====================================================================
     if modo_equipo:
