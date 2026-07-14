@@ -91,6 +91,30 @@ def renderizar_tab_grafico(datos_sidebar):
             idx_pb = df_procesado["Tiempo"].idxmin()
             t_pb = float(df_procesado.loc[idx_pb, "Edad"])
             T_pb = float(df_procesado.loc[idx_pb, "Tiempo"])
+    # =====================================================================
+    # 4. GESTIÓN DE ENCABEZADOS E INTERFAZ (INCLUYENDO MÉTRICAS)
+    # =====================================================================
+    if simulacion_externa:
+        st.warning("⚠️ Modo Simulación Activo: Proyecciones basadas estrictamente en los parámetros ingresados.")
+        st.subheader("Modo Simulación Externa (Proyección Aislada)")
+    elif modo_equipo:
+        st.subheader(f"Modo Equipo: {titulo_grafico}")
+    else:
+        st.subheader(f"Modo Individual - Vista {tipo_vista}: {titulo_grafico}")
+
+    # CÁLCULO DE LAS MÉTRICAS SUPERIORES (Restaurado)
+    if not modo_equipo and T0 != 0.0 and T_pb != 0.0:
+        k_principal = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
+        D_principal = T_pb - T_target
+        c3_val = np.interp(edad_intermedia, np.linspace(t0, t_peak, 300), calcular_curva_atleta(np.linspace(t0, t_peak, 300), t0, T0, t_pb, T_pb, t_peak, T_target, k_principal, h))
+        
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric(label="Factor de Ajuste (k)", value=f"{k_principal:.4f}")
+        with c2:
+            st.metric(label="Margen de Deriva (D)", value=f"{formatear_a_minutos(D_principal)}")
+        with c3:
+            st.metric(label=f"Proyección a los {edad_intermedia} años", value=formatear_a_minutos(c3_val))
 
     # =====================================================================
     # 5. CONFIGURACIÓN DEL LIENZO MATPLOTLIB
@@ -289,6 +313,49 @@ def renderizar_tab_grafico(datos_sidebar):
 
     # 🚀 Renderizado final (Evita el Deprecation Warning)
     st.pyplot(fig, width='stretch')
+
+# -------------------------------------------------------------------------
+    # ST.MARKDOWN - CENTRO DE EXPORTACIÓN (Restaurado e integrado al final)
+    # -------------------------------------------------------------------------
+    st.markdown("---")
+    st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
+    
+    # Preparamos DataFrames según el modo de visualización
+    export_df = pd.DataFrame()
+    if modo_equipo and "df_global_marcas" in datos_sidebar and not datos_sidebar["df_global_marcas"].empty:
+        export_df = datos_sidebar["df_global_marcas"].drop(columns=["id", "usuario_id"], errors="ignore")
+    elif not modo_equipo and df_procesado is not None and not df_procesado.empty:
+        export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore")
+    
+    if len(export_df) > 0:
+        csv_data = export_df.to_csv(index=False).encode('utf-8')
+        txt_string = export_df.to_string(index=False)
+        
+        # 1. Creamos el "escudo" inicializando la variable en None
+        img_buffer = None
+        
+        if modo_equipo and not lista_atletas:
+            st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
+        else:
+            # 2. Solo intentamos guardar si la figura realmente existe en esta ejecución
+            if 'fig' in locals() and fig is not None:
+                img_buffer = io.BytesIO()
+                fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
+                img_buffer.seek(0)
+        
+        c_exp1, c_exp2, c_exp3 = st.columns(3)
+        with c_exp1:
+            st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.get('nadador_seleccionado_nombre', 'equipo')}.csv", mime="text/csv")
+        with c_exp2:
+            st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.get('nadador_seleccionado_nombre', 'equipo')}.txt", mime="text/plain")
+        with c_exp3:
+            # 3. Protegemos el botón: si no hay buffer de imagen, no se rompe la app
+            if img_buffer is not None:
+                st.download_button(label="🖼️ Guardar Gráfico Completo", data=img_buffer, file_name=f"grafico_{titulo_grafico}_{st.session_state.get('nadador_seleccionado_nombre', 'equipo')}.png", mime="image/png")
+            else:
+                st.info("📉 Gráfico no disponible.")
+    else:
+        st.info("Sin datos para exportar en este momento.")
 
     # 🧹 LIMPIEZA DE MEMORIA (EVITA EL SEGMENTATION FAULT)
     plt.close(fig)
