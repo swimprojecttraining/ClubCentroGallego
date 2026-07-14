@@ -6,14 +6,14 @@ from datetime import datetime
 
 # --- IMPORTACIONES DEL ECOSISTEMA MODULAR ---
 # Asumiendo que los archivos están en el mismo directorio raíz según las instrucciones
-from formulas_lib_funciones import (
+from formulas_lib_funciones_2 import (
     resolver_k_individual,
     calcular_curva_atleta,
     formatear_a_minutos,
     procesar_mejor_marca_historica,
     calcular_puntos_wa
 )
-from connections_supabase_cache import (
+from connections_supabase_cache_2 import (
     obtener_historial_hitos_cache
 )
 
