@@ -16,8 +16,7 @@ from conections_supabase_cache import (
     obtener_nadadores_activos_cache,
     obtener_marcas_historicas_cache,
     obtener_marcas_referencia_cache,
-    obtener_marcas_equipo_cache,
-    _get_db
+    obtener_marcas_equipo_cache
 )
 
 # 🎨 IMPORTACIÓN DESDE TU MÓDULO DE ESTILOS VISUALES
