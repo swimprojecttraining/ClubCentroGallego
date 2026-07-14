@@ -5,3 +5,4 @@ scipy
 supabase
 pandas
 plotly
+kaleido
