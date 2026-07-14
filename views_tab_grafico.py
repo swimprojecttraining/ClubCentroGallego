@@ -245,20 +245,53 @@ def renderizar_tab_grafico(datos_sidebar):
         # =====================================================================
         # 9. TABLAS NATIVAS INFERIORES (SOLO INDIVIDUAL/REAL)
         # =====================================================================
-        df_table_render = datos_sidebar.get("df_procesado")
-        
-        if not simulacion_externa and not modo_equipo and df_table_render is not None and not df_table_render.empty:
-            if 'id' in df_table_render.columns:
-                df_table_render = df_table_render.drop(columns=['id'])
+	df_table_render = None
+        es_modo_micro_tabla = (tipo_vista == "Micro (Ventana Anual)")
+    
+        if es_modo_micro_tabla:
+            if datos_tabla_micro:
+                df_table_render = pd.DataFrame(datos_tabla_micro)
+                anchos_columnas = [0.46, 0.18, 0.16, 0.20]
+            else:
+                df_table_render = pd.DataFrame([{
+                    "Competencia / Evento": "No hay hitos o competencias en este rango de edad",
+                    "Fecha": "-",
+                    "Edad": "-",
+                    "Tiempo Prog.": "-"
+                }])
+                anchos_columnas = [0.52, 0.16, 0.16, 0.16]
+        else:
+            if not simulacion_externa and len(df_procesado) > 0:
+                df_table_render = df_procesado[["Edad", "Tiempo", "Evento / Fecha"]].copy()
                 
-            df_vista_tabla = df_table_render.copy()
-            if 'Tiempo' in df_vista_tabla.columns:
-                df_vista_tabla['Tiempo'] = df_vista_tabla['Tiempo'].apply(lambda x: formatear_a_minutos(x).replace(" s", "") if isinstance(x, (int, float)) else x)
-            
-            total_filas = len(df_vista_tabla)
+                # Integración Dinámica del Récord Mundial Activo
+                wr_referencia_real = m_wr 
+                
+                df_table_render["WA"] = df_table_render["Tiempo"].apply(
+                    lambda x: calcular_puntos_wa(x, wr_referencia_real)
+                )
+                
+                df_table_render = df_table_render[["Edad", "Tiempo", "WA", "Evento / Fecha"]]
+                df_table_render["Edad"] = df_table_render["Edad"].map(lambda x: f"{x:.2f} a")
+                
+                # CORRECCIÓN: Tiempo sale directo por el formateador, sin añadir nada
+                df_table_render["Tiempo"] = df_table_render["Tiempo"].apply(formatear_a_minutos)
+                
+                df_table_render["WA"] = df_table_render["WA"].map(lambda x: f"{x} pts" if x > 0 else "-")
+                anchos_columnas = [0.13, 0.13, 0.14, 0.60]
+            else:
+                df_table_render = pd.DataFrame([{
+                    "Edad": "-", 
+                    "Tiempo": "-", 
+                    "WA": "-",
+                    "Evento / Fecha": "Sin marcas históricas registradas"
+                }])
+                anchos_columnas = [0.13, 0.13, 0.14, 0.60]
+    
+        # Módulo de Paginación Espacial Inteligente
+        if df_table_render is not None and not df_table_render.empty:
+            total_filas = len(df_table_render)
             limite_filas_por_bloque = 18
-            es_modo_micro = ("Micro" in tipo_vista)
-            anchos_columnas = [0.25, 0.25, 0.25, 0.25] if es_modo_micro and len(df_vista_tabla.columns) == 4 else [0.15, 0.25, 0.60]
             
             def estilizar_tabla_nativo(instancia_tabla):
                 instancia_tabla.auto_set_font_size(False)
@@ -268,41 +301,38 @@ def renderizar_tab_grafico(datos_sidebar):
                     cell.set_linewidth(0.5)            
                     cell.set_edgecolor('#E5E7EB')       
                     if row == 0:
-                        cell.set_text_props(color='black', weight='bold')
+                        cell.set_text_props(color='black', weight='light')
                         cell.set_facecolor('#C0C0C0')
                     else:
                         cell.set_facecolor('#F8F9F9' if row % 2 == 0 else 'white')
-
+    
             if total_filas <= limite_filas_por_bloque:
                 ax_table = fig.add_axes([0.14, 0.054, 0.72, 0.48])
                 ax_table.axis('off')
-                mpl_table = ax_table.table(cellText=df_vista_tabla.values, colLabels=df_vista_tabla.columns, cellLoc='center', loc='upper center', colWidths=anchos_columnas)
+                mpl_table = ax_table.table(
+                    cellText=df_table_render.values, colLabels=df_table_render.columns, 
+                    cellLoc='center', loc='upper center', colWidths=anchos_columnas
+                )
                 estilizar_tabla_nativo(mpl_table)
             else:
-                if total_filas > 36: df_vista_tabla = df_vista_tabla.iloc[:36]
-                df_bloque_izq = df_vista_tabla.iloc[:limite_filas_por_bloque]
-                df_bloque_der = df_vista_tabla.iloc[limite_filas_por_bloque:]
+                if total_filas > 36: 
+                    df_table_render = df_table_render.iloc[:32]
+                df_bloque_izq = df_table_render.iloc[:limite_filas_por_bloque]
+                df_bloque_der = df_table_render.iloc[limite_filas_por_bloque:]
+                
+                anchos_doble = anchos_columnas if es_modo_micro_tabla else [0.15, 0.15, 0.16, 0.54]
                 
                 ax_table1 = fig.add_axes([0.14, 0.054, 0.34, 0.48])
                 ax_table1.axis('off')
-                mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_columnas)
+                mpl_table1 = ax_table1.table(cellText=df_bloque_izq.values, colLabels=df_bloque_izq.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
                 estilizar_tabla_nativo(mpl_table1)
                 
                 ax_table2 = fig.add_axes([0.52, 0.054, 0.34, 0.54])
                 ax_table2.axis('off')
-                mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=anchos_columnas)
+                mpl_table2 = ax_table2.table(cellText=df_bloque_der.values, colLabels=df_bloque_der.columns, cellLoc='center', loc='upper center', colWidths=anchos_doble)
                 estilizar_tabla_nativo(mpl_table2)
-
-    # Configuración final
-    ax.set_title(titulo_grafico, fontsize=12, pad=15)
-    ax.set_xlabel("Edad (Años)", fontsize=10)
-    ax.set_ylabel("Tiempo (mm:ss.00)", fontsize=10)
-    ax.grid(True, linestyle=':', alpha=0.6)
-    ax.legend(loc='upper right', fontsize=9)
-
-    # 🚀 Renderizado final (Evita el Deprecation Warning)
-    st.pyplot(fig, width='stretch')
-
+    
+        st.pyplot(fig, use_container_width=True)
 # -------------------------------------------------------------------------
     # ST.MARKDOWN - CENTRO DE EXPORTACIÓN (Restaurado e integrado al final)
     # -------------------------------------------------------------------------
