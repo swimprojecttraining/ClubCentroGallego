@@ -2,6 +2,7 @@
 # CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
 # -------------------------------------------------------------
 import streamlit as st
+import pandas as pd
 
 def _get_db():
     return st.session_state.get("supabase")
@@ -74,8 +75,6 @@ def obtener_catalogo_competencias_cache():
         response = supabase.table("catalogo_competencias").select("*").execute()
         return response.data if response.data else []
     except Exception: return []
-
-import pandas as pd
 
 def obtener_marcas_equipo_cache(supabase, lista_ids_nadadores, prueba_seleccionada):
     """
