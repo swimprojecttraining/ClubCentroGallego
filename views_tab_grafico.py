@@ -160,6 +160,13 @@ def renderizar_tab_grafico(datos_sidebar):
             # 1. Llamada a la caché directamente (Arquitectura Real)
             try:
                 marcas_raw = obtener_marcas_historicas_cache(a_id)
+                # --- DEPURACIÓN DE DATAFRAME ---
+                st.write("--- Inspección de df_raw ---")
+                st.write(f"Buscando el valor exacto: '{prueba}'")
+                st.write("Columnas presentes:", df_raw.columns.tolist())
+                st.write("Primeras 5 filas del DataFrame:", df_raw.head(5))
+                st.write("Valores únicos en 'prueba':", df_raw["prueba"].unique() if "prueba" in df_raw.columns else "¡La columna 'prueba' no existe!")
+                # -------------------------------
             except Exception as e:
                 marcas_raw = []
                 
