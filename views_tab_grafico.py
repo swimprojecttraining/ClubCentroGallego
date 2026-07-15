@@ -186,7 +186,8 @@ def renderizar_tab_grafico(datos_sidebar):
             if df_raw.empty or "prueba" not in df_raw.columns: continue
             
             # 2. Filtrar por la prueba seleccionada en el sidebar
-            df_prueba = df_raw[df_raw["prueba"] == prueba].copy()
+            # Filtro robusto: ignora mayúsculas/minúsculas y espacios en blanco
+            df_prueba = df_raw[df_raw["prueba"].astype(str).str.strip().str.lower() == prueba.strip().lower()].copy()
             if df_prueba.empty: continue
             
             # 3. Preparar columnas para el motor matemático
