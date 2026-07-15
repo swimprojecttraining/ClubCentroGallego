@@ -222,14 +222,27 @@ def calcular_puntos_wa(tiempo_atleta: float, record_mundial: float) -> int:
 # MOTOR MATEMÁTICO DOBLE CALCULO DE CURVA AJUSTADO
 # -------------------------------------------------------------
 def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
-    if eq_t_peak > eq_t0 and eq_t_pb > eq_t0:
+    # Condición ajustada: t_peak debe ser > t0 y t_pb debe ser >= t0
+    if eq_t_peak > eq_t0 and eq_t_pb >= eq_t0:
         tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
+
         def ecuacion_k_eq(k_val):
-            ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / (1 - np.exp(-k_val))
-            return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
-        k_opt_eq, _, _, _ = fsolve(ecuacion_k_eq, 1.0, full_output=True)
-        return k_opt_eq[0]
-    return 0.4
+            if abs(k_val) < 1e-4: return 1e6
+            try:
+                denominador = 1 - np.exp(-k_val)
+                if abs(denominador) < 1e-6: return 1e6
+                ter_exp = (np.exp(-k_val * tau_eq) - np.exp(-k_val)) / denominador
+                return (eq_T_target + (eq_T0 - eq_T_target) * ter_exp) - eq_T_pb
+            except:
+                return 1e6
+
+        k_opt_eq, info, ier, msg = fsolve(ecuacion_k_eq, 1.0, full_output=True)
+        
+        if ier == 1:
+            return float(k_opt_eq[0])
+            
+    # Si llegamos aquí, no se cumplió la condición o no hubo convergencia
+    return none
 
 def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
     tiempos = []
