@@ -153,13 +153,13 @@ def renderizar_tab_grafico(datos_sidebar):
         todos_los_tiempos_colectivo = []
         datos_atletas_cargados = []
         
-for idx, atl in enumerate(atletas_filtrados):
+        for idx, atl in enumerate(atletas_filtrados):
             # Extraemos el ID correcto
             a_id = atl.get("usuario_id", atl.get("id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
             try:
-                # ¡AQUÍ ESTÁ LA MAGIA! Le enviamos a la caché los dos datos que exige
+                # Le enviamos a la caché los dos datos que exige
                 marcas_raw = obtener_marcas_historicas_cache(usuario_id=a_id, prueba=prueba)
             except Exception as e:
                 marcas_raw = []
@@ -169,13 +169,18 @@ for idx, atl in enumerate(atletas_filtrados):
             df_raw = pd.DataFrame(marcas_raw)
             if df_raw.empty or "prueba" not in df_raw.columns: continue
             
-            # Filtro robusto (por seguridad, aunque la BD ya debería traerlo filtrado)
+            # Filtro robusto por seguridad
             df_prueba = df_raw[df_raw["prueba"].astype(str).str.strip().str.lower() == prueba.strip().lower()].copy()
             
             if df_prueba.empty: continue
             
-            # (A partir de aquí continúa el resto de tu código que prepara df_atl_m, etc.)
-            # df_atl_m = df_prueba.rename(columns={"edad": "Edad", ...
+            # 3. Preparar columnas para el motor matemático (RECUPERADO)
+            df_atl_m = df_prueba.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
+            df_atl_m["Tiempo"] = pd.to_numeric(df_atl_m["Tiempo"], errors="coerce")
+            df_atl_m["Edad"] = pd.to_numeric(df_atl_m["Edad"], errors="coerce")
+            df_atl_m = df_atl_m.dropna(subset=["Tiempo", "Edad"]).sort_values(by="Edad").reset_index(drop=True)
+            
+            if df_atl_m.empty: continue
             
             # Registrar para renderizado
             hay_datos_visibles = True
