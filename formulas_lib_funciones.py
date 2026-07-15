@@ -108,20 +108,45 @@ def convertir_string_a_segundos(tiempo_str: str) -> float:
 # -------------------------------------------------------------
 # CÁLCULOS DE MARCAS E HITOS
 # -------------------------------------------------------------
-def procesar_mejor_marca_historica(df):
-    """Extrae t0, T0, t_pb y T_pb a partir del DataFrame histórico procesado."""
-    if df is None or df.empty:
-        return None, None, None, None
-    try:
-        df_sorted = df.sort_values(by="Edad").reset_index(drop=True)
-        t0 = float(df_sorted.iloc[0]["Edad"])
-        T0 = float(df_sorted.iloc[0]["Tiempo"])
-        idx_pb = df_sorted["Tiempo"].idxmin()
-        t_pb = float(df_sorted.loc[idx_pb, "Edad"])
-        T_pb = float(df_sorted.loc[idx_pb, "Tiempo"])
-        return t0, T0, t_pb, T_pb
-    except Exception as e:
-        return None, None, None, None
+def procesar_mejor_marca_historica(df_atleta):
+    """
+    Calcula t0, T0, t_pb y T_pb basándose exclusivamente en la columna 'Edad'.
+    Aplica la lógica del valle: Si tras el PB absoluto hay dos marcas consecutivas peores,
+    el PB se anula y el nuevo punto de control es la última marca registrada.
+    """
+    # 1. Aseguramos orden cronológico (Edad decimal)
+    df = df_atleta.sort_values(by="Edad").reset_index(drop=True)
+    
+    # 2. Origen (t0, T0) - El registro más antiguo (primera fila)
+    t0 = float(df.iloc[0]["Edad"])
+    T0 = float(df.iloc[0]["Tiempo"])
+    
+    # 3. PB Absoluto (el mejor tiempo de toda la historia)
+    idx_pb_absoluto = df["Tiempo"].idxmin()
+    t_pb = float(df.loc[idx_pb_absoluto, "Edad"])
+    T_pb = float(df.loc[idx_pb_absoluto, "Tiempo"])
+    
+    # 4. Verificación de Valle de Rendimiento
+    # Solo miramos si hay marcas posteriores al PB absoluto
+    if idx_pb_absoluto < len(df) - 1:
+        # Extraemos solo las marcas después del PB
+        df_posterior = df.iloc[idx_pb_absoluto + 1 :].reset_index(drop=True)
+        
+        # Necesitamos al menos 2 marcas para confirmar un valle (dos peores seguidas)
+        if len(df_posterior) >= 2:
+            valle_encontrado = False
+            for i in range(len(df_posterior) - 1):
+                # Comparamos si ambas son peores que el PB absoluto
+                if df_posterior.iloc[i]["Tiempo"] > T_pb and df_posterior.iloc[i+1]["Tiempo"] > T_pb:
+                    valle_encontrado = True
+                    break
+            
+            # 5. Si hay valle, el PB actual se convierte en la última marca (la más reciente)
+            if valle_encontrado:
+                t_pb = float(df.iloc[-1]["Edad"])
+                T_pb = float(df.iloc[-1]["Tiempo"])
+                
+    return t0, T0, t_pb, T_pb
 
 @st.cache_data(show_spinner=False, ttl=600)
 def obtener_datos_hitos_atleta(nadador_id):
