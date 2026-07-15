@@ -163,7 +163,7 @@ def renderizar_tab_grafico(datos_sidebar):
                 st.write(f"2. Nombre de la prueba que estamos buscando: `{prueba}`")
                 
                 try:
-                    marcas_raw = obtener_marcas_historicas_cache(a_id=usuario_id)
+                    marcas_raw = obtener_marcas_historicas_cache(usuario_id=a_id)
                     st.write(f"3. Cantidad total de marcas traídas de BD: `{len(marcas_raw)}`")
                     
                     if len(marcas_raw) > 0:
