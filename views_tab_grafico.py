@@ -42,7 +42,7 @@ def renderizar_tab_grafico(datos_sidebar):
     h = float(datos_sidebar.get("factor_h", 0.35))
     t_intermedia = float(datos_sidebar.get("t_intermedia", 18.0))
 
-    prueba = datos_sidebar.get("prueba", datos_sidebar.get("prueba_seleccionada", ""))
+    prueba = datos_sidebar.get("prueba", datos_sidebar.get("titulo_grafico", ""))
     genero = datos_sidebar.get("genero", datos_sidebar.get("genero_atleta", "M"))
     categoria = datos_sidebar.get("categoria", datos_sidebar.get("categoria_atleta", ""))
     usuario_id = datos_sidebar.get("usuario_id", datos_sidebar.get("id", ""))
