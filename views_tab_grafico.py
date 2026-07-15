@@ -153,32 +153,39 @@ def renderizar_tab_grafico(datos_sidebar):
         todos_los_tiempos_colectivo = []
         datos_atletas_cargados = []
         
-        for idx, atl in enumerate(atletas_filtrados):
+for idx, atl in enumerate(atletas_filtrados):
             a_id = atl.get("usuario_id", atl.get("id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
-            # 1. Llamada a la caché directamente (Arquitectura Real)
-            try:
-                marcas_raw = obtener_marcas_historicas_cache(a_id)
-            except Exception as e:
-                marcas_raw = []
+            # --- 🛑 INICIO BLOQUE DE DEPURACIÓN (Borrar después) 🛑 ---
+            with st.expander(f"🔍 Depurando a: {a_nom}", expanded=True):
+                st.write(f"1. ID extraído para la base de datos: `{a_id}`")
+                st.write(f"2. Nombre de la prueba que estamos buscando: `{prueba}`")
                 
+                try:
+                    marcas_raw = obtener_marcas_historicas_cache(a_id)
+                    st.write(f"3. Cantidad total de marcas traídas de BD: `{len(marcas_raw)}`")
+                    
+                    if len(marcas_raw) > 0:
+                        df_debug = pd.DataFrame(marcas_raw)
+                        if "prueba" in df_debug.columns:
+                            st.write("4. Pruebas que SÍ existen para este atleta en la BD:", df_debug["prueba"].unique())
+                        else:
+                            st.error("Error: La columna 'prueba' no existe en los datos descargados.")
+                except Exception as e:
+                    marcas_raw = []
+                    st.error(f"Error al conectar con BD: {e}")
+            # --- 🛑 FIN BLOQUE DE DEPURACIÓN 🛑 ---
+
             if not marcas_raw: continue
             
             df_raw = pd.DataFrame(marcas_raw)
             if df_raw.empty or "prueba" not in df_raw.columns: continue
             
-            # 2. Filtrar por la prueba seleccionada en el sidebar
-            df_prueba = df_raw[df_raw["prueba"] == prueba].copy()
+            # Filtro robusto para evitar problemas de mayúsculas/espacios
+            df_prueba = df_raw[df_raw["prueba"].astype(str).str.strip().str.lower() == prueba.strip().lower()].copy()
+            
             if df_prueba.empty: continue
-            
-            # 3. Preparar columnas para el motor matemático
-            df_atl_m = df_prueba.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-            df_atl_m["Tiempo"] = pd.to_numeric(df_atl_m["Tiempo"], errors="coerce")
-            df_atl_m["Edad"] = pd.to_numeric(df_atl_m["Edad"], errors="coerce")
-            df_atl_m = df_atl_m.dropna(subset=["Tiempo", "Edad"]).sort_values(by="Edad").reset_index(drop=True)
-            
-            if df_atl_m.empty: continue
             
             # Registrar para renderizado
             hay_datos_visibles = True
