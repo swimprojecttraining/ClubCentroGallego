@@ -153,13 +153,11 @@ def renderizar_tab_grafico(datos_sidebar):
         todos_los_tiempos_colectivo = []
         datos_atletas_cargados = []
         
-        for idx, atl in enumerate(atletas_filtrados):
-            # Extraemos el ID correcto
+for idx, atl in enumerate(atletas_filtrados):
             a_id = atl.get("usuario_id", atl.get("id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
             try:
-                # Le enviamos a la caché los dos datos que exige
                 marcas_raw = obtener_marcas_historicas_cache(usuario_id=a_id, prueba=prueba)
             except Exception as e:
                 marcas_raw = []
@@ -167,15 +165,26 @@ def renderizar_tab_grafico(datos_sidebar):
             if not marcas_raw: continue
             
             df_raw = pd.DataFrame(marcas_raw)
-            if df_raw.empty or "prueba" not in df_raw.columns: continue
+            if df_raw.empty: continue
             
-            # Filtro robusto por seguridad
-            df_prueba = df_raw[df_raw["prueba"].astype(str).str.strip().str.lower() == prueba.strip().lower()].copy()
+            # Flexibilizamos el filtro: 
+            # Si la columna existe, filtramos. Si no, tomamos los datos tal cual llegaron de la BD.
+            if "prueba" in df_raw.columns:
+                df_prueba = df_raw[df_raw["prueba"].astype(str).str.strip().str.lower() == prueba.strip().lower()].copy()
+            else:
+                df_prueba = df_raw.copy()
             
             if df_prueba.empty: continue
             
-            # 3. Preparar columnas para el motor matemático (RECUPERADO)
+            # 3. Preparar columnas para el motor matemático
             df_atl_m = df_prueba.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
+            
+            # Mini-seguro: Si después de renombrar no existen las columnas maestras, alertamos y saltamos
+            if "Tiempo" not in df_atl_m.columns or "Edad" not in df_atl_m.columns:
+                # Quita el '#' de la siguiente línea si necesitas ver qué columnas está enviando realmente la BD
+                # st.warning(f"Columnas recibidas de BD para {a_nom}: {list(df_atl_m.columns)}")
+                continue
+                
             df_atl_m["Tiempo"] = pd.to_numeric(df_atl_m["Tiempo"], errors="coerce")
             df_atl_m["Edad"] = pd.to_numeric(df_atl_m["Edad"], errors="coerce")
             df_atl_m = df_atl_m.dropna(subset=["Tiempo", "Edad"]).sort_values(by="Edad").reset_index(drop=True)
