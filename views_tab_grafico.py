@@ -222,7 +222,7 @@ def renderizar_tab_grafico(datos_sidebar):
             
             ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
 
-            m_wr = float(ref_wr_data.get('m_wr', 46.0)) if isinstance(ref_wr_data, dict) else float(ref_wr_data)
+            m_wr = float(ref_wr_data.get('tiempo', 46.0)) if isinstance(ref_wr_data, dict) else float(ref_wr_data)
             
             peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
             
