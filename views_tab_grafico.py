@@ -154,7 +154,7 @@ def renderizar_tab_grafico(datos_sidebar):
         datos_atletas_cargados = []
         
         for idx, atl in enumerate(atletas_filtrados):
-            a_id = atl.get("id", atl.get("usuario_id"))
+            a_id = atl.get("usuario_id", atl.get("id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
             # 1. Llamada a la caché directamente (Arquitectura Real)
