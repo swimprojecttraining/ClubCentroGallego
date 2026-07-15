@@ -220,7 +220,7 @@ def renderizar_tab_grafico(datos_sidebar):
             lim_x_max = t_peak + 1.0 
             ax.set_xlim(lim_x_min, lim_x_max)
             
-            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero="M", categoria="Máxima")
 
             m_wr = float(ref_wr_data.get('tiempo', 46.0)) if isinstance(ref_wr_data, dict) else float(ref_wr_data)
             
