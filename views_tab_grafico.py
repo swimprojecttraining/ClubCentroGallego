@@ -42,7 +42,7 @@ def renderizar_tab_grafico(datos_sidebar):
     h = float(datos_sidebar.get("factor_h", 0.35))
     t_intermedia = float(datos_sidebar.get("t_intermedia", 18.0))
 
-    prueba = datos_sidebar.get("prueba", datos_sidebar.get("titulo_grafico", ""))
+    prueba = datos_sidebar.get("prueba_seleccionada", datos_sidebar.get("titulo_grafico", ""))
     genero = datos_sidebar.get("genero", datos_sidebar.get("genero_atleta", "M"))
     categoria = datos_sidebar.get("categoria", datos_sidebar.get("categoria_atleta", ""))
     usuario_id = datos_sidebar.get("usuario_id", datos_sidebar.get("id", ""))
@@ -153,41 +153,23 @@ def renderizar_tab_grafico(datos_sidebar):
         todos_los_tiempos_colectivo = []
         datos_atletas_cargados = []
         
-    # 1. Llamada a la caché directamente
         for idx, atl in enumerate(atletas_filtrados):
-            a_id = atl.get("usuario_id"))
+            a_id = atl.get("id", atl.get("usuario_id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
-            st.write(f"--- Depurando Atleta: {a_nom} (ID: {a_id}) ---")
-            
+            # 1. Llamada a la caché directamente (Arquitectura Real)
             try:
                 marcas_raw = obtener_marcas_historicas_cache(a_id)
-                # Imprimimos lo que recibimos para ver si está vacío
-                st.write(f"Datos crudos recibidos: {marcas_raw}") 
             except Exception as e:
-                st.error(f"Error en la conexión caché para {a_nom}: {e}")
                 marcas_raw = []
                 
-            if not marcas_raw:
-                st.warning(f"La función devolvió una lista vacía para {a_nom}. ¿Es correcto el ID?")
-                continue
+            if not marcas_raw: continue
             
-            # Si llegamos aquí es porque hay datos, ahora sí convertimos a DF
             df_raw = pd.DataFrame(marcas_raw)
-            
-            # ... (aquí sigue tu código normal de filtrado)
-            # --- DEPURACIÓN DE DATAFRAME ---
-            st.write("--- Inspección de df_raw ---")
-            st.write(f"Buscando el valor exacto: '{prueba}'")
-            st.write("Columnas presentes:", df_raw.columns.tolist())
-            st.write("Primeras 5 filas del DataFrame:", df_raw.head(5))
-            st.write("Valores únicos en 'prueba':", df_raw["prueba"].unique() if "prueba" in df_raw.columns else "¡La columna 'prueba' no existe!")
-            # -------------------------------
             if df_raw.empty or "prueba" not in df_raw.columns: continue
             
             # 2. Filtrar por la prueba seleccionada en el sidebar
-            # Filtro robusto: ignora mayúsculas/minúsculas y espacios en blanco
-            df_prueba = df_raw[df_raw["prueba"].astype(str).str.strip().str.lower() == prueba.strip().lower()].copy()
+            df_prueba = df_raw[df_raw["prueba"] == prueba].copy()
             if df_prueba.empty: continue
             
             # 3. Preparar columnas para el motor matemático
