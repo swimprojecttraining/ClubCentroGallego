@@ -155,7 +155,7 @@ def renderizar_tab_grafico(datos_sidebar):
         
     # 1. Llamada a la caché directamente
         for idx, atl in enumerate(atletas_filtrados):
-            a_id = atl.get("id", atl.get("usuario_id"))
+            a_id = atl.get("usuario_id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
             st.write(f"--- Depurando Atleta: {a_nom} (ID: {a_id}) ---")
