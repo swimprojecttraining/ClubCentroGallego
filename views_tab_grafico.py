@@ -17,16 +17,17 @@ from formulas_lib_funciones import (
     calcular_puntos_wa,
     obtener_datos_hitos_atleta
 )
+
 from conections_supabase_cache import (
     obtener_marcas_referencia_cache, 
-    obtener_historial_hitos_cache
+    obtener_historial_hitos_cache,
+    obtener_marcas_historicas_cache  # <-- NUEVO: Vital para el Modo Equipo nativo
 )
 
 def renderizar_tab_grafico(datos_sidebar):
     """
     Renderiza el gráfico de rendimiento combinando proyecciones exponenciales,
     datos históricos reales y referencias obtenidas directamente desde Supabase.
-    Mantiene la estética monolítica original con el motor matemático blindado.
     """
     # =====================================================================
     # 1. EXTRACCIÓN DE VARIABLES Y CONTEXTO
@@ -50,7 +51,6 @@ def renderizar_tab_grafico(datos_sidebar):
     edad_min_zoom = datos_sidebar.get("edad_min_zoom", 10.0)
     edad_max_zoom = datos_sidebar.get("edad_max_zoom", 25.0)
 
-    # Inyección en session_state para compatibilidad con código monolítico
     st.session_state.nadador_seleccionado_nombre = datos_sidebar.get("nombre", "Atleta")
     st.session_state.nadador_seleccionado_categoria = categoria
     st.session_state.nadador_seleccionado_id = usuario_id
@@ -77,16 +77,14 @@ def renderizar_tab_grafico(datos_sidebar):
         elif "RECORD" in nombre_marca or "WR" in nombre_marca: m_wr = val
 
     # =====================================================================
-    # 3. RECOPILACIÓN DE DATOS Y MOTOR MATEMÁTICO (VERIFICACIÓN DE VALLES)
+    # 3. RECOPILACIÓN DE DATOS Y MOTOR MATEMÁTICO (INDIVIDUAL)
     # =====================================================================
     df_procesado = pd.DataFrame()
     atletas_filtrados = []
-    df_global_marcas = pd.DataFrame()
 
     if modo_equipo:
         atletas_filtrados = datos_sidebar.get("lista_atletas_filtrados", [])
-        df_global_marcas = datos_sidebar.get("df_global_marcas", pd.DataFrame())
-        if not atletas_filtrados or df_global_marcas.empty:
+        if not atletas_filtrados:
             st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
             return
     else:
@@ -103,17 +101,14 @@ def renderizar_tab_grafico(datos_sidebar):
             if df_procesado is None or df_procesado.empty:
                 st.info("No hay marcas históricas registradas para este nadador en la prueba seleccionada.")
                 return
-            
-            # --- MOTOR MATEMÁTICO ACORDADO ---
             t0, T0, t_pb, T_pb = procesar_mejor_marca_historica(df_procesado)
 
-    # Variables de compatibilidad para el dibujado individual
+    # Variables de compatibilidad para dibujado individual
     if not modo_equipo:
         val_T0 = T0
         val_T_pb = T_pb
         k = resolver_k_individual(t0, T0, t_pb, T_pb, t_peak, T_target)
-        if k is None: k = 1e6 # Seguro anti-colapso si falla fsolve
-        
+        if k is None: k = 1e6 
         edades_curva = np.linspace(t0, t_peak, 300)
         tiempos_curva = calcular_curva_atleta(edades_curva, t0, T0, t_pb, T_pb, t_peak, T_target, k, h)
         T_intermedia_val = np.interp(t_intermedia, edades_curva, tiempos_curva)
@@ -137,7 +132,7 @@ def renderizar_tab_grafico(datos_sidebar):
         with c3: st.metric(label=f"Proyección a los {t_intermedia} años", value=formatear_a_minutos(T_intermedia_val))
 
     # =====================================================================
-    # 5. LIENZO Y DIBUJO ESTÉTICO MONOLÍTICO
+    # 5. LIENZO Y DIBUJO ESTÉTICO
     # =====================================================================
     fig = plt.figure(figsize=(8.5, 11.0))
     ax = fig.add_axes([0.14, 0.58, 0.72, 0.33])
@@ -145,8 +140,10 @@ def renderizar_tab_grafico(datos_sidebar):
     ax.yaxis.set_major_formatter(formateador_eje_y)
 
     # -------------------------------------------------------------
-    # MODO EQUIPO
+    # MODO EQUIPO - ARQUITECTURA NATIVA (EXTRACCIÓN + VALLES)
     # -------------------------------------------------------------
+    df_global_marcas_reconstruido = [] # Para el botón de exportación
+    
     if modo_equipo:
         colores = plt.get_cmap("tab10", len(atletas_filtrados))
         hay_datos_visibles = False
@@ -157,17 +154,42 @@ def renderizar_tab_grafico(datos_sidebar):
         datos_atletas_cargados = []
         
         for idx, atl in enumerate(atletas_filtrados):
-            a_id = atl["id"]
-            a_nom = atl["nombre"]
+            a_id = atl.get("id", atl.get("usuario_id"))
+            a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
-            if not df_global_marcas.empty and a_id in df_global_marcas["usuario_id"].values:
-                df_atl_m = df_global_marcas[df_global_marcas["usuario_id"] == a_id].copy()
-                df_atl_m = df_atl_m.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-                hay_datos_visibles = True
+            # 1. Llamada a la caché directamente (Arquitectura Real)
+            try:
+                marcas_raw = obtener_marcas_historicas_cache(a_id)
+            except Exception as e:
+                marcas_raw = []
                 
-                todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
-                todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
-                datos_atletas_cargados.append({"nom": a_nom, "df": df_atl_m, "color": colores(idx)})
+            if not marcas_raw: continue
+            
+            df_raw = pd.DataFrame(marcas_raw)
+            if df_raw.empty or "prueba" not in df_raw.columns: continue
+            
+            # 2. Filtrar por la prueba seleccionada en el sidebar
+            df_prueba = df_raw[df_raw["prueba"] == prueba].copy()
+            if df_prueba.empty: continue
+            
+            # 3. Preparar columnas para el motor matemático
+            df_atl_m = df_prueba.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
+            df_atl_m["Tiempo"] = pd.to_numeric(df_atl_m["Tiempo"], errors="coerce")
+            df_atl_m["Edad"] = pd.to_numeric(df_atl_m["Edad"], errors="coerce")
+            df_atl_m = df_atl_m.dropna(subset=["Tiempo", "Edad"]).sort_values(by="Edad").reset_index(drop=True)
+            
+            if df_atl_m.empty: continue
+            
+            # Registrar para renderizado
+            hay_datos_visibles = True
+            todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
+            todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
+            datos_atletas_cargados.append({"nom": a_nom, "df": df_atl_m, "color": colores(idx)})
+            
+            # Guardar para la exportación final
+            df_export = df_atl_m.copy()
+            df_export["Atleta"] = a_nom
+            df_global_marcas_reconstruido.append(df_export)
 
         if hay_datos_visibles:
             edad_0_min_colectivo = min(todas_las_edades_0)
@@ -185,6 +207,7 @@ def renderizar_tab_grafico(datos_sidebar):
                 color_curr = item["color"]
                 a_nom = item["nom"]
                 
+                # 4. El algoritmo de Valles se ejecuta por cada atleta
                 t0_i, T0_i, t_pb_i, T_pb_i = procesar_mejor_marca_historica(df_atl_m)
                 
                 k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
@@ -193,12 +216,12 @@ def renderizar_tab_grafico(datos_sidebar):
                 tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
                 
                 if not linea_fisiologica_anotada:
-                    ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección fisiológica estimada")
+                    ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección fisiológica")
                     linea_fisiologica_anotada = True
                 else:
                     ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2)
                 
-                ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"Evolución real - {a_nom}")
+                ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"{a_nom}")
                 ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                 ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
@@ -210,19 +233,19 @@ def renderizar_tab_grafico(datos_sidebar):
                     {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
                     {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},            
                     {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},          
-                    {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
+                    {"val": m_wr, "lbl": "WR", "col": "#2C3E50", "va": "top"}   
                 ]
                 for r in referencias:
                     if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
                         ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
                         desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                        tiempo_lbl_formateado = formatear_a_minutos(r["val"]).replace(" s", "")
-                        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl_formateado}", color=r["col"], fontsize=7, va=r["va"], ha="left")
+                        tiempo_lbl = formatear_a_minutos(r["val"]).replace(" s", "")
+                        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl}", color=r["col"], fontsize=7, va=r["va"], ha="left")
             else:
                 if m_ano > 0:
                     ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-                    m_ano_formateado = formatear_a_minutos(m_ano).replace(" s", "")
-                    ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano_formateado}", color="#A06000", fontsize=7, va="top", ha="left")
+                    m_ano_lbl = formatear_a_minutos(m_ano).replace(" s", "")
+                    ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target: {m_ano_lbl}", color="#A06000", fontsize=7, va="top", ha="left")
             
             ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
             ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
@@ -231,6 +254,9 @@ def renderizar_tab_grafico(datos_sidebar):
             ax.set_axisbelow(True)
             ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
             st.pyplot(fig, use_container_width=True)
+        else:
+            st.info(f"Ninguno de los atletas seleccionados tiene marcas registradas para la prueba: {prueba}.")
+            return
 
     # -------------------------------------------------------------
     # MODO INDIVIDUAL O SIMULACIÓN
@@ -330,7 +356,7 @@ def renderizar_tab_grafico(datos_sidebar):
                                     "Marca Proyectada": f"{formatear_a_minutos(tiempo_proyectado_val)} s"
                                 })
                         except Exception as e_hito:
-                            print(f"Advertencia procesando hito individual: {e_hito}")
+                            pass
 
         if datos_tabla_micro:
             datos_tabla_micro.sort(key=lambda x: float(x["Edad"].replace(" a", "").strip()))
@@ -378,13 +404,13 @@ def renderizar_tab_grafico(datos_sidebar):
                 if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
                     ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
                     desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                    tiempo_lbl_formateado = formatear_a_minutos(r["val"]).replace(" s", "")
-                    ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl_formateado}", color=r["col"], fontsize=7, va=r["va"], ha="left")
+                    tiempo_lbl = formatear_a_minutos(r["val"]).replace(" s", "")
+                    ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl}", color=r["col"], fontsize=7, va=r["va"], ha="left")
         else:
             if m_ano > 0:
                 ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-                m_ano_formateado = formatear_a_minutos(m_ano).replace(" s", "")
-                ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano_formateado}", color="#A06000", fontsize=7, va="top", ha="left")
+                m_ano_lbl = formatear_a_minutos(m_ano).replace(" s", "")
+                ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target: {m_ano_lbl}", color="#A06000", fontsize=7, va="top", ha="left")
         
         if simulacion_externa:
             ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
@@ -488,35 +514,51 @@ def renderizar_tab_grafico(datos_sidebar):
         st.pyplot(fig, use_container_width=True)
 
     # =====================================================================
-    # 6. CENTRO DE EXPORTACIÓN (EXACTAMENTE IGUAL AL MONOLITO)
+    # 6. CENTRO DE EXPORTACIÓN
     # =====================================================================
     st.markdown("---")
     st.markdown("### 🖨️ Centro de Exportación de Reportes y Gráficos")
     
-    if (not modo_equipo and len(df_procesado) > 0) or modo_equipo:
-        export_df = df_procesado.drop(columns=["id", "usuario_id"], errors="ignore") if not modo_equipo else df_global_marcas.drop(columns=["id", "usuario_id"], errors="ignore")
-        csv_data = export_df.to_csv(index=False).encode('utf-8')
-        txt_string = export_df.to_string(index=False)
+    if (not modo_equipo and len(df_procesado) > 0) or (modo_equipo and df_global_marcas_reconstruido):
         
-        img_buffer = None
-        
-        if modo_equipo and not atletas_filtrados:
-            st.warning("No se encontraron atletas activos con los criterios de segmentación elegidos.")
+        # Unimos las datas reconstruidas si es modo equipo
+        if modo_equipo:
+            export_df = pd.concat(df_global_marcas_reconstruido, ignore_index=True)
         else:
-            if 'fig' in locals() and fig is not None:
-                img_buffer = io.BytesIO()
-                fig.savefig(img_buffer, format="png", bbox_inches=None, dpi=300)
-                img_buffer.seek(0)
+            export_df = df_procesado.copy()
+            export_df["Atleta"] = st.session_state.nadador_seleccionado_nombre
         
-        c_exp1, c_exp2, c_exp3 = st.columns(3)
-        with c_exp1:
-            st.download_button(label="📥 Descargar Historial (CSV)", data=csv_data, file_name=f"marcas_{titulo_grafico}_{st.session_state.get('nadador_seleccionado_nombre', 'equipo')}.csv", mime="text/csv")
-        with c_exp2:
-            st.download_button(label="📄 Descargar Datos (TXT)", data=txt_string, file_name=f"reporte_{titulo_grafico}_{st.session_state.get('nadador_seleccionado_nombre', 'equipo')}.txt", mime="text/plain")
-        with c_exp3:
-            if img_buffer is not None:
-                st.download_button(label="🖼️ Guardar Gráfico Completo (Imagen PNG - Tamaño Carta)", data=img_buffer, file_name=f"grafico_{titulo_grafico}_{st.session_state.get('nadador_seleccionado_nombre', 'equipo')}.png", mime="image/png")
-            else:
-                st.info("📉 Gráfico no disponible (Sin atletas o datos).")
-
-    plt.close(fig)
+        csv_data = export_df.to_csv(index=False).encode('utf-8')
+        
+        c1, c2, c3 = st.columns(3)
+        
+        with c1:
+            st.download_button(
+                label="⬇️ Descargar Datos Históricos (CSV)",
+                data=csv_data,
+                file_name=f"historial_{prueba}_{genero}_{categoria}.csv",
+                mime="text/csv",
+                help="Exporta la base de datos de las marcas utilizadas para generar este gráfico en formato CSV para Excel."
+            )
+        with c2:
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
+            buf.seek(0)
+            
+            nombre_archivo = f"Grafico_Equipo_{prueba}_{categoria}.png" if modo_equipo else f"Grafico_{st.session_state.nadador_seleccionado_nombre}_{prueba}.png"
+            
+            st.download_button(
+                label="⬇️ Descargar Gráfico (Alta Resolución)",
+                data=buf,
+                file_name=nombre_archivo,
+                mime="image/png",
+                help="Exporta el gráfico completo con la tabla y referencias fisiológicas integradas en calidad lista para impresión."
+            )
+        with c3:
+            st.button(
+                label="📥 Generar Reporte PDF (En Desarrollo)", 
+                disabled=True,
+                help="Próximamente: Exportación de informe técnico detallado con curvas asintóticas y variables de stress (TSB) incluidas."
+            )
+    else:
+        st.info("Opciones de exportación desactivadas: No se encontraron marcas reales para exportar en este modo.")
