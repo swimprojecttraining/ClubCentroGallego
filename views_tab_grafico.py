@@ -153,19 +153,29 @@ def renderizar_tab_grafico(datos_sidebar):
         todos_los_tiempos_colectivo = []
         datos_atletas_cargados = []
         
+    # 1. Llamada a la caché directamente
         for idx, atl in enumerate(atletas_filtrados):
             a_id = atl.get("id", atl.get("usuario_id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
-            # 1. Llamada a la caché directamente (Arquitectura Real)
+            st.write(f"--- Depurando Atleta: {a_nom} (ID: {a_id}) ---")
+            
             try:
                 marcas_raw = obtener_marcas_historicas_cache(a_id)
+                # Imprimimos lo que recibimos para ver si está vacío
+                st.write(f"Datos crudos recibidos: {marcas_raw}") 
             except Exception as e:
+                st.error(f"Error en la conexión caché para {a_nom}: {e}")
                 marcas_raw = []
                 
-            if not marcas_raw: continue
+            if not marcas_raw:
+                st.warning(f"La función devolvió una lista vacía para {a_nom}. ¿Es correcto el ID?")
+                continue
             
+            # Si llegamos aquí es porque hay datos, ahora sí convertimos a DF
             df_raw = pd.DataFrame(marcas_raw)
+            
+            # ... (aquí sigue tu código normal de filtrado)
             # --- DEPURACIÓN DE DATAFRAME ---
             st.write("--- Inspección de df_raw ---")
             st.write(f"Buscando el valor exacto: '{prueba}'")
