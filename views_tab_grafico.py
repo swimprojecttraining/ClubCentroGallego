@@ -391,24 +391,24 @@ def renderizar_tab_grafico(datos_sidebar):
             ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
 
         x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
+        # Empaquetamos tus variables locales en un diccionario
+        datos_ref_manual = {
+            "m_ano": m_ano,
+            "m_panam_b": m_panam_b,
+            "m_panam_a": m_panam_a,
+            "m_wa_b": m_wa_b,
+            "m_wa_a": m_wa_a,
+            "m_wr": m_wr
+        }
+        
+        # Llamamos a la función
         if not es_preinfantil:
-            # 1. Empaquetamos tus variables actuales en un diccionario
-            ref_data = {
-                "m_ano": m_ano,
-                "m_panam_b": m_panam_b,
-                "m_panam_a": m_panam_a,
-                "m_wa_b": m_wa_b,
-                "m_wa_a": m_wa_a,
-                "m_wr": m_wr
-            }
-            
-            # 2. Llamamos a la función centralizada (sin peor_tiempo)
-            dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max)
+            dibujar_lineas_referencia(ax, datos_ref_manual, lim_x_min, lim_x_max)
         else:
-            if m_ano > 0:
+            # Si es preinfantil, mantenemos tu lógica específica (si la necesitas aparte)
+            if m_ano and m_ano > 0:
                 ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-                m_ano_lbl = formatear_a_minutos(m_ano).replace(" s", "")
-                ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target: {m_ano_lbl}", color="#A06000", fontsize=7, va="top", ha="left")
+                ax.text(lim_x_min + (lim_x_max - lim_x_min)*0.05, m_ano, f"Target: {formatear_a_minutos(m_ano).replace(' s', '')}", color="#A06000", fontsize=7, va="top", ha="left")    
         
         if simulacion_externa:
             ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
