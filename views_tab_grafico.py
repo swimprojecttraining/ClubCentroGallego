@@ -202,7 +202,7 @@ def renderizar_tab_grafico(datos_sidebar):
             df_export["Atleta"] = a_nom
             df_global_marcas_reconstruido.append(df_export)
 
-         #if hay_datos_visibles:
+            #if hay_datos_visibles:
             #edad_0_min_colectivo = min(todas_las_edades_0)
             #lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
             #lim_x_max = t_peak + 1.0
@@ -212,34 +212,35 @@ def renderizar_tab_grafico(datos_sidebar):
             #lim_y_inferior = m_wr * 0.95 if m_wr > 0 else min(todos_los_tiempos_colectivo) * 0.90
             #lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
             #ax.set_ylim(lim_y_inferior, lim_y_superior)
-        if hay_datos_visibles:
-            # 1. Eje X: Dinámico basado en los datos cargados
-            edad_0_min_colectivo = min(todas_las_edades_0)
-            lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
-            lim_x_max = t_peak + 1.0 
-            ax.set_xlim(lim_x_min, lim_x_max)
-            
-            # 2. Eje Y: Dinámico basado en WR Masculino (Referencia Absoluta)
-            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Absoluto')
-            
-            m_wr = float(ref_wr_data.get('tiempo', 46.40)) if isinstance(ref_wr_data, dict) else float(ref_wr_data)
-            
-            peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
-            
-            # Aplicamos límites
-            lim_y_inferior = m_wr * 0.92 
-            lim_y_superior = peor_tiempo_colectivo * 1.05
-            
-            ax.set_ylim(lim_y_inferior, lim_y_superior)
-            
-            # Opcional: Referencia visual WR
-            ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
-            
-            # Finalización de renderizado
-            for item in datos_atletas_cargados:
-                df_atl_m = item["df"]
-                color_curr = item["color"]
-                a_nom = item["nom"]
+
+            if hay_datos_visibles:
+                # 1. Eje X: Dinámico basado en los datos cargados
+                edad_0_min_colectivo = min(todas_las_edades_0)
+                lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
+                lim_x_max = t_peak + 1.0 
+                ax.set_xlim(lim_x_min, lim_x_max)
+                
+                # 2. Eje Y: Dinámico basado en WR Masculino (Referencia Absoluta)
+                ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Absoluto')
+                
+                m_wr = float(ref_wr_data.get('tiempo', 46.40)) if isinstance(ref_wr_data, dict) else float(ref_wr_data)
+                
+                peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
+                
+                # Aplicamos límites
+                lim_y_inferior = m_wr * 0.92 
+                lim_y_superior = peor_tiempo_colectivo * 1.05
+                
+                ax.set_ylim(lim_y_inferior, lim_y_superior)
+                
+                # Opcional: Referencia visual WR
+                ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
+                
+                # Finalización de renderizado
+                for item in datos_atletas_cargados:
+                    df_atl_m = item["df"]
+                    color_curr = item["color"]
+                    a_nom = item["nom"]
                 
                 # 4. El algoritmo de Valles se ejecuta por cada atleta
                 t0_i, T0_i, t_pb_i, T_pb_i = procesar_mejor_marca_historica(df_atl_m)
