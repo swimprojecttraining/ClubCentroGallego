@@ -400,7 +400,7 @@ def renderizar_tab_grafico(datos_sidebar):
             "m_wa_a": m_wa_a,
             "m_wr": m_wr
         }
-        print(f"DEBUG REF: m_ano={m_ano}, m_panam_b={m_panam_b}, m_wr={m_wr}")
+        st.warning(f"🚨 DEBUG - ¿Llegan los datos?: m_ano={m_ano}, m_wr={m_wr}, es_preinfantil={es_preinfantil}")
         # Llamamos a la función
         if not es_preinfantil:
             dibujar_lineas_referencia(ax, datos_ref_manual, lim_x_min, lim_x_max)
