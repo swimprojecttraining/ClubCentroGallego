@@ -241,9 +241,9 @@ def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo):
         val = ref_obj.get(cfg["key"]) if isinstance(ref_obj, dict) else None
         if val and isinstance(val, (int, float)) and val > 0:
             ax.axhline(y=val, color=cfg["col"], linestyle=":", linewidth=0.8, alpha=0.7)
-            # Usamos una variable para el formato del texto para evitar errores de sintaxis
+            margin = (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.002
             lbl_texto = f"{cfg['lbl']}: {formatear_a_minutos(val).replace(' s', '')}"
-            ax.text(x_pos, val + (peor_tiempo * 0.005), lbl_texto, color=cfg["col"], fontsize=7, ha="left", va="bottom")
+            ax.text(x_pos, val + (peor_tiempo * 0.005), lbl_texto, color=cfg["col"], fontsize=6.5, ha="left", va=cfg["va"])
 # -------------------------------------------------------------
 # MOTOR MATEMÁTICO DOBLE CALCULO DE CURVA AJUSTADO
 # -------------------------------------------------------------
