@@ -139,10 +139,10 @@ def renderizar_tab_grafico(datos_sidebar):
     formateador_eje_y = FuncFormatter(lambda x, pos: formatear_a_minutos(x))
     ax.yaxis.set_major_formatter(formateador_eje_y)
 
-    # -------------------------------------------------------------
+# -------------------------------------------------------------
     # MODO EQUIPO - ARQUITECTURA NATIVA (EXTRACCIÓN + VALLES)
     # -------------------------------------------------------------
-    df_global_marcas_reconstruido = [] # Para el botón de exportación
+    df_global_marcas_reconstruido = []
     
     if modo_equipo:
         colores = plt.get_cmap("tab10", len(atletas_filtrados))
@@ -153,7 +153,7 @@ def renderizar_tab_grafico(datos_sidebar):
         todos_los_tiempos_colectivo = []
         datos_atletas_cargados = []
         
-# --- BUCLE DE PROCESAMIENTO ---
+        # --- 1. PROCESAMIENTO: Extracción de datos ---
         for idx, atl in enumerate(atletas_filtrados):
             a_id = atl.get("usuario_id", atl.get("id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
@@ -194,82 +194,68 @@ def renderizar_tab_grafico(datos_sidebar):
             df_export["Atleta"] = a_nom
             df_global_marcas_reconstruido.append(df_export)
 
-            if hay_datos_visibles:
-                # 1. Eje X
-                edad_0_min_colectivo = min(todas_las_edades_0)
-                lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
-                lim_x_max = t_peak + 1.0 
-                ax.set_xlim(lim_x_min, lim_x_max)
+        # --- 2. RENDERIZADO: Gráfico único (FUERA DEL BUCLE) ---
+        if hay_datos_visibles:
+            # Configuración ejes X
+            edad_0_min_colectivo = min(todas_las_edades_0)
+            lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
+            lim_x_max = t_peak + 1.0 
+            ax.set_xlim(lim_x_min, lim_x_max)
+            
+            # Obtención de WR (Referencia)
+            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+            m_wr = 46.40 # Valor por defecto seguro
+            if ref_wr_data and isinstance(ref_wr_data, list) and len(ref_wr_data) > 0:
+                datos = ref_wr_data[0]
+                if isinstance(datos, dict) and 'tiempo' in datos:
+                    m_wr = float(datos['tiempo'])
+
+            # Límites Y
+            peor_tiempo = max(todos_los_tiempos_colectivo)
+            mejor_tiempo = min(todos_los_tiempos_colectivo)
+            lim_y_inferior = m_wr * 0.92 if m_wr else mejor_tiempo * 0.95
+            lim_y_superior = peor_tiempo * 1.05
+            ax.set_ylim(lim_y_inferior, lim_y_superior)
+
+            # Dibujado de atletas y curvas
+            for item in datos_atletas_cargados:
+                df_atl_m = item["df"]
+                color_curr = item["color"]
+                a_nom = item["nom"]
                 
-                # 2. Consultar BD usando filtros reales del usuario
-                ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
-                
-                m_wr = None
-                if ref_wr_data and isinstance(ref_wr_data, list) and len(ref_wr_data) > 0:
-                    datos = ref_wr_data[0]
-                    if isinstance(datos, dict) and 'tiempo' in datos:
-                        m_wr = float(datos['tiempo'])
-                
-                # 3. Límites dinámicos
-                peor_tiempo = max(todos_los_tiempos_colectivo)
-                mejor_tiempo = min(todos_los_tiempos_colectivo)
-                
-                lim_y_inf = (m_wr * 0.92) if m_wr else (mejor_tiempo * 0.95)
-                lim_y_sup = peor_tiempo * 1.05
-                
-                ax.set_ylim(lim_y_inf, lim_y_sup)
-                
-                # 4. Línea WR
-                if m_wr:
-                    ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
-                
-                # 5. Renderizado atletas
-                for item in datos_atletas_cargados:
-                    df_atl_m = item["df"]
-                    color_curr = item["color"]
-                    a_nom = item["nom"]
-                    # Aquí asegúrate de tener el resto de tu lógica de ploteo
-                                
-                # 4. El algoritmo de Valles se ejecuta por cada atleta
+                # Algoritmo de Valles
                 t0_i, T0_i, t_pb_i, T_pb_i = procesar_mejor_marca_historica(df_atl_m)
-                
                 k_i = resolver_k_individual(t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target)
                 if k_i is None: k_i = 1e6
                 edades_curva_i = np.linspace(t0_i, t_peak, 300)
                 tiempos_curva_i = calcular_curva_atleta(edades_curva_i, t0_i, T0_i, t_pb_i, T_pb_i, t_peak, T_target, k_i, h)
                 
-                if not linea_fisiologica_anotada:
-                    ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección fisiológica")
-                    linea_fisiologica_anotada = True
-                else:
-                    ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2)
+                # Plot fisiológico
+                ax.plot(edades_curva_i, tiempos_curva_i, color="#7F8C8D", linestyle=":", linewidth=1.2, label="Proyección" if not linea_fisiologica_anotada else "")
+                linea_fisiologica_anotada = True
                 
+                # Plot Atleta
                 ax.plot(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, linestyle="-", linewidth=1.5, label=f"{a_nom}")
                 ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                 ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
+            # Líneas de referencia
             x_texto = lim_x_min + 0.1
-            if not es_preinfantil:
-                referencias = [
-                    {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
-                    {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
-                    {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-                    {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},            
-                    {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},          
-                    {"val": m_wr, "lbl": "WR", "col": "#2C3E50", "va": "top"}   
-                ]
-                for r in referencias:
-                    if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                        ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                        desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                        tiempo_lbl = formatear_a_minutos(r["val"]).replace(" s", "")
-                        ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl}", color=r["col"], fontsize=7, va=r["va"], ha="left")
-            else:
-                if m_ano > 0:
-                    ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-                    m_ano_lbl = formatear_a_minutos(m_ano).replace(" s", "")
-                    ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target: {m_ano_lbl}", color="#A06000", fontsize=7, va="top", ha="left")
-            
+            referencias = [{"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
+                           {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},     
+                           {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
+                           {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},           
+                           {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},          
+                           {"val": m_wr, "lbl": "WR", "col": "#2C3E50", "va": "top"}]
+
+            for r in referencias:
+                if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
+                    ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+                    despl_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+                    tiempo_lbl = formatear_a_minutos(r["val"]).replace(" s", "")
+                    ax.text(x_texto, r["val"] + despl_y, f"{r['lbl']}: {tiempo_lbl}", color=r["col"], fontsize=7, va=r["va"], ha="left")
+
+            # Finalización
             ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
             ax.set_xlabel("Edad del Atleta (Años)", fontsize=9.5)
             ax.set_ylabel("Tiempo de Carrera (Segundos)", fontsize=9.5)
@@ -278,7 +264,7 @@ def renderizar_tab_grafico(datos_sidebar):
             ax.legend(loc="upper right", fontsize=8, framealpha=0.8)
             st.pyplot(fig, use_container_width=True)
         else:
-            st.info(f"Ninguno de los atletas seleccionados tiene marcas registradas para la prueba: {prueba}.")
+            st.info(f"Ninguno de los atletas seleccionados tiene marcas registradas para: {prueba}.")
             return
 
     # -------------------------------------------------------------
