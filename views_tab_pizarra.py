@@ -3,7 +3,7 @@ import pandas as pd
 import datetime
 import urllib.parse
 
- # Importación directa desde la raíz corregida
+# 🌐 Ajuste de orden: Importación unificada en la raíz del módulo
 from formulas_lib_funciones import calcular_edad_tecnica_al_31_dic, calcular_categoria_competencia  
 
 def renderizar_tab_pizarra(datos_sidebar):
@@ -11,6 +11,12 @@ def renderizar_tab_pizarra(datos_sidebar):
     Módulo operativo independiente para la Pizarra de Entrenamiento Diario,
     Difusión por Canales, Segmentación e Imputación Histórica de Carga.
     """
+    # 🧠 ESTRATEGIA: Pre-inyección de estado para evitar el error de ciclo de vida de Streamlit
+    if "piz_fecha_override" in st.session_state:
+        st.session_state["piz_date_input_save"] = st.session_state.pop("piz_fecha_override")
+    if "piz_carril_override" in st.session_state:
+        st.session_state["piz_carril_input_save"] = st.session_state.pop("piz_carril_override")
+
     # Extracción de parámetros de control desde el Sidebar Maestro
     simulacion_externa = datos_sidebar.get("simulacion_externa", False)  
     supabase = st.session_state.get("supabase")  
@@ -34,7 +40,6 @@ def renderizar_tab_pizarra(datos_sidebar):
         st.markdown("### 📋 Estructura del Entrenamiento Activo")  
         st.caption("Configura el encabezado, añade los bloques de series y controla la asistencia para imputar la carga individual.")  
 
-        # 🧠 MEJORA: Encabezado de la Jornada movido al principio para control total e inmediato
         c_fecha, c_carril = st.columns(2)
         with c_fecha:
             fecha_jornada = st.date_input("Fecha de la sesión:", datetime.date.today(), key="piz_date_input_save")
@@ -82,7 +87,6 @@ def renderizar_tab_pizarra(datos_sidebar):
             st.markdown("---")  
             volumen_total = 0  
             
-            # ✨ SINCRONIZACIÓN DIRECTA: El texto de difusión lee las variables vivas del encabezado superior
             texto_exportacion = f"🏊‍♂️ *PLAN DE ENTRENAMIENTO DEL DÍA* - Fecha: {fecha_jornada.strftime('%d/%m/%Y') if hasattr(fecha_jornada, 'strftime') else fecha_jornada}\n"  
             if identificador_carril:  
                 texto_exportacion += f"📍 *Grupo/Carril:* {identificador_carril}\n"  
@@ -150,7 +154,6 @@ def renderizar_tab_pizarra(datos_sidebar):
             with col_foto2:  
                 tipo_filtro = st.radio("Segmentar adicionalmente por:", options=["Todos los Atletas", "Categoría Etaria", "Atletas Específicos"], horizontal=True, key="piz_radio_tipo_idx")  
 
-            # Resolución del cliente Supabase activo
             ctx_supabase = supabase if supabase else st.session_state.get("supabase_client")  
             atletas_pool = []  
 
@@ -185,12 +188,11 @@ def renderizar_tab_pizarra(datos_sidebar):
                 except Exception as e:  
                     st.error(f"Error al cargar nómina desde Supabase: {e}")  
 
-            # Filtrado por Género en memoria
             if filtro_genero == "Femenino (F)":  
                 atletas_pool = [a for a in atletas_pool if a.get("genero") == "F"]  
             elif filtro_genero == "Masculino (M)":  
                 atletas_pool = [a for a in atletas_pool if a.get("genero") == "M"]  
-            
+
             categorias_disponibles = sorted(list(set([  
                 calcular_categoria_competencia(a["fecha_nacimiento"])[0]  
                 for a in atletas_pool if a.get("fecha_nacimiento")  
@@ -211,7 +213,7 @@ def renderizar_tab_pizarra(datos_sidebar):
                 atletas_finales = atletas_pool  
 
             if tipo_filtro == "Atletas Específicos" and not atletas_finales:  
-                st.info("💡 Despliega el selector de arriba y marca al menos un nadador para habilitar el botón de consolidación.")  
+                st.info("💡 Despliega el selector de arriba y marca al menos un nadador para habilitar el botón de consolidation.")  
             else:  
                 st.success(f"🎯 Grupo confirmado para imputación: {len(atletas_finales)} atleta(s).")  
 
@@ -251,9 +253,7 @@ def renderizar_tab_pizarra(datos_sidebar):
                     if registros_supabase and ctx_supabase:  
                         try:  
                             ctx_supabase.table("bitacora_entrenamientos").insert(registros_supabase).execute()  
-                            
                             st.cache_data.clear()
-                            
                             st.success(f"💥 ¡Base de datos actualizada! Se grabaron con éxito las cargas individuales para los {len(registros_supabase)} atleta(s).")  
                             st.session_state.pizarra_entrenamiento = []  
                             st.balloons()  
@@ -362,10 +362,9 @@ def renderizar_tab_pizarra(datos_sidebar):
                                         
                                     if st.button(label_boton, key=f"btn_tpl_{fecha_sesion}_{carril_sesion}", type=color_tipo, use_container_width=True):  
                                         
-                                        # ✨ SOLUCIÓN AL PROBLEMA: Forzamos que la fecha activa en la sesión pase a ser HOY por defecto
-                                        st.session_state.piz_date_input_save = datetime.date.today()
-                                        # Inyectamos también de forma sugerida el nombre del carril histórico
-                                        st.session_state.piz_carril_input_save = carril_sesion
+                                        # ✨ SOLUCIÓN AL ERROR: Almacenamos el cambio en variables puentes de override
+                                        st.session_state["piz_fecha_override"] = datetime.date.today()
+                                        st.session_state["piz_carril_override"] = carril_sesion
 
                                         if pizarra_guardada and isinstance(pizarra_guardada, list) and len(pizarra_guardada) > 0:
                                             st.session_state.pizarra_entrenamiento = pizarra_guardada
