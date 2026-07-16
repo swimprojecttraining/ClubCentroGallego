@@ -359,10 +359,7 @@ def renderizar_sidebar_completo():
     # -------------------------------------------------------------
     tipo_vista = st.sidebar.selectbox("Enfoque del Gráfico", ["Macro (Historial Completo)", "Micro (Ventana Anual)"])
     
-    if tipo_vista == "Micro (Ventana Anual)":
-        import datetime
-        from datetime import timedelta
-        
+    if tipo_vista == "Micro (Ventana Anual)":   
         # 1. Intentamos obtener la fecha de nacimiento
         usuario_id = st.session_state.get("nadador_seleccionado_id")
         user = obtener_usuario_por_id_cache(usuario_id)
