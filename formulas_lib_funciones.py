@@ -218,7 +218,7 @@ def calcular_puntos_wa(tiempo_atleta: float, record_mundial: float) -> int:
     except (ValueError, TypeError):
         return 0
 
-def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo):
+def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo=None):
     """ Dibuja las líneas de referencia en cualquier gráfico pasado por ax """
     if not ref_data: return
 
