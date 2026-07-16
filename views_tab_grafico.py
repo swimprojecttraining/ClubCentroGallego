@@ -202,14 +202,17 @@ def renderizar_tab_grafico(datos_sidebar):
             lim_x_max = t_peak + 1.0 
             ax.set_xlim(lim_x_min, lim_x_max)
             
-            # Obtención de WR (Referencia)
+# 2. Consultar BD usando filtros reales del usuario
             ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
-            m_wr = 46.40 # Valor por defecto seguro
+            
+            m_wr = None
             if ref_wr_data and isinstance(ref_wr_data, list) and len(ref_wr_data) > 0:
                 datos = ref_wr_data[0]
-                if isinstance(datos, dict) and 'tiempo' in datos:
-                    m_wr = float(datos['tiempo'])
-
+                # Accedemos a la columna 'm_wr' tal como aparece en tu tabla
+                if isinstance(datos, dict) and 'm_wr' in datos:
+                    val_wr = datos['m_wr']
+                    if val_wr is not None:
+                        m_wr = float(val_wr)
             # Límites Y
             peor_tiempo = max(todos_los_tiempos_colectivo)
             mejor_tiempo = min(todos_los_tiempos_colectivo)
