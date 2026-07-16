@@ -66,7 +66,7 @@ def mostrar_vista_enrutador():
         with tab_pizarra:
             renderizar_tab_pizarra(datos_sidebar)
         with tab_reportes:
-            renderizar_tab_reportes(datos_sidebar)
+            renderizar_tab_reportes(datos_sidebar=None)
         with tab_marcas:
             renderizar_tab_marcas(datos_sidebar)
         with tab_entrenador:
