@@ -357,7 +357,7 @@ def renderizar_sidebar_completo():
     # 🔎 CONTROLES DE VISTA
     # -------------------------------------------------------------
     tipo_vista = st.sidebar.selectbox("Enfoque del Gráfico", ["Macro (Historial Completo)", "Micro (Ventana Anual)"])
-if tipo_vista == "Micro (Ventana Anual)":
+    if tipo_vista == "Micro (Ventana Anual)":
         # 1. Obtener fecha de nacimiento
         usuario_id = st.session_state.get("nadador_seleccionado_id")
         user = obtener_usuario_por_id_cache(usuario_id)
