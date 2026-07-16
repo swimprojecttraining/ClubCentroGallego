@@ -146,16 +146,39 @@ def renderizar_tab_reportes(datos_sidebar=None):
                     else:
                         rango_analisis = rango_fechas_completo
 
-                    # =============================================================================
-                    # SUBTAB 1: DISTRIBUCIÓN Y CARGA DE VOLUMEN INDIVIDUAL
+# =============================================================================
+                    # SUBTAB 1: DISTRIBUCIÓN Y CARGA DE VOLUMEN ACUMULATIVA (INTEGRAL EN EL TIEMPO)
                     # =============================================================================
                     with subtab_volumen:
-                        volumen_acumulado = sum([r.get("metros_totales", 0) for r in records_hasta_hoy])
-                        st.metric(label="🏊‍♂️ Volumen Total Ejecutado", value=f"{volumen_acumulado:,} metros")
+                        st.markdown("#### 📈 Diagnóstico de Carga Acumulada y Bloques Fijos")
+                        st.caption("Métricas fijas calculadas hacia atrás desde hoy, independientes de la ventana visual seleccionada.")
                         
-                        st.markdown("#### 🏊‍♂️ Evolución de Volúmenes Diarios por Estilo e Intensidad")
-                        st.caption("Serie de tiempo individual continua. Eje Y izquierdo ajustado en escala simétrica logarítmica para absorber picos extremos.")
+                        # 1. CÁLCULO DE BLOQUES TEMPORALES SOLICITADOS (HACIA ATRÁS DESDE HOY)
+                        hoy_date = datetime.date.today()
+                        def calcular_volumen_bloque(dias_bloque):
+                            limite_bloque = hoy_date - datetime.timedelta(days=dias_bloque)
+                            return sum([
+                                r.get("metros_totales", 0) for r in records_hasta_hoy 
+                                if r.get("fecha") and (datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]) >= limite_bloque
+                            ])
                         
+                        vol_7d = calcular_volumen_bloque(7)
+                        vol_30d = calcular_volumen_bloque(30)
+                        vol_42d = calcular_volumen_bloque(42)
+                        vol_90d = calcular_volumen_bloque(90)
+                        
+                        # Panel de control de metros absolutos
+                        c_b1, c_b2, c_b3, c_b4 = st.columns(4)
+                        with c_b1: st.metric(label="📆 Últimos 7 días", value=f"{vol_7d:,} m")
+                        with c_b2: st.metric(label="📅 Últimos 30 días", value=f"{vol_30d:,} m")
+                        with c_b3: st.metric(label="💪 Últimos 42 días (CTL)", value=f"{vol_42d:,} m")
+                        with c_b4: st.metric(label="🌀 Trimestre (90d)", value=f"{vol_90d:,} m")
+                        
+                        st.markdown("---")
+                        st.markdown("#### 🏊‍♂️ Áreas Acumulativas de Carga (Análisis de Pendientes)")
+                        st.caption("La inclinación de la curva representa la tasa de carga. Una meseta horizontal (pendiente = 0) indica ausencia de entrenamiento.")
+
+                        # 2. PREPARACIÓN DE LA MATRIZ DIARIA BASE
                         estilos_lista = ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Otros"]
                         intensidades_lista = ["Aeróbico Ligero", "Aeróbico Medio", "Umbral", "Anaeróbico"]
                         columnas_vol = ["Fecha"] + estilos_lista + intensidades_lista + ["Total Día"]
@@ -177,7 +200,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
                                     row_vol["Total Día"] += v_m
                                     global_estilos[target_est] += v_m
                         
-                                # [RESTAURADO] Resiliencia estructural multi-idioma de base de datos
                                 dict_int = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
                                 for k_int, v_m in dict_int.items():
                                     target_int = "Aeróbico Ligero"
@@ -191,59 +213,56 @@ def renderizar_tab_reportes(datos_sidebar=None):
                             
                         df_vol_diario = pd.DataFrame(matriz_volumen).sort_values("Fecha").reset_index(drop=True)
                         
-                        # Graficación Avanzada Restaurada
-                        fig_vol, ax1 = plt.subplots(figsize=(8.5, 3.8))
+                        # 3. TRANSFORMACIÓN INTEGRAL: CALCULAR SUMAS ACUMULATIVAS (CUMSUM)
+                        df_vol_acum = df_vol_diario.copy()
+                        for est in estilos_lista:
+                            df_vol_acum[est] = df_vol_acum[est].cumsum()
+                        for inten in intensidades_lista:
+                            df_vol_acum[inten] = df_vol_acum[inten].cumsum()
                         
-                        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
-                        if len(df_vol_diario) > 180:
-                            ax1.xaxis.set_major_locator(mdates.DayLocator(interval=30))
-                        elif len(df_vol_diario) > 42:
-                            ax1.xaxis.set_major_locator(mdates.DayLocator(interval=7))
-                        else:
-                            ax1.xaxis.set_major_locator(mdates.DayLocator(interval=2))
-                            
-                        y_estilos = [df_vol_diario[est].values for est in estilos_lista]
+                        # --- GRÁFICO 1: ACUMULADO POR ESTILOS ---
+                        fig_est, ax_est = plt.subplots(figsize=(8.5, 3.2))
+                        ax_est.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+                        ax_est.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(df_vol_acum) // 6)))
+                        
+                        y_estilos_acum = [df_vol_acum[est].values for est in estilos_lista]
                         colores_estilos = ["#2ecc71", "#3498db", "#9b59b6", "#e67e22", "#f1c40f", "#95a5a6"]
                         
-                        ax1.stackplot(df_vol_diario["Fecha"], *y_estilos, labels=[f"Estilo: {est}" for est in estilos_lista], colors=colores_estilos, alpha=0.65)
-                        ax1.set_xlabel("Línea Temporal del Calendario", fontsize=8)
-                        ax1.set_ylabel("Volumen por Estilo (Metros)", fontsize=8)
-                        ax1.tick_params(axis='y', labelsize=7)
-                        ax1.tick_params(axis='x', labelsize=7, rotation=35)
-                        ax1.set_yscale('symlog', linthresh=500)
-                        ax1.grid(True, linestyle=":", alpha=0.3)
-                        
-                        ax2 = ax1.twinx()
-                        config_lineas_int = [
-                            {"color": "#27ae60", "linestyle": "-",  "marker": "x"},
-                            {"color": "#f39c12", "linestyle": "--", "marker": "*"},
-                            {"color": "#d35400", "linestyle": "-.", "marker": ">"},
-                            {"color": "#c0392b", "linestyle": ":",  "marker": "d"}
-                        ]
-                        for idx, inten in enumerate(intensidades_lista):
-                            cfg = config_lineas_int[idx]
-                            ax2.plot(df_vol_diario["Fecha"], df_vol_diario[inten], label=f"Zona: {inten}", color=cfg["color"], linewidth=1.5, linestyle=cfg["linestyle"], marker=cfg["marker"], markersize=4)
-                            
-                        ax2.set_ylabel("Volumen por Intensidad (Metros)", fontsize=8)
-                        ax2.tick_params(axis='y', labelsize=7)
-                        ax2.set_yscale('symlog', linthresh=500)
-                        
-                        lines1, labels1 = ax1.get_legend_handles_labels()
-                        lines2, labels2 = ax2.get_legend_handles_labels()
-                        ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=7, ncol=3)
-                        
+                        ax_est.stackplot(df_vol_acum["Fecha"], *y_estilos_acum, labels=estilos_lista, colors=colores_estilos, alpha=0.80)
+                        ax_est.set_ylabel("Metros Acumulados", fontsize=8)
+                        ax_est.set_title("Evolución Integral del Volumen por Estilo", fontsize=9, fontweight='bold')
+                        ax_est.tick_params(axis='both', labelsize=7)
+                        ax_est.grid(True, linestyle=":", alpha=0.4)
+                        ax_est.legend(loc="upper left", fontsize=7, ncol=3)
                         plt.tight_layout()
-                        st.pyplot(fig_vol)
+                        st.pyplot(fig_est)
                         
-                        # [RESTAURADO] Descarga de Gráfico en PNG
-                        buf_png_vol = io.BytesIO()
-                        fig_vol.savefig(buf_png_vol, format="png", dpi=300)
-                        st.download_button("🖼️ Guardar Gráfico de Carga (PNG)", data=buf_png_vol.getvalue(), file_name=f"volumen_{nombre_atleta_safename}.png", mime="image/png")
+                        # --- GRÁFICO 2: ACUMULADO POR INTENSIDADES ---
+                        fig_int, ax_int = plt.subplots(figsize=(8.5, 3.2))
+                        ax_int.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+                        ax_int.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(df_vol_acum) // 6)))
+                        
+                        y_intensidades_acum = [df_vol_acum[inten].values for inten in intensidades_lista]
+                        # Semáforo fisiológico de carga: verde (suave) a rojo (anaeróbico)
+                        colores_intensidades = ["#27ae60", "#f1c40f", "#e67e22", "#c0392b"] 
+                        
+                        ax_int.stackplot(df_vol_acum["Fecha"], *y_intensidades_acum, labels=intensidades_lista, colors=colores_intensidades, alpha=0.80)
+                        ax_int.set_ylabel("Metros Acumulados", fontsize=8)
+                        ax_int.set_title("Evolución Integral del Volumen por Zona de Intensidad", fontsize=9, fontweight='bold')
+                        ax_int.tick_params(axis='both', labelsize=7)
+                        ax_int.grid(True, linestyle=":", alpha=0.4)
+                        ax_int.legend(loc="upper left", fontsize=7, ncol=2)
+                        plt.tight_layout()
+                        st.pyplot(fig_int)
 
-                        # Matriz de Auditoría
+                        # Guardar Gráficos combinados en buffer
+                        buf_png_vol = io.BytesIO()
+                        fig_est.savefig(buf_png_vol, format="png", dpi=300)
+                        st.download_button("🖼️ Guardar Tendencia de Estilos (PNG)", data=buf_png_vol.getvalue(), file_name=f"acumulado_estilos_{nombre_atleta_safename}.png", mime="image/png")
+
+                        # 4. MATRIZ DE AUDITORÍA DIARIA (Mantiene la transparencia de los datos crudos)
                         st.markdown("##### 📋 Matriz de Auditoría de Volúmenes Diarios")
                         df_tabla_vol = df_vol_diario.copy()
-                        
                         fila_totales_vol = {"Fecha": "TOTAL ACUMULADO"}
                         for col in columnas_vol[1:]:
                             fila_totales_vol[col] = df_tabla_vol[col].sum()
@@ -252,49 +271,9 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         df_tabla_vol = pd.concat([df_tabla_vol, pd.DataFrame([fila_totales_vol])], ignore_index=True)
                         st.write(df_tabla_vol.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                         
-                        # [RESTAURADO] Exportaciones de Archivos Analíticos
-                        st.markdown("##### 📥 Exportación de Datos de Volumen")
-                        resumen_lineas = [
-                            "=========================================",
-                            "   RESUMEN ANALÍTICO DE CARGA INDIVIDUAL ",
-                            "=========================================",
-                            f"Atleta: {dict_nom_rep[atleta_sel_id]}",
-                            f"Fecha de Reporte: {datetime.date.today()}",
-                            f"Ventana Temporal: {ventana_sel}",
-                            f"Volumen Total Acumulado: {volumen_acumulado:,} metros\n",
-                            "--- DESGLOSE INDIVIDUAL POR ESTILOS ---"
-                        ]
-                        for est in estilos_lista:
-                            mts = global_estilos.get(est, 0)
-                            pct = (mts / volumen_acumulado) * 100 if volumen_acumulado else 0
-                            resumen_lineas.append(f"- {est}: {mts:,} m ({pct:.1f}%)")
-                                   
-                        resumen_lineas.append("\n--- DESGLOSE INDIVIDUAL POR INTENSIDADES ---")
-                        for inten in intensidades_lista:
-                            mts = global_intensidades.get(inten, 0)
-                            pct = (mts / volumen_acumulado) * 100 if volumen_acumulado else 0
-                            resumen_lineas.append(f"- {inten}: {mts:,} m ({pct:.1f}%)")
-                        
-                        resumen_txt_bloque = "\n".join(resumen_lineas)
-                        
-                        df_csv_base = df_tabla_vol.copy()
-                        fila_vacia = {col: "" for col in columnas_vol}
-                        fila_titulo_est = {col: "" for col in columnas_vol}; fila_titulo_est["Fecha"] = "--- PORCENTAJES ESTILOS ---"
-                        df_csv_base = pd.concat([df_csv_base, pd.DataFrame([fila_vacia, fila_titulo_est])], ignore_index=True)
-                        for est in estilos_lista:
-                            mts = global_estilos.get(est, 0)
-                            pct = (mts / volumen_acumulado) * 100 if volumen_acumulado else 0
-                            row_pct = {col: "" for col in columnas_vol}; row_pct["Fecha"] = est; row_pct["Total Día"] = f"{pct:.1f}%"
-                            df_csv_base = pd.concat([df_csv_base, pd.DataFrame([row_pct])], ignore_index=True)
-                            
-                        csv_unificado_data = df_csv_base.to_csv(index=False).encode('utf-8')
-                        txt_unificado_final = f"{df_tabla_vol.to_string(index=False)}\n\n{resumen_txt_bloque}"
-                        
-                        c_exp1, c_exp2 = st.columns(2)
-                        with c_exp1:
-                            st.download_button(label="📥 Descargar Auditoría de Volumen (CSV)", data=csv_unificado_data, file_name=f"volumen_{nombre_atleta_safename}.csv", mime="text/csv", use_container_width=True)
-                        with c_exp2:
-                            st.download_button(label="📄 Descargar Reporte Completo (TXT)", data=txt_unificado_final.encode('utf-8'), file_name=f"reporte_volumen_{nombre_atleta_safename}.txt", mime="text/plain", use_container_width=True)
+                        # Exportaciones analíticas estándar
+                        csv_unificado_data = df_tabla_vol.to_csv(index=False).encode('utf-8')
+                        st.download_button(label="📥 Descargar Historial de Auditoría (CSV)", data=csv_unificado_data, file_name=f"auditoria_volumen_{nombre_atleta_safename}.csv", mime="text/csv", use_container_width=True)
 
 # =============================================================================
                     # SUBTAB 2: ANÁLISIS CIENTÍFICO INDIVIDUAL (TRIMP EXPONENCIAL - ADIMENSIONAL)
