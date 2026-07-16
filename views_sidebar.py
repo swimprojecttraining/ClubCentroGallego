@@ -360,18 +360,63 @@ def renderizar_sidebar_completo():
     tipo_vista = st.sidebar.selectbox("Enfoque del Gráfico", ["Macro (Historial Completo)", "Micro (Ventana Anual)"])
     
     if tipo_vista == "Micro (Ventana Anual)":
-        limite_inf_abs = float(t0)
-        limite_sup_abs = float(t_peak)
-        rango_def_min = max(limite_inf_abs, min(float(t_pb), limite_sup_abs))
-        rango_def_max = min(rango_def_min + 1.0, limite_sup_abs)
-        edad_min_zoom, edad_max_zoom = st.sidebar.slider(
-            "🔎 Rango de la Ventana (Edad)", min_value=limite_inf_abs, max_value=limite_sup_abs,
-            value=(rango_def_min, rango_def_max), step=0.1, format="%.2f años"
-        )
+        import datetime
+        from datetime import timedelta
+        
+        # 1. Intentamos obtener la fecha de nacimiento
+        usuario_id = st.session_state.get("nadador_seleccionado_id")
+        user = obtener_usuario_por_id_cache(usuario_id)
+
+        if user and user.get("fecha_nacimiento"):
+            # 2. Convertimos a fechas reales el inicio y fin absoluto de la carrera (t0 a t_peak)
+            birth_date = datetime.date.fromisoformat(str(user["fecha_nacimiento"])[:10])
+            min_date = birth_date + timedelta(days=int(float(t0) * 365.25))
+            max_date = birth_date + timedelta(days=int(float(t_peak) * 365.25))
+            
+            # 3. ESTABLECEMOS LA TEMPORADA ANUAL POR DEFECTO (1-1 al 31-12)
+            año_actual = datetime.date.today().year
+            
+            # Validamos que el año actual quepa en la carrera del nadador, si no, usamos el límite
+            if año_actual < min_date.year:
+                año_actual = min_date.year
+            elif año_actual > max_date.year:
+                año_actual = max_date.year
+                
+            # Forzamos la ventana exacta de la temporada: del 1 de Enero al 31 de Diciembre
+            default_start = datetime.date(año_actual, 1, 1)
+            default_end = datetime.date(año_actual, 12, 31)
+            
+            # Clampeamos con los límites absolutos del modelo matemático por seguridad
+            default_start = max(min_date, default_start)
+            default_end = min(max_date, default_end)
+
+            # 4. Renderizamos el slider de calendario centrado en la temporada
+            rango_fechas = st.sidebar.slider(
+                "🔎 Rango de la Ventana (Fechas)",
+                min_value=min_date,
+                max_value=max_date,
+                value=(default_start, default_end),
+                step=timedelta(days=1),  # Precisión diaria para ajustar la temporada a mano
+                format="DD/MM/YYYY"
+            )
+            
+            # 5. Convertimos las fechas seleccionadas de vuelta a edades decimales para el resto de la app
+            edad_min_zoom = (rango_fechas[0] - birth_date).days / 365.25
+            edad_max_zoom = (rango_fechas[1] - birth_date).days / 365.25
+        else:
+            # Fallback: Si no hay fecha de nacimiento, usamos las edades como antes
+            limite_inf_abs = float(t0)
+            limite_sup_abs = float(t_peak)
+            rango_def_min = max(limite_inf_abs, min(float(t_pb), limite_sup_abs))
+            rango_def_max = min(rango_def_min + 1.0, limite_sup_abs)
+            
+            edad_min_zoom, edad_max_zoom = st.sidebar.slider(
+                "🔎 Rango de la Ventana (Edad)", min_value=limite_inf_abs, max_value=limite_sup_abs,
+                value=(rango_def_min, rango_def_max), step=0.1, format="%.2f años"
+            )
     else:
         edad_min_zoom = 0.0
         edad_max_zoom = 100.0
-
 # -------------------------------------------------------------
     # 📦 CONTENEDOR DE SLIDERS
     # -------------------------------------------------------------
