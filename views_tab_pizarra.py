@@ -3,6 +3,8 @@ import pandas as pd
 import datetime
 import urllib.parse
 
+from formulas.formulas_lib_funciones import calcular_edad_tecnica_al_31_dic, calcular_categoria_competencia[cite: 1]
+
 def renderizar_tab_pizarra(datos_sidebar):
     """
     Módulo operativo independiente para la Pizarra de Entrenamiento Diario,
@@ -180,10 +182,7 @@ def renderizar_tab_pizarra(datos_sidebar):
                 atletas_pool = [a for a in atletas_pool if a.get("genero") == "F"][cite: 1]
             elif filtro_genero == "Masculino (M)":[cite: 1]
                 atletas_pool = [a for a in atletas_pool if a.get("genero") == "M"][cite: 1]
-
-            # Importación y cálculo dinámico de categorías (Feveda)[cite: 1]
-            from formulas.formulas_lib_funciones import calcular_edad_tecnica_al_31_dic, calcular_categoria_competencia[cite: 1]
-            
+          
             categorias_disponibles = sorted(list(set([[cite: 1]
                 calcular_categoria_competencia(a["fecha_nacimiento"])[0][cite: 1]
                 for a in atletas_pool if a.get("fecha_nacimiento")[cite: 1]
