@@ -227,23 +227,34 @@ def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo):
     
     # Configuración de referencias
     configs = [
-        {"key": "m_ano",     "lbl": "Mín. Año",    "col": "#A06000", "va": "top"},
-        {"key": "m_panam_b", "lbl": "PANAM Jr B",  "col": "#006644", "va": "top"},
-        {"key": "m_panam_a", "lbl": "PANAM Jr A",  "col": "#2A658A", "va": "bottom"},
-        {"key": "m_wa_b",    "lbl": "WA B",        "col": "#943100", "va": "top"},
-        {"key": "m_wa_a",    "lbl": "WA A",        "col": "#883963", "va": "bottom"},
-        {"key": "m_wr",      "lbl": "WR",          "col": "#2C3E50", "va": "bottom"}
+        {"val": "m_ano",     "lbl": "Mín. Año",    "col": "#A06000", "va": "top"},
+        {"val": "m_panam_b", "lbl": "PANAM Jr B",  "col": "#006644", "va": "top"},
+        {"val": "m_panam_a", "lbl": "PANAM Jr A",  "col": "#2A658A", "va": "bottom"},
+        {"val": "m_wa_b",    "lbl": "WA B",        "col": "#943100", "va": "top"},
+        {"val": "m_wa_a",    "lbl": "WA A",        "col": "#883963", "va": "bottom"},
+        {"val": "m_wr",      "lbl": "WR",          "col": "#2C3E50", "va": "bottom"}
     ]
     
     x_pos = lim_x_min + (lim_x_max - lim_x_min) * 0.02
     
     for cfg in configs:
-        val = ref_obj.get(cfg["key"]) if isinstance(ref_obj, dict) else None
-        if val and isinstance(val, (int, float)) and val > 0:
-            ax.axhline(y=val, color=cfg["col"], linestyle=":", linewidth=0.8, alpha=0.7)
-            margin = (ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.003
-            lbl_texto = f"{cfg['lbl']}: {formatear_a_minutos(val).replace(' s', '')}"
-            ax.text(x_pos, val + (peor_tiempo * 0.005), lbl_texto, color=cfg["col"], fontsize=7, ha="left", va=cfg["va"])
+        if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
+            ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
+            desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
+            
+# CORRECCIÓN: Pasamos el valor por tu función y limpiamos el sufijo de segundos
+            tiempo_lbl_formateado = formatear_a_minutos(r["val"]).replace(" s", "")
+            
+            ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl_formateado}", color=r["col"], fontsize=7, va=r["va"], ha="left")
+else:
+    if m_ano > 0:
+        ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
+        
+# CORRECCIÓN: Formateamos la marca base m_ano a minutos/centésimas
+        m_ano_formateado = formatear_a_minutos(m_ano).replace(" s", "")
+        
+        ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target (Base Inf. A): {m_ano_formateado}", color="#A06000", fontsize=7, va="top", ha="left")
+
 # -------------------------------------------------------------
 # MOTOR MATEMÁTICO DOBLE CALCULO DE CURVA AJUSTADO
 # -------------------------------------------------------------
