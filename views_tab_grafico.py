@@ -391,24 +391,11 @@ def renderizar_tab_grafico(datos_sidebar):
             ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
 
         x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
-        # Empaquetamos tus variables locales en un diccionario
-        datos_ref_manual = {
-            "m_ano": m_ano,
-            "m_panam_b": m_panam_b,
-            "m_panam_a": m_panam_a,
-            "m_wa_b": m_wa_b,
-            "m_wa_a": m_wa_a,
-            "m_wr": m_wr
-        }
-        st.warning(f"🚨 DEBUG - ¿Llegan los datos?: m_ano={m_ano}, m_wr={m_wr}, es_preinfantil={es_preinfantil}")
-        # Llamamos a la función
+ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+        
+        # 2. Dibujar las líneas
         if not es_preinfantil:
-            dibujar_lineas_referencia(ax, datos_ref_manual, lim_x_min, lim_x_max)
-        else:
-            # Si es preinfantil, mantenemos tu lógica específica (si la necesitas aparte)
-            if m_ano and m_ano > 0:
-                ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-                ax.text(lim_x_min + (lim_x_max - lim_x_min)*0.05, m_ano, f"Target: {formatear_a_minutos(m_ano).replace(' s', '')}", color="#A06000", fontsize=7, va="top", ha="left")    
+            dibujar_lineas_referencia(ax, ref_wr_data, lim_x_min, lim_x_max, peor_tiempo_ind)
         
         if simulacion_externa:
             ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
