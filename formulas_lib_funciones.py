@@ -218,6 +218,32 @@ def calcular_puntos_wa(tiempo_atleta: float, record_mundial: float) -> int:
     except (ValueError, TypeError):
         return 0
 
+def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo):
+    """ Dibuja las líneas de referencia en cualquier gráfico pasado por ax """
+    if not ref_data: return
+
+    # Extraemos el objeto
+    ref_obj = ref_data[0] if isinstance(ref_data, list) and len(ref_data) > 0 else ref_data
+    
+    # Configuración de referencias
+    configs = [
+        {"key": "m_ano",     "lbl": "Mín. Año",    "col": "#A06000"},
+        {"key": "m_panam_b", "lbl": "PANAM Jr B",  "col": "#006644"},
+        {"key": "m_panam_a", "lbl": "PANAM Jr A",  "col": "#2A658A"},
+        {"key": "m_wa_b",    "lbl": "WA B",        "col": "#943100"},
+        {"key": "m_wa_a",    "lbl": "WA A",        "col": "#883963"},
+        {"key": "m_wr",      "lbl": "WR",          "col": "#2C3E50"}
+    ]
+    
+    x_pos = lim_x_min + (lim_x_max - lim_x_min) * 0.02
+    
+    for cfg in configs:
+        val = ref_obj.get(cfg["key"]) if isinstance(ref_obj, dict) else None
+        if val and isinstance(val, (int, float)) and val > 0:
+            ax.axhline(y=val, color=cfg["col"], linestyle=":", linewidth=0.8, alpha=0.7)
+            # Usamos una variable para el formato del texto para evitar errores de sintaxis
+            lbl_texto = f"{cfg['lbl']}: {formatear_a_minutos(val).replace(' s', '')}"
+            ax.text(x_pos, val + (peor_tiempo * 0.005), lbl_texto, color=cfg["col"], fontsize=7, ha="left", va="bottom")
 # -------------------------------------------------------------
 # MOTOR MATEMÁTICO DOBLE CALCULO DE CURVA AJUSTADO
 # -------------------------------------------------------------
