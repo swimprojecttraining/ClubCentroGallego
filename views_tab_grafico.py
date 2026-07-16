@@ -207,7 +207,7 @@ def renderizar_tab_grafico(datos_sidebar):
             
             # --- DIAGNÓSTICO ---
             if not ref_wr_data:
-                st.error(f"⚠️ Error de datos: La BD no encontró referencia para: '{prueba}', '{genero}', '{categoria}')
+                st.error(f"⚠️ Error de datos: La BD no encontró referencia para: '{prueba}')
                 # Solo usamos esto para que la app no explote, pero ahora verás el error en pantalla
                 m_wr = 46.40 
             else:
