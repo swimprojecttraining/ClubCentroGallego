@@ -153,13 +153,14 @@ def renderizar_tab_grafico(datos_sidebar):
         todos_los_tiempos_colectivo = []
         datos_atletas_cargados = []
         
+# --- BUCLE DE PROCESAMIENTO ---
         for idx, atl in enumerate(atletas_filtrados):
             a_id = atl.get("usuario_id", atl.get("id"))
             a_nom = atl.get("nombre", f"Atleta {idx+1}")
             
             try:
                 marcas_raw = obtener_marcas_historicas_cache(usuario_id=a_id, prueba=prueba)
-            except Exception as e:
+            except Exception:
                 marcas_raw = []
                 
             if not marcas_raw: continue
@@ -167,8 +168,6 @@ def renderizar_tab_grafico(datos_sidebar):
             df_raw = pd.DataFrame(marcas_raw)
             if df_raw.empty: continue
             
-            # Flexibilizamos el filtro: 
-            # Si la columna existe, filtramos. Si no, tomamos los datos tal cual llegaron de la BD.
             if "prueba" in df_raw.columns:
                 df_prueba = df_raw[df_raw["prueba"].astype(str).str.strip().str.lower() == prueba.strip().lower()].copy()
             else:
@@ -176,13 +175,8 @@ def renderizar_tab_grafico(datos_sidebar):
             
             if df_prueba.empty: continue
             
-            # 3. Preparar columnas para el motor matemático
             df_atl_m = df_prueba.rename(columns={"edad": "Edad", "tiempo": "Tiempo", "nota": "Evento / Fecha"})
-            
-            # Mini-seguro: Si después de renombrar no existen las columnas maestras, alertamos y saltamos
             if "Tiempo" not in df_atl_m.columns or "Edad" not in df_atl_m.columns:
-                # Quita el '#' de la siguiente línea si necesitas ver qué columnas está enviando realmente la BD
-                # st.warning(f"Columnas recibidas de BD para {a_nom}: {list(df_atl_m.columns)}")
                 continue
                 
             df_atl_m["Tiempo"] = pd.to_numeric(df_atl_m["Tiempo"], errors="coerce")
@@ -191,40 +185,26 @@ def renderizar_tab_grafico(datos_sidebar):
             
             if df_atl_m.empty: continue
             
-            # Registrar para renderizado
             hay_datos_visibles = True
             todas_las_edades_0.append(float(df_atl_m.iloc[0]["Edad"]))
             todos_los_tiempos_colectivo.extend(df_atl_m["Tiempo"].tolist())
             datos_atletas_cargados.append({"nom": a_nom, "df": df_atl_m, "color": colores(idx)})
             
-            # Guardar para la exportación final
             df_export = df_atl_m.copy()
             df_export["Atleta"] = a_nom
             df_global_marcas_reconstruido.append(df_export)
 
-            #if hay_datos_visibles:
-            #edad_0_min_colectivo = min(todas_las_edades_0)
-            #lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
-            #lim_x_max = t_peak + 1.0
-            #ax.set_xlim(lim_x_min, lim_x_max)
+        # --- RENDERIZADO (FUERA DEL BUCLE) ---
+        if hay_datos_visibles:
+            # 1. Eje X
+            edad_0_min_colectivo = min(todas_las_edades_0)
+            lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
+            lim_x_max = t_peak + 1.0 
+            ax.set_xlim(lim_x_min, lim_x_max)
             
-            #peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
-            #lim_y_inferior = m_wr * 0.95 if m_wr > 0 else min(todos_los_tiempos_colectivo) * 0.90
-            #lim_y_superior = peor_tiempo_colectivo + (peor_tiempo_colectivo * 0.05)
-            #ax.set_ylim(lim_y_inferior, lim_y_superior)
-
-            if hay_datos_visibles:
-                # 1. Eje X: Dinámico basado en los datos cargados
-                edad_0_min_colectivo = min(todas_las_edades_0)
-                lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
-                lim_x_max = t_peak + 1.0 
-                ax.set_xlim(lim_x_min, lim_x_max)
-                
-            # 2. Eje Y: Dinámico basado en WR Masculino (Referencia Absoluta)
+            # 2. Eje Y y WR
             ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Absoluto')
             
-            # --- CORRECCIÓN AQUÍ ---
-            # Si ref_wr_data es None o está vacío, asignamos 46.40 como valor de respaldo
             if not ref_wr_data:
                 m_wr = 46.40
             elif isinstance(ref_wr_data, dict):
@@ -234,25 +214,20 @@ def renderizar_tab_grafico(datos_sidebar):
                     m_wr = float(ref_wr_data)
                 except (ValueError, TypeError):
                     m_wr = 46.40
-            # -----------------------
             
             peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
-                
-                # Aplicamos límites
-                lim_y_inferior = m_wr * 0.92 
-                lim_y_superior = peor_tiempo_colectivo * 1.05
-                
-                ax.set_ylim(lim_y_inferior, lim_y_superior)
-                
-                # Opcional: Referencia visual WR
-                ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
-                
-                # Finalización de renderizado
-                for item in datos_atletas_cargados:
-                    df_atl_m = item["df"]
-                    color_curr = item["color"]
-                    a_nom = item["nom"]
-                
+            lim_y_inferior = m_wr * 0.92 
+            lim_y_superior = peor_tiempo_colectivo * 1.05
+            
+            ax.set_ylim(lim_y_inferior, lim_y_superior)
+            ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
+            
+            # 3. Dibujado de atletas
+            for item in datos_atletas_cargados:
+                df_atl_m = item["df"]
+                color_curr = item["color"]
+                a_nom = item["nom"]
+                                
                 # 4. El algoritmo de Valles se ejecuta por cada atleta
                 t0_i, T0_i, t_pb_i, T_pb_i = procesar_mejor_marca_historica(df_atl_m)
                 
