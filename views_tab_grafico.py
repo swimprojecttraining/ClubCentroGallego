@@ -221,7 +221,7 @@ def renderizar_tab_grafico(datos_sidebar):
                 ax.set_xlim(lim_x_min, lim_x_max)
                 
                 # 2. Eje Y: Dinámico basado en WR Masculino (Referencia Absoluta)
-                ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Absoluto')
+                ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Máxima')
                 
                 m_wr = float(ref_wr_data.get('m_wr', 46.40)) if isinstance(ref_wr_data, dict) else float(ref_wr_data)
                 
