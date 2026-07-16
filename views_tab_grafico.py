@@ -194,7 +194,6 @@ def renderizar_tab_grafico(datos_sidebar):
             df_export["Atleta"] = a_nom
             df_global_marcas_reconstruido.append(df_export)
 
-        # --- RENDERIZADO (FUERA DEL BUCLE) ---
         if hay_datos_visibles:
             # 1. Eje X
             edad_0_min_colectivo = min(todas_las_edades_0)
@@ -202,33 +201,29 @@ def renderizar_tab_grafico(datos_sidebar):
             lim_x_max = t_peak + 1.0 
             ax.set_xlim(lim_x_min, lim_x_max)
             
-        # 2. Eje Y: Dinámico basado en WR Masculino
+            # 2. Consultamos la BD usando los filtros reales del usuario
             ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
             
-            # --- DIAGNÓSTICO SEGURO ---
-            if not ref_wr_data:
-                st.error(f"Error: No hay referencia para {prueba})")
-                m_wr = 46.40 
-            else:
-                try:
-                    datos = ref_wr_data[0] if isinstance(ref_wr_data, list) and len(ref_wr_data) > 0 else ref_wr_data
-                    m_wr = float(datos.get('tiempo', 46.40)) if isinstance(datos, dict) else 46.40
-                except (ValueError, TypeError):
-                    m_wr = 46.40
-                        
-            peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
+            m_wr = None
+            if ref_wr_data and isinstance(ref_wr_data, list) and len(ref_wr_data) > 0:
+                datos = ref_wr_data[0]
+                if isinstance(datos, dict) and 'tiempo' in datos:
+                    m_wr = float(datos['tiempo'])
             
-            # Aplicamos límites
-            lim_y_inferior = m_wr * 0.92 
+            # 3. Límites dinámicos basados en los resultados obtenidos
+            peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
+            mejor_tiempo_colectivo = min(todos_los_tiempos_colectivo)
+            
+            lim_y_inferior = (m_wr * 0.92) if m_wr else (mejor_tiempo_colectivo * 0.95)
             lim_y_superior = peor_tiempo_colectivo * 1.05
             
             ax.set_ylim(lim_y_inferior, lim_y_superior)
-            ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
-        
-        ax.set_ylim(lim_y_inferior, lim_y_superior)
-        ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
             
-            # 3. Dibujado de atletas
+            # 4. Dibujamos la línea WR solo si existe el dato
+            if m_wr:
+                ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
+            
+            # 5. Finalización de renderizado
             for item in datos_atletas_cargados:
                 df_atl_m = item["df"]
                 color_curr = item["color"]
