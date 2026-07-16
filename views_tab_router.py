@@ -82,7 +82,7 @@ def mostrar_vista_enrutador():
         <style>
             /* Añade aire al final de la página */
             .main > div {
-                padding-bottom: 100px;
+                padding-bottom: 200px;
             }
         </style>
     """, unsafe_allow_html=True)
