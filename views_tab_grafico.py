@@ -391,7 +391,7 @@ def renderizar_tab_grafico(datos_sidebar):
             ax.axvline(x=t_peak, color="#2ECC71", linestyle=":", linewidth=0.7, alpha=0.5)
 
         x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
-ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+        ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
         
         # 2. Dibujar las líneas
         if not es_preinfantil:
