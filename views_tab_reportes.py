@@ -296,54 +296,79 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         with c_exp2:
                             st.download_button(label="📄 Descargar Reporte Completo (TXT)", data=txt_unificado_final.encode('utf-8'), file_name=f"reporte_volumen_{nombre_atleta_safename}.txt", mime="text/plain", use_container_width=True)
 
-                    # =============================================================================
-                    # SUBTAB 2: ANÁLISIS CIENTÍFICO INDIVIDUAL (BANNISTER CTL/ATL/TSB OPTIMIZADO)
+# =============================================================================
+                    # SUBTAB 2: ANÁLISIS CIENTÍFICO INDIVIDUAL (TRIMP EXPONENCIAL - ADIMENSIONAL)
                     # =============================================================================
                     with subtab_fisiologico:
-                        st.markdown("### 📈 Modelo Fisiológico Bannister Híbrido")
+                        st.markdown("### 📈 Modelo Fisiológico TRIMP Exponencial (Adimensional)")
                         
-                        # [RESTAURADO] Bloque metodológico y fórmulas matemáticas exactas
-                        with st.expander("📘 Fórmulas y Metodología Acotada Real (Rango -100% a 100%)", expanded=False):
-                            st.markdown("**Cálculo Matemático del Índice de Balance Fisiológico Normalizado:**")
-                            st.latex(r"\text{CTL}_t = \text{CTL}_{t-1} \cdot e^{-1/42} + w_t \cdot (1 - e^{-1/42})")
-                            st.latex(r"\text{ATL}_t = \text{ATL}_{t-1} \cdot e^{-1/7} + w_t \cdot (1 - e^{-1/7})")
+                        with st.expander("📘 Metodología de Carga por Esfuerzo Percibido (Foster & Bannister)", expanded=False):
+                            st.markdown("**Fórmula del Impulso de Entrenamiento de Alta Intensidad:**")
+                            st.latex(r"\text{Carga Diaria (AU)} = \text{Volumen (Km)} \times e^{0.218 \times \text{RPE}}")
                             st.latex(r"\text{TSB \%}_t = \left( \frac{\text{CTL}_t - \text{ATL}_t}{\max(\text{CTL}_t, \text{ATL}_t)} \right) \cdot 100")
-                            st.caption("Esta corrección matemática evita dispersiones infinitas y ancla el cero como el balance ideal homeostático.")
+                            st.caption("Nota: El factor exponencial 0.218 penaliza severamente las sesiones de alto RPE, emulando la curva de acumulación de lactato en sangre.")
 
-                        mapeo_factores = {"Aeróbico Ligero": 1.0, "Aeróbico Medio": 1.2, "Umbral": 1.4, "Anaeróbico": 1.7, "Sprint": 1.7}
-                        vol_diario_map = {f: 0.0 for f in rango_analisis}
+                        # Inicializar mapa de carga diaria adimensional (AU)
+                        carga_diaria_au = {f: 0.0 for f in rango_analisis}
+                        
+                        # Mapeo interno de RPE equivalente por zona (en caso de que falte el RPE global)
+                        mapeo_rpe_zonas = {
+                            "Aeróbico Ligero": 3.5,
+                            "Aeróbico Medio": 5.5,
+                            "Umbral": 7.5,
+                            "Anaeróbico": 9.5,
+                            "Sprint": 10.0
+                        }
                         
                         for r in records_hasta_hoy:
                             f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
-                            if f_rec in vol_diario_map:
-                                # Resiliencia de idioma extendida al cálculo de Bannister
-                                int_dict = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
-                                subtotal_ponderado = 0.0
-                                for k_int, m_int in int_dict.items():
-                                    factor = next((f_val for key_map, f_val in mapeo_factores.items() if key_map in k_int), 1.0)
-                                    subtotal_ponderado += (m_int * factor)
+                            if f_rec in carga_diaria_au:
+                                # 1. Intentar capturar el RPE de la pizarra consolidada
+                                rpe_global = r.get("rpe") or r.get("factor_exigencia")
                                 
-                                if not int_dict:
-                                    subtotal_ponderado = r.get("metros_totales", 0) * r.get("factor_exigencia", 1.0)
-                                vol_diario_map[f_rec] += subtotal_ponderado
+                                if rpe_global and float(rpe_global) > 0:
+                                    # Conversión directa: Volumen en Km * e^(0.218 * RPE)
+                                    vol_km = r.get("metros_totales", 0) / 1000.0
+                                    carga_sesion = vol_km * np.exp(0.218 * float(rpe_global))
+                                else:
+                                    # 2. Fallback: Si no hay RPE global, calculamos de forma ponderada por metros en cada zona
+                                    carga_sesion = 0.0
+                                    int_dict = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
+                                    for k_int, m_int in int_dict.items():
+                                        rpe_zona = 3.5 # Defecto base
+                                        for key_map, val_rpe in mapeo_rpe_zonas.items():
+                                            if key_map in k_int:
+                                                rpe_zona = val_rpe
+                                                break
+                                        vol_zona_km = m_int / 1000.0
+                                        carga_sesion += vol_zona_km * np.exp(0.218 * rpe_zona)
+                                    
+                                    # 3. Salvaguarda absoluta si el registro está completamente vacío
+                                    if not int_dict and r.get("metros_totales", 0) > 0:
+                                        vol_km = r.get("metros_totales", 0) / 1000.0
+                                        carga_sesion = vol_km * np.exp(0.218 * 5.0) # Asume un RPE 5 moderado
+                                
+                                carga_diaria_au[f_rec] += carga_sesion
                         
-                        df_cargas = pd.DataFrame([{"Fecha": f, "Volumen": vol_diario_map[f]} for f in rango_analisis])
+                        # Construcción del DataFrame Fisiológico
+                        df_cargas = pd.DataFrame([{"Fecha": f, "Carga_AU": carga_diaria_au[f]} for f in rango_analisis])
                         df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
                         df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
                         
-                        df_cargas["CTL"] = df_cargas["Volumen"].ewm(span=42, adjust=False).mean()
-                        df_cargas["ATL"] = df_cargas["Volumen"].ewm(span=7, adjust=False).mean()
+                        # Filtros Exponenciales EWM para CTL (42 días) y ATL (7 días)
+                        df_cargas["CTL"] = df_cargas["Carga_AU"].ewm(span=42, adjust=False).mean()
+                        df_cargas["ATL"] = df_cargas["Carga_AU"].ewm(span=7, adjust=False).mean()
                         df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
                         
-                        # Normalización matemática estricta contra el máximo de ambos vectores
+                        # Normalización del TSB% contra el máximo metabólico alcanzado
                         max_denominador = np.maximum(df_cargas["CTL"], df_cargas["ATL"])
                         df_cargas["TSB_Pct"] = ((df_cargas["TSB"] / max_denominador) * 100).fillna(0.0)
                         
                         ultima_fila = df_cargas.iloc[-1]
-                        val_ctl, val_atl, val_tsb = int(ultima_fila["CTL"]), int(ultima_fila["ATL"]), int(ultima_fila["TSB"])
+                        val_ctl, val_atl, val_tsb = round(float(ultima_fila["CTL"]), 1), round(float(ultima_fila["ATL"]), 1), round(float(ultima_fila["TSB"]), 1)
                         pct_tsb = round(float(ultima_fila["TSB_Pct"]), 1)
                         
-                        # [RESTAURADO] Umbrales ajustados analíticos (Semáforo de Carga)
+                        # Semáforo de Control Fisiológico por Porcentaje
                         if pct_tsb <= -35.0: estado_forma = f"🔴 Fatiga Severa / Alerta Lesión ({pct_tsb}%)"
                         elif -35.0 < pct_tsb < -10.0: estado_forma = f"⚠️ Fase Inmunológica / Sobrecarga ({pct_tsb}%)"
                         elif -10.0 <= pct_tsb <= 10.0: estado_forma = f"🟡 Balance de Adaptación Óptima ({pct_tsb}%)"
@@ -351,10 +376,11 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         else: estado_forma = f"❌ Pérdida de Estímulo / Desentrenamiento (+{pct_tsb}%)"
                         
                         c_m1, c_m2, c_m3 = st.columns(3)
-                        with c_m1: st.metric("💪 Fitness (CTL)", value=f"{val_ctl:,} m")
-                        with c_m2: st.metric("🔥 Fatiga (ATL)", value=f"{val_atl:,} m")
-                        with c_m3: st.metric("🎯 Índice Balance (TSB %)", value=f"{pct_tsb}%", delta=estado_forma)
+                        with c_m1: st.metric("💪 Fitness (CTL)", value=f"{val_ctl} AU")
+                        with c_m2: st.metric("🔥 Fatiga (ATL)", value=f"{val_atl} AU")
+                        with c_m3: st.metric("🎯 Balance Fisiológico", value=f"{val_tsb} AU", delta=estado_forma)
                         
+                        # --- GENERACIÓN DEL PLOT LINEAL COMPRIMIDO ---
                         fig_ban, ax1 = plt.subplots(figsize=(8.5, 3.8))
                         
                         ax1.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
@@ -367,23 +393,22 @@ def renderizar_tab_reportes(datos_sidebar=None):
                                 
                         l_ctl = ax1.plot(df_cargas["Fecha"], df_cargas["CTL"], label="Fitness Crónico (CTL)", color="#1f77b4", linewidth=2.0)
                         l_atl = ax1.plot(df_cargas["Fecha"], df_cargas["ATL"], label="Fatiga Aguda (ATL)", color="#d62728", linewidth=1.5, linestyle="--")
-                        b_tsb = ax1.bar(df_cargas["Fecha"], df_cargas["TSB"], label="Balance Neto (TSB m)", color="#2ca02c", alpha=0.20, width=1.0)
+                        b_tsb = ax1.bar(df_cargas["Fecha"], df_cargas["Carga_AU"], label="Estrés Diario (Impulso AU)", color="#2ca02c", alpha=0.15, width=1.0)
                         
-                        ax1.set_ylabel("Métricas de Volumen (Escala Logarítmica)", color="#1f77b4", fontsize=8)
+                        ax1.set_ylabel("Métricas de Carga (Escala Lineal AU)", color="#1f77b4", fontsize=8)
                         ax1.tick_params(axis='y', labelcolor="#1f77b4", labelsize=7)
                         ax1.tick_params(axis='x', labelsize=7, rotation=35)
-                        ax1.set_yscale('symlog', linthresh=500)
-                        ax1.grid(True, linestyle=":", alpha=0.2)
+                        ax1.grid(True, linestyle=":", alpha=0.3) # Rejilla limpia gracias a la escala lineal
                         
-                        # [RESTAURADO] Eje Derecho con bandas hspans de control fisiológico
+                        # Eje derecho para el porcentaje del índice de balance (TSB %)
                         ax2 = ax1.twinx()
-                        l_pct = ax2.plot(df_cargas["Fecha"], df_cargas["TSB_Pct"], label="Índice TSB Acotado (%)", color="#2c3e50", linewidth=1.8)
+                        l_pct = ax2.plot(df_cargas["Fecha"], df_cargas["TSB_Pct"], label="Índice TSB (%)", color="#2c3e50", linewidth=1.8)
                         
-                        ax2.axhspan(10.0, 40.0, color="#abebc6", alpha=0.3, label="🟢 Tapering / Supercompensación")
-                        ax2.axhspan(-35.0, -10.0, color="#f9e79f", alpha=0.25, label="⚠️ Bloque de Sobrecarga")
-                        ax2.axhline(0.0, color="#2c3e50", linestyle="-", linewidth=1.0, alpha=0.5)
+                        ax2.axhspan(10.0, 40.0, color="#abebc6", alpha=0.25, label="🟢 Tapering / Supercompensación")
+                        ax2.axhspan(-35.0, -10.0, color="#f9e79f", alpha=0.20, label="⚠️ Bloque de Sobrecarga")
+                        ax2.axhline(0.0, color="#2c3e50", linestyle="-", linewidth=1.0, alpha=0.4)
                         
-                        ax2.set_ylabel("Balance Porcentual Stable (Eje Fijo -100% a +100%)", color="#2c3e50", fontsize=8)
+                        ax2.set_ylabel("Balance Porcentual Regulación (-100% a +100%)", color="#2c3e50", fontsize=8)
                         ax2.tick_params(axis='y', labelcolor="#2c3e50", labelsize=7)
                         ax2.set_ylim(-105, 105)
                         
@@ -403,19 +428,19 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
                         df_tabla_ban = df_cargas.copy()
                         df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
-                        df_tabla_ban["Volumen"] = df_tabla_ban["Volumen"].round(1)
+                        df_tabla_ban["Carga_AU"] = df_tabla_ban["Carga_AU"].round(1)
                         df_tabla_ban["CTL"] = df_tabla_ban["CTL"].round(1)
                         df_tabla_ban["ATL"] = df_tabla_ban["ATL"].round(1)
                         df_tabla_ban["TSB"] = df_tabla_ban["TSB"].round(1)
                         df_tabla_ban["TSB_Pct"] = df_tabla_ban["TSB_Pct"].round(1).astype(str) + " %"
                         
                         df_tabla_ban.columns = [
-                            "Fecha", "Metros Ponderados (Día)", "CTL (Fitness m)", 
-                            "ATL (Fatiga m)", "TSB (Forma m)", "TSB Relativo Acotado (% Máx)"
+                            "Fecha", "Carga TRIMP (AU/Día)", "CTL (Fitness AU)", 
+                            "ATL (Fatiga AU)", "TSB (Forma AU)", "TSB Relativo (% Máx)"
                         ]
                         st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                         
-                        # [RESTAURADO] Descarga de datos fisiológicos
+                        # Exportación de datos fisiológicos
                         csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
                         txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
                         
