@@ -194,40 +194,41 @@ def renderizar_tab_grafico(datos_sidebar):
             df_export["Atleta"] = a_nom
             df_global_marcas_reconstruido.append(df_export)
 
-        if hay_datos_visibles:
-            # 1. Eje X
-            edad_0_min_colectivo = min(todas_las_edades_0)
-            lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
-            lim_x_max = t_peak + 1.0 
-            ax.set_xlim(lim_x_min, lim_x_max)
-            
-            # 2. Consultamos la BD usando los filtros reales del usuario
-            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
-            
-            m_wr = None
-            if ref_wr_data and isinstance(ref_wr_data, list) and len(ref_wr_data) > 0:
-                datos = ref_wr_data[0]
-                if isinstance(datos, dict) and 'tiempo' in datos:
-                    m_wr = float(datos['tiempo'])
-            
-            # 3. Límites dinámicos basados en los resultados obtenidos
-            peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
-            mejor_tiempo_colectivo = min(todos_los_tiempos_colectivo)
-            
-            lim_y_inferior = (m_wr * 0.92) if m_wr else (mejor_tiempo_colectivo * 0.95)
-            lim_y_superior = peor_tiempo_colectivo * 1.05
-            
-            ax.set_ylim(lim_y_inferior, lim_y_superior)
-            
-            # 4. Dibujamos la línea WR solo si existe el dato
-            if m_wr:
-                ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
-            
-            # 5. Finalización de renderizado
-            for item in datos_atletas_cargados:
-                df_atl_m = item["df"]
-                color_curr = item["color"]
-                a_nom = item["nom"]
+            if hay_datos_visibles:
+                # 1. Eje X
+                edad_0_min_colectivo = min(todas_las_edades_0)
+                lim_x_min = max(4.0, edad_0_min_colectivo - 0.5)
+                lim_x_max = t_peak + 1.0 
+                ax.set_xlim(lim_x_min, lim_x_max)
+                
+                # 2. Consultar BD usando filtros reales del usuario
+                ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+                
+                m_wr = None
+                if ref_wr_data and isinstance(ref_wr_data, list) and len(ref_wr_data) > 0:
+                    datos = ref_wr_data[0]
+                    if isinstance(datos, dict) and 'tiempo' in datos:
+                        m_wr = float(datos['tiempo'])
+                
+                # 3. Límites dinámicos
+                peor_tiempo = max(todos_los_tiempos_colectivo)
+                mejor_tiempo = min(todos_los_tiempos_colectivo)
+                
+                lim_y_inf = (m_wr * 0.92) if m_wr else (mejor_tiempo * 0.95)
+                lim_y_sup = peor_tiempo * 1.05
+                
+                ax.set_ylim(lim_y_inf, lim_y_sup)
+                
+                # 4. Línea WR
+                if m_wr:
+                    ax.axhline(y=m_wr, color='#2C3E50', linestyle='--', alpha=0.5, label='WR')
+                
+                # 5. Renderizado atletas
+                for item in datos_atletas_cargados:
+                    df_atl_m = item["df"]
+                    color_curr = item["color"]
+                    a_nom = item["nom"]
+                    # Aquí asegúrate de tener el resto de tu lógica de ploteo
                                 
                 # 4. El algoritmo de Valles se ejecuta por cada atleta
                 t0_i, T0_i, t_pb_i, T_pb_i = procesar_mejor_marca_historica(df_atl_m)
