@@ -17,7 +17,8 @@ from conections_supabase_cache import (
     obtener_nadadores_activos_cache,
     obtener_marcas_historicas_cache,
     obtener_marcas_referencia_cache,
-    obtener_marcas_equipo_cache
+    obtener_marcas_equipo_cache,
+    obtener_usuario_por_id_cache
 )
 
 # 🎨 IMPORTACIÓN DESDE TU MÓDULO DE ESTILOS VISUALES
@@ -353,44 +354,46 @@ def renderizar_sidebar_completo():
     st.session_state["ttarget_segundos"] = T_target
     st.session_state["tpb_segundos"] = T_pb
 
-    # -------------------------------------------------------------
+# -------------------------------------------------------------
     # 🔎 CONTROLES DE VISTA
     # -------------------------------------------------------------
     tipo_vista = st.sidebar.selectbox("Enfoque del Gráfico", ["Macro (Historial Completo)", "Micro (Ventana Anual)"])
+    
     if tipo_vista == "Micro (Ventana Anual)":
-        # 1. Obtener fecha de nacimiento
         usuario_id = st.session_state.get("nadador_seleccionado_id")
         user = obtener_usuario_por_id_cache(usuario_id)
         
+        # Valores por defecto si falla la fecha
+        edad_min_zoom = float(t0)
+        edad_max_zoom = float(t_peak)
+        
         if user and user.get("fecha_nacimiento"):
             birth_date = datetime.date.fromisoformat(str(user["fecha_nacimiento"])[:10])
-            
-            # 2. Convertir límites de edad (float) a fechas para el slider
             min_date = birth_date + timedelta(days=int(float(t0) * 365.25))
             max_date = birth_date + timedelta(days=int(float(t_peak) * 365.25))
-            
-            # 3. Fecha inicial predeterminada (1 de enero del año actual o la fecha mínima)
             default_start = max(min_date, datetime.date(datetime.date.today().year, 1, 1))
             default_end = min(max_date, default_start + timedelta(days=365))
             
-            # 4. Slider de fechas
             rango_fechas = st.sidebar.slider(
                 "🔎 Rango de la Ventana (Calendario)",
                 min_value=min_date,
                 max_value=max_date,
                 value=(default_start, default_end),
-                step=timedelta(days=30), # Paso aprox de 1 mes
+                step=timedelta(days=30),
                 format="DD/MM/YYYY"
             )
-            
-            # 5. CONVERSIÓN: Volver a edad decimal para que el gráfico no se rompa
             edad_min_zoom = (rango_fechas[0] - birth_date).days / 365.25
             edad_max_zoom = (rango_fechas[1] - birth_date).days / 365.25
-            
         else:
-            # Fallback si no hay fecha de nacimiento, mantén tu lógica original
-            edad_min_zoom = float(t_pb)
-            edad_max_zoom = float(t_peak)
+            # Fallback si no hay fecha, slider numérico simple
+            edad_min_zoom, edad_max_zoom = st.sidebar.slider(
+                "🔎 Rango de la Ventana (Edad)", 
+                min_value=float(t0), max_value=float(t_peak),
+                value=(float(t0), float(t_peak)), step=0.1, format="%.2f años"
+            )
+    else:
+        edad_min_zoom = 0.0
+        edad_max_zoom = 100.0
 
     with contenedor_sliders:
         spc()
