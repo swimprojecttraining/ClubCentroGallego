@@ -395,21 +395,19 @@ def renderizar_sidebar_completo():
         edad_min_zoom = 0.0
         edad_max_zoom = 100.0
 
-# -------------------------------------------------------------
+    # -------------------------------------------------------------
     # 📦 CONTENEDOR DE SLIDERS
     # -------------------------------------------------------------
     with contenedor_sliders:
         spc()
         st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
         
-        # Asegúrate de que estos sliders estén alineados 4 espacios adentro de 'with'
         h = st.slider("Factor ajustable de rapidez de deriva (h):", min_value=0.1, max_value=1.0, value=0.35, step=0.05)
         t_intermedia = st.slider("Consultar Edad Intermedia:", min_value=float(t0), max_value=float(t_peak), value=float(round((t0+t_peak)/2, 1)), step=0.1)
 
-    # El código siguiente debe ir al mismo nivel que 'with contenedor_sliders:'
     if not modo_equipo and st.session_state.rol == "Nadador":
         st.sidebar.markdown("---")
-        st.sidebar.caption("📅 *Requerido proyectar cada 3 meses hasta los 18 años...*")
+        st.sidebar.caption("📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar marcas, asistir a campeonatos y optar por becas universitarias nacionales e internacionales.*")
 
     # -------------------------------------------------------------
     # 📦 RETORNO DE DATOS EMPAQUETADOS
