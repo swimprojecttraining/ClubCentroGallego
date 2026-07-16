@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import io
 
-def renderizar_tab_reportes():
+def renderizar_tab_reportes(datos_sidebar=None):
     """
     CÓDIGO MODULAR OPTIMIZADO Y BLINDADO (PRODUCCIÓN)
     Version: 2.0 (Resiliente a esquemas, descarga completa e inmunidad IDOR)
