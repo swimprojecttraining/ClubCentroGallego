@@ -15,7 +15,8 @@ from formulas_lib_funciones import (
     formatear_a_minutos,
     procesar_mejor_marca_historica,
     calcular_puntos_wa,
-    obtener_datos_hitos_atleta
+    obtener_datos_hitos_atleta,
+    dibijar_lineas_de_referencia
 )
 
 from conections_supabase_cache import (
@@ -242,21 +243,8 @@ def renderizar_tab_grafico(datos_sidebar):
                 ax.scatter(df_atl_m["Edad"], df_atl_m["Tiempo"], color=color_curr, edgecolor="black", s=25, linewidths=0.5, zorder=3)
                 ax.scatter(t_pb_i, T_pb_i, color=color_curr, marker="*", edgecolor="black", s=80, linewidths=0.5, zorder=5)
 
-            # Líneas de referencia
-            x_texto = lim_x_min + 0.1
-            referencias = [{"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
-                           {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},     
-                           {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-                           {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},           
-                           {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},          
-                           {"val": m_wr, "lbl": "WR", "col": "#2C3E50", "va": "top"}]
-
-            for r in referencias:
-                if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                    ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                    despl_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                    tiempo_lbl = formatear_a_minutos(r["val"]).replace(" s", "")
-                    ax.text(x_texto, r["val"] + despl_y, f"{r['lbl']}: {tiempo_lbl}", color=r["col"], fontsize=7, va=r["va"], ha="left")
+            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+            dibujar_lineas_referencia(ax, ref_wr_data, lim_x_min, lim_x_max, peor_tiempo)
 
             # Finalización
             ax.set_title(f"Análisis Comparativo de Equipo - {titulo_grafico}", fontsize=12, pad=10)
