@@ -220,12 +220,23 @@ def renderizar_tab_grafico(datos_sidebar):
                 lim_x_max = t_peak + 1.0 
                 ax.set_xlim(lim_x_min, lim_x_max)
                 
-                # 2. Eje Y: Dinámico basado en WR Masculino (Referencia Absoluta)
-                ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='M', categoria='Máxima')
-                
-                m_wr = float(ref_wr_data.get('tiempo', 46.40)) if isinstance(ref_wr_data, dict) else float(ref_wr_data)
-                
-                peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
+            # 2. Eje Y: Dinámico basado en WR Masculino (Referencia Absoluta)
+            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Absoluto')
+            
+            # --- CORRECCIÓN AQUÍ ---
+            # Si ref_wr_data es None o está vacío, asignamos 46.40 como valor de respaldo
+            if not ref_wr_data:
+                m_wr = 46.40
+            elif isinstance(ref_wr_data, dict):
+                m_wr = float(ref_wr_data.get('tiempo', 46.40))
+            else:
+                try:
+                    m_wr = float(ref_wr_data)
+                except (ValueError, TypeError):
+                    m_wr = 46.40
+            # -----------------------
+            
+            peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
                 
                 # Aplicamos límites
                 lim_y_inferior = m_wr * 0.92 
