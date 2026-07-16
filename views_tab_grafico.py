@@ -395,7 +395,7 @@ def renderizar_tab_grafico(datos_sidebar):
         
         # 2. Dibujar las líneas
         if not es_preinfantil:
-            dibujar_lineas_referencia(ax, ref_wr_data, lim_x_min, lim_x_max, peor_tiempo_ind)
+            dibujar_lineas_referencia(ax, ref_wr_data, lim_x_min, lim_x_max)
         
         if simulacion_externa:
             ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
