@@ -202,18 +202,28 @@ def renderizar_tab_grafico(datos_sidebar):
             lim_x_max = t_peak + 1.0 
             ax.set_xlim(lim_x_min, lim_x_max)
             
-            # 2. Eje Y y WR
-            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+# 2. Eje Y: Diagnóstico y obtención de WR
+            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Absoluto')
             
+            # --- DIAGNÓSTICO ---
             if not ref_wr_data:
-                m_wr = 46.40
-            elif isinstance(ref_wr_data, dict):
-                m_wr = float(ref_wr_data.get('tiempo', 46.40))
+                st.error(f"⚠️ Error de datos: La BD no encontró referencia para: '{prueba}' (Masculino/Absoluto)")
+                # Solo usamos esto para que la app no explote, pero ahora verás el error en pantalla
+                m_wr = 46.40 
             else:
+                # Si recibimos datos, intentamos extraer el tiempo
                 try:
-                    m_wr = float(ref_wr_data)
-                except (ValueError, TypeError):
+                    if isinstance(ref_wr_data, dict):
+                        m_wr = float(ref_wr_data.get('tiempo', 0))
+                    else:
+                        m_wr = float(ref_wr_data)
+                    
+                    if m_wr == 0:
+                        st.warning(f"⚠️ El tiempo de WR para '{prueba}' es 0 en la BD.")
+                except Exception as e:
+                    st.error(f"⚠️ Error al convertir WR: {e}")
                     m_wr = 46.40
+            # -------------------
             
             peor_tiempo_colectivo = max(todos_los_tiempos_colectivo)
             lim_y_inferior = m_wr * 0.92 
