@@ -85,7 +85,7 @@ def mostrar_vista_enrutador():
                 padding-top: 0.1rem;
             }
             .main > div {
-                padding-bottom: 200px;
+                padding-bottom: 400px;
             }
         </style>
     """, unsafe_allow_html=True)
