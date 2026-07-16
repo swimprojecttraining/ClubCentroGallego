@@ -392,20 +392,18 @@ def renderizar_tab_grafico(datos_sidebar):
 
         x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
         if not es_preinfantil:
-            referencias = [
-                {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
-                {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
-                {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-                {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},                
-                {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
-                {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
-            ]
-            for r in referencias:
-                if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                    ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                    desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                    tiempo_lbl = formatear_a_minutos(r["val"]).replace(" s", "")
-                    ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl}", color=r["col"], fontsize=7, va=r["va"], ha="left")
+            # 1. Empaquetamos tus variables actuales en un diccionario
+            ref_data = {
+                "m_ano": m_ano,
+                "m_panam_b": m_panam_b,
+                "m_panam_a": m_panam_a,
+                "m_wa_b": m_wa_b,
+                "m_wa_a": m_wa_a,
+                "m_wr": m_wr
+            }
+            
+            # 2. Llamamos a la función centralizada (sin peor_tiempo)
+            dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max)
         else:
             if m_ano > 0:
                 ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
