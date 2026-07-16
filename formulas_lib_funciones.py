@@ -228,11 +228,11 @@ def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo):
     # Configuración de referencias
     configs = [
         {"key": "m_ano",     "lbl": "Mín. Año",    "col": "#A06000", "va": "top"},
-        {"key": "m_panam_b", "lbl": "PANAM Jr B",  "col": "#006644", "va": "top"},
-        {"key": "m_panam_a", "lbl": "PANAM Jr A",  "col": "#2A658A", "va": "bottom"},
-        {"key": "m_wa_b",    "lbl": "WA B",        "col": "#943100", "va": "top"},
-        {"key": "m_wa_a",    "lbl": "WA A",        "col": "#883963", "va": "bottom"},
-        {"key": "m_wr",      "lbl": "WR",          "col": "#2C3E50", "va": "bottom"}
+        {"key": "m_panam_b", "lbl": "PANAM Jr B",  "col": "#006644", "va": "bottom"},
+        {"key": "m_panam_a", "lbl": "PANAM Jr A",  "col": "#2A658A", "va": "top"},
+        {"key": "m_wa_b",    "lbl": "WA B",        "col": "#943100", "va": "bottom"},
+        {"key": "m_wa_a",    "lbl": "WA A",        "col": "#883963", "va": "top"},
+        {"key": "m_wr",      "lbl": "WR",          "col": "#2C3E50", "va": "top"}
     ]
     
     x_pos = lim_x_min + (lim_x_max - lim_x_min) * 0.02
