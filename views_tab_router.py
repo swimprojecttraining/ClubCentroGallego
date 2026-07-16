@@ -82,7 +82,7 @@ def mostrar_vista_enrutador():
     st.markdown("""
         <style>
             .block-container.block-container {
-                padding-top: 1rem;
+                padding-top: 0.5rem;
             }
             .main > div {
                 padding-bottom: 5rem;
