@@ -203,7 +203,7 @@ def renderizar_tab_grafico(datos_sidebar):
             ax.set_xlim(lim_x_min, lim_x_max)
             
             # 2. Eje Y y WR
-            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero='Masculino', categoria='Absoluto')
+            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
             
             if not ref_wr_data:
                 m_wr = 46.40
