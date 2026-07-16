@@ -224,7 +224,7 @@ def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo=No
 
     # Extraemos el objeto
     ref_obj = ref_data[0] if isinstance(ref_data, list) and len(ref_data) > 0 else ref_data
-    
+    y_min, y_max = ax.get_ylim()
     # Configuración de referencias
     configs = [
         {"key": "m_ano",     "lbl": "Mín. Año",    "col": "#A06000", "va": "top"},
@@ -240,10 +240,11 @@ def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo=No
     for cfg in configs:
         val = ref_obj.get(cfg["key"]) if isinstance(ref_obj, dict) else None
         if val and isinstance(val, (int, float)) and val > 0:
-            ax.axhline(y=val, color=cfg["col"], linestyle=":", linewidth=0.8, alpha=0.7)
-            
-            lbl_texto = f"{cfg['lbl']}: {formatear_a_minutos(val).replace(' s', '')}"
-            ax.text(x_pos, val, lbl_texto, color=cfg["col"], fontsize=6.5, ha="left", va=cfg["va"])
+            if (y_min * 0.99) <= val <= (y_max * 1.01):
+                ax.axhline(y=val, color=cfg["col"], linestyle=":", linewidth=0.8, alpha=0.7)
+                
+                lbl_texto = f"{cfg['lbl']}: {formatear_a_minutos(val).replace(' s', '')}"
+                ax.text(x_pos, val, lbl_texto, color=cfg["col"], fontsize=6.5, ha="left", va=cfg["va"])
 # -------------------------------------------------------------
 # MOTOR MATEMÁTICO DOBLE CALCULO DE CURVA AJUSTADO
 # -------------------------------------------------------------
