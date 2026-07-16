@@ -392,25 +392,8 @@ def renderizar_tab_grafico(datos_sidebar):
 
         x_texto = lim_x_min + (lim_x_max - lim_x_min) * 0.05
         if not es_preinfantil:
-            referencias = [
-                {"val": m_ano, "lbl": "Mín. Año", "col": "#A06000", "va": "bottom"}, 
-                {"val": m_panam_b, "lbl": "PANAM Jr B", "col": "#006644", "va": "bottom"},      
-                {"val": m_panam_a, "lbl": "PANAM Jr A", "col": "#2A658A", "va": "top"},   
-                {"val": m_wa_b, "lbl": "WA B", "col": "#943100", "va": "bottom"},                
-                {"val": m_wa_a, "lbl": "WA A", "col": "#883963", "va": "top"},            
-                {"val": m_wr, "lbl": "World Record", "col": "#2C3E50", "va": "top"}   
-            ]
-            for r in referencias:
-                if r["val"] > 0 and lim_y_inferior <= r["val"] <= lim_y_superior:
-                    ax.axhline(y=r["val"], color=r["col"], linestyle=":", linewidth=0.6, alpha=0.7)
-                    desplazamiento_y = (lim_y_superior - lim_y_inferior) * 0.006 if r["va"] == "bottom" else -((lim_y_superior - lim_y_inferior) * 0.006)
-                    tiempo_lbl = formatear_a_minutos(r["val"]).replace(" s", "")
-                    ax.text(x_texto, r["val"] + desplazamiento_y, f"{r['lbl']}: {tiempo_lbl}", color=r["col"], fontsize=7, va=r["va"], ha="left")
-        else:
-            if m_ano > 0:
-                ax.axhline(y=m_ano, color="#A06000", linestyle="--", linewidth=0.6, alpha=0.7)
-                m_ano_lbl = formatear_a_minutos(m_ano).replace(" s", "")
-                ax.text(x_texto, m_ano - ((lim_y_superior - lim_y_inferior) * 0.006), f"Target: {m_ano_lbl}", color="#A06000", fontsize=7, va="top", ha="left")
+            ref_wr_data = obtener_marcas_referencia_cache(prueba=prueba, genero=genero, categoria=categoria)
+            dibujar_lineas_referencia(ax, ref_wr_data, lim_x_min, lim_x_max, peor_tiempo)
         
         if simulacion_externa:
             ax.set_title(f"Simulación de Escenarios - {titulo_grafico}", fontsize=12, pad=10)
