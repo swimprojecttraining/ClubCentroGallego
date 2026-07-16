@@ -16,7 +16,7 @@ from formulas_lib_funciones import (
     procesar_mejor_marca_historica,
     calcular_puntos_wa,
     obtener_datos_hitos_atleta,
-    dibijar_lineas_de_referencia
+    dibijar_lineas_referencia
 )
 
 from conections_supabase_cache import (
