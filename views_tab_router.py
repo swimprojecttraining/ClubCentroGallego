@@ -77,12 +77,15 @@ def mostrar_vista_enrutador():
             renderizar_tab_calendario(datos_sidebar)
         with tab_admin:
             renderizar_tab_admin(datos_sidebar)
+            
     # 🎨 Espaciado global para evitar el efecto de "contenido apretado"
     st.markdown("""
         <style>
-            /* Añade aire al final de la página */
+            .block-container.block-container {
+                padding-top: 1rem;
+            }
             .main > div {
-                padding-bottom: 200px;
+                padding-bottom: 5rem;
             }
         </style>
     """, unsafe_allow_html=True)
