@@ -42,6 +42,10 @@ def guardar_en_bd(df_procesado, nombre_competencia):
                 "nota": nombre_competencia
             }
             registros_a_insertar.append(registro)
+
+    st.subheader("🔍 Datos preparados para Supabase")
+    st.caption("Verifica si los nombres, pruebas y tiempos son correctos antes de insertar.")
+    st.json(registros_a_insertar) # Esto imprimirá la lista de diccionarios en pantalla
     
     # 2. Insertar todo el lote
     if registros_a_insertar:
