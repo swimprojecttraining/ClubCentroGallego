@@ -19,6 +19,7 @@ def parsear_lenex(archivo_stream):
     """
     Parsea un archivo Lenex (.lxf) y lo convierte a un DataFrame compatible.
     """
+    archivo_stream.seek(0)
     tree = ET.parse(archivo_stream)
     root = tree.getroot()
     
