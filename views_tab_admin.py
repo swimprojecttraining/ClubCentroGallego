@@ -7,7 +7,7 @@ from supabase import create_client, Client
 # Se asume la existencia de la función de mensajería del sistema unificado
 from formulas_lib_funciones import enviar_email 
 
-def renderizar_tab_admin(datos_sidebar=None):
+def renderizar_tab_admin:
     global supabase
     if "supabase" in st.session_state and st.session_state.supabase:
         supabase = st.session_state.supabase
