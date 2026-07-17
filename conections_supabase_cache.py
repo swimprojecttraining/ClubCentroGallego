@@ -109,4 +109,12 @@ def obtener_marcas_equipo_cache(supabase, lista_ids_nadadores, prueba_selecciona
         print(f"Error al consultar marcas del equipo: {e}")
         return pd.DataFrame()
 
-
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_todo_el_historial_cache(usuario_id):
+    """Descarga el 100% de las marcas de un atleta para procesamiento rápido en memoria."""
+    supabase = _get_db()
+    if not supabase: return []
+    try:
+        res = supabase.table("marcas_historicas").select("id, prueba, edad, tiempo, nota").eq("usuario_id", usuario_id).order("edad", desc=False).execute()
+        return res.data if res.data else []
+    except: return []
