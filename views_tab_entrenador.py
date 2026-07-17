@@ -2,12 +2,13 @@ import streamlit as st
 import pandas as pd
 from formulas_lib_funciones import formatear_a_minutos, convertir_string_a_segundos
 # Importaciones de la solución de tab_marcas
-from formulas_lib_funciones import obtener_pruebas_por_categoria
+from conections_supabase_cache import obtener_todo_el_historial_cache, obtener_pruebas_por_categoria
 
 def renderizar_tab_entrenador():
     """
     CÓDIGO MODULAR EVOLUCIONADO.
     Indentación limpia corregida a 4 espacios planos para evitar fallos de despliegue.
+    Optimizado con Session State para evitar consultas lentas repetitivas.
     """
     global supabase
     if "supabase" in st.session_state and st.session_state.supabase:
@@ -22,17 +23,26 @@ def renderizar_tab_entrenador():
 
     st.markdown("### ⚙️ Umbrales de Competencia para la Categoría")
     
-# 1. Definimos primero la categoría seleccionada por el entrenador (cat_nadador)
+    # 1. Definimos primero la categoría seleccionada por el entrenador (cat_nadador)
     u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
     
-    # 2. Implementación exclusiva del filtrado de pruebas traído de tab_marcas
-    lista_pruebas_restringida = obtener_pruebas_por_categoria(u_cat)
+    # 2. OPTIMIZACIÓN DE VELOCIDAD: Almacenamos el diccionario de pruebas en caché local de sesión
+    # Evita que se consulte al "Pentágono" en cada tecla que pulse el usuario
+    if "diccionario_pruebas_cache" not in st.session_state:
+        st.session_state["diccionario_pruebas_cache"] = {}
+        
+    if u_cat not in st.session_state["diccionario_pruebas_cache"]:
+        with st.spinner("⚡ Sincronizando pruebas por primera vez..."):
+            # Realiza la consulta pesada una única vez por categoría
+            st.session_state["diccionario_pruebas_cache"][u_cat] = obtener_pruebas_por_categoria(u_cat)
+            
+    lista_pruebas_restringida = st.session_state["diccionario_pruebas_cache"][u_cat]
     
     prueba_local_activa = st.selectbox(
         f"🏊‍♂️ Seleccione la Prueba para {u_cat}:", 
         options=lista_pruebas_restringida,
         index=1 if len(lista_pruebas_restringida) > 1 else 0,
-        key="sb_prueba_entrenador_ingreso"  # <--- CAMBIADO AQUÍ PARA EVITAR EL DUPLICADO
+        key="sb_prueba_entrenador_ingreso"
     )
     
     # 3. Sincronizamos la prueba seleccionada localmente con la lógica del resto de la función
