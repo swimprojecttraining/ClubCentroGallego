@@ -4,14 +4,16 @@ import datetime
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-# Importaciones de tu librería unificada
+# Importaciones de tu librería lógica de conversión y categorías
 from formulas_lib_funciones import (
     convertir_string_a_segundos, 
     formatear_a_minutos, 
     calcular_edad_decimal, 
-    calcular_categoria_competencia,
-    obtener_marcas_historicas_cache  # Tu función de caché optimizada
+    calcular_categoria_competencia
 )
+
+# Importación de tu nueva función optimizada desde el archivo de caché dedicado
+from connections_supabase_cache import obtener_todo_el_historial_cache
 
 def renderizar_tab_marcas(datos_sidebar=None):
     st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
@@ -26,14 +28,13 @@ def renderizar_tab_marcas(datos_sidebar=None):
         st.info("💡 Por favor, selecciona un nadador en la barra lateral para gestionar sus marcas oficiales.")
         return
 
-    # 1. LEER LA PRUEBA ACTIVA DESDE EL SIDEBAR
-    # Trae el valor de forma segura sin romper la reactividad global
+    # 1. LEER LA PRUEBA ACTIVA DESDE EL SIDEBAR DE FORMA REACTIVA
     prueba_activa = st.session_state.get("prueba_seleccionada")
     if not prueba_activa:
         st.info("👈 Selecciona una distancia válida en la barra lateral para comenzar.")
         return
 
-    # 2. OBTENCIÓN DE METADATOS DE LA CATEGORÍA
+    # 2. OBTENCIÓN DE METADATOS DE LA CATEGORÍA PARA LÍNEAS DE REFERENCIA
     cat_nadador, genero_nadador = "Desconocida", "F"
     if ctx_supabase_mar:
         try:
@@ -45,16 +46,16 @@ def renderizar_tab_marcas(datos_sidebar=None):
             st.error(f"Error al calcular metadatos: {e}")
 
     # =============================================================================
-    # ⚡ CARGA ULTRA-RÁPIDA DESDE LA CACHÉ (Pasando None para traer TODO)
+    # ⚡ VELOCIDAD SÓNICA: Consumo de la nueva función "Cero Riesgos"
     # =============================================================================
     df_marcas_raw = pd.DataFrame()
     if ctx_supabase_mar:
-        # Llamamos a la caché pasándole None para que traiga todo el lote del atleta de un solo viaje
-        datos_cacheados = obtener_marcas_historicas_cache(None, id_atleta_actual)
+        # Descargamos todo el lote histórico del atleta en un solo viaje de red
+        datos_cacheados = obtener_todo_el_historial_cache(id_atleta_actual)
         if datos_cacheados:
             df_marcas_raw = pd.DataFrame(datos_cacheados)
 
-    # Creamos las subpestañas estructurales
+    # Inicialización de subpestañas estructurales
     subtab_ingreso, subtab_top_tiempos, subtab_evolucion_prueba = st.tabs([
         "📥 1. Ingresar y Gestionar Marcas",
         "🥇 2. Reporte de Mejores Tiempos (Top Histórico)", 
@@ -62,7 +63,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
     ])
 
     # =============================================================================
-    # SUBTAB 1: INGRESO Y GESTIÓN (Filtrado local instantáneo)
+    # SUBTAB 1: INGRESO Y GESTIÓN (Filtrado local por Pandas en 0ms)
     # =============================================================================
     with subtab_ingreso:
         col_form, col_tabla_rapida = st.columns([1, 1.2])
@@ -93,7 +94,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
                                 }
                                 ctx_supabase_mar.table("marcas_historicas").insert(nueva_m).execute()
                                 
-                                # 🔥 LIMPIEZA DE CACHÉ: Obliga a recargar los nuevos datos en el próximo ciclo
+                                # 🔥 INVALIDACIÓN DE CACHÉ: Limpia la RAM para forzar recarga en el próximo ciclo
                                 st.cache_data.clear()
                                 st.success(f"¡Marca guardada con éxito en {prueba_activa}!")
                                 st.rerun()
@@ -105,7 +106,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
         with col_tabla_rapida:
             st.markdown(f"**Historial de la Prueba: {prueba_activa}**")
             
-            # Filtramos el DataFrame directamente en memoria RAM usando la prueba del sidebar
+            # El filtrado ocurre instantáneamente en la RAM del servidor
             if not df_marcas_raw.empty:
                 df_filtrado_local = df_marcas_raw[df_marcas_raw["prueba"] == prueba_activa].copy()
                 
@@ -122,7 +123,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
                         if st.button("🗑️ Eliminar Fila Seleccionada"):
                             ctx_supabase_mar.table("marcas_historicas").delete().eq("id", int(opciones_del[sel_del])).execute()
                             
-                            # 🔥 LIMPIEZA DE CACHÉ: Refleja la eliminación de inmediato
+                            # 🔥 INVALIDACIÓN DE CACHÉ: Garantiza consistencia visual inmediata
                             st.cache_data.clear()
                             st.rerun()
                     
@@ -133,7 +134,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
                 st.info("💡 Base de datos vacía para este atleta.")
 
     # =============================================================================
-    # SUBTAB 2: REPORTES DE MEJORES TIEMPOS (Usa los datos ya cargados)
+    # SUBTAB 2: REPORTES DE MEJORES TIEMPOS (Aprovecha los mismos datos cargados)
     # =============================================================================
     with subtab_top_tiempos:
         st.markdown("#### 🥇 Récords Personales Absolutos (Personal Best)")
@@ -152,30 +153,28 @@ def renderizar_tab_marcas(datos_sidebar=None):
             st.info("No hay marcas disponibles para calcular los récords.")
 
     # =============================================================================
-    # SUBTAB 3: GRÁFICO DE EVOLUCIÓN (Usa los datos ya cargados)
+    # SUBTAB 3: GRÁFICO DE EVOLUCIÓN (Sincronizado con la selección del sidebar)
     # =============================================================================
     with subtab_evolucion_prueba:
         st.markdown("#### 📈 Buscador Histórico Dinámico y Líneas de Campeonato")
         
         if not df_marcas_raw.empty:
-            # Mostramos sólo las pruebas donde el nadador sí tiene registros reales
             lista_pruebas_existentes = sorted(df_marcas_raw["prueba"].unique().tolist())
             
-            # Buscamos pre-seleccionar la prueba del sidebar si existe en su historial
+            # Pre-seleccionamos de forma inteligente la prueba del sidebar si existe historial de ella
             idx_defecto = 0
             if prueba_activa in lista_pruebas_existentes:
                 idx_defecto = lista_pruebas_existentes.index(prueba_activa)
                 
             p_sel = st.selectbox("Seleccione la Prueba a Graficar:", options=lista_pruebas_existentes, index=idx_defecto, key="sb_evolucion_analisis")
             
-            # Filtrado instantáneo en memoria RAM
             df_ev = df_marcas_raw[df_marcas_raw["prueba"] == p_sel].sort_values("edad").reset_index(drop=True)
             
             if not df_ev.empty:
                 fig_mar, ax = plt.subplots(figsize=(8.5, 3.5))
                 ax.plot(df_ev["edad"], df_ev["tiempo"], marker="o", color="#3498db", linewidth=1.8, label="Progreso")
                 
-                # Intentar buscar marca mínima de referencia en DB
+                # Búsqueda de tiempos de referencia mínimos
                 m_minima = None
                 try:
                     ref_db = ctx_supabase_mar.table("marcas_referencia").select("m_ano").eq("prueba", p_sel).eq("categoria", cat_nadador).eq("genero", genero_nadador).execute().data
