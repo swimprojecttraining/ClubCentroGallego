@@ -119,16 +119,29 @@ def guardar_en_bd(df_procesado, nombre_competencia):
     return False, "No se encontraron usuarios coincidentes."
 
 def renderizar_tab_importar():
-    st.markdown("### 📥 Importación de Competencias (Modo Visual)")
-    archivo_subido = st.file_uploader("Selecciona el archivo (.hy3)", type=['hy3', 'txt'])
+    st.markdown("### 📥 Importación de Competencias (HY3 / Lenex)")
+    # 1. Actualizado para aceptar nuevos formatos
+    archivo_subido = st.file_uploader("Selecciona el archivo (.hy3, .lxf, .len)", type=['hy3', 'txt', 'lxf', 'len'])
     
     if archivo_subido:
-        stringio = io.StringIO(archivo_subido.getvalue().decode("utf-8"))
+        # 2. Identificar formato
+        extension = archivo_subido.name.split('.')[-1].lower()
+        df = pd.DataFrame()
+        
         try:
-            df = parsear_hy3(stringio)
+            if extension == 'hy3':
+                stringio = io.StringIO(archivo_subido.getvalue().decode("utf-8"))
+                df = parsear_hy3(stringio)
+            elif extension in ['lxf', 'len']:
+                df = parsear_lenex(archivo_subido)
+            else:
+                st.error("Formato no soportado.")
+                return
+
             if not df.empty:
+                # 3. Conversión de tiempo estandarizada
                 df['Tiempo'] = df['Tiempo'].apply(convertir_hy3_a_segundos)
-                st.success("✅ ¡Archivo procesado!")
+                st.success(f"✅ ¡Archivo {extension.upper()} procesado!")
                 st.dataframe(df, use_container_width=True)
                 
                 nombre_comp = st.text_input("Nombre de la Competencia (nota):")
@@ -142,6 +155,7 @@ def renderizar_tab_importar():
                     else:
                         st.warning("Escribe el nombre de la competencia.")
             else:
-                st.error("No se encontraron datos.")
+                st.error("No se encontraron datos válidos en el archivo.")
+                
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error al procesar el archivo: {e}")
