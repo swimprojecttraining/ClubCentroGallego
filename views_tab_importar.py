@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from datetime import datetime
+from login_general_app import supabase
 
 # Diccionario para normalizar los códigos del archivo .hy3
 MAPEO_PRUEBAS = {
