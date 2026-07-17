@@ -20,7 +20,7 @@ def renderizar_tab_entrenador():
 
     st.markdown("### ⚙️ Umbrales de Competencia para la Categoría")
     
-    titulo_grafico = st.session_state.get("prueba_activa_seleccionada", "50 Libre")
+    titulo_grafico = st.session_state.get("prueba_seleccionada", "50 Libre")
     genero_atleta = st.session_state.get("nadador_seleccionado_genero", "F")
     es_preinfantil = st.session_state.get("es_preinfantil", False)
 
