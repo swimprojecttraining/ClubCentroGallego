@@ -81,7 +81,7 @@ def guardar_en_bd(df_procesado, nombre_competencia):
     if registros_a_insertar:
         try:
             # Descomenta la siguiente línea cuando estés listo para guardar de verdad
-            # supabase.table("marcas_historicas").insert(registros_a_insertar).execute()
+            supabase.table("marcas_historicas").insert(registros_a_insertar).execute()
             return True, len(registros_a_insertar)
         except Exception as e:
             return False, str(e)
