@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from formulas_lib_funciones import formatear_a_minutos, convertir_string_a_segundos
 
-def renderizar_tab_entrenador(datos_sidebar=None):
+def renderizar_tab_entrenador:
     """
     CÓDIGO MODULAR EVOLUCIONADO.
     Indentación limpia corregida a 4 espacios planos para evitar fallos de despliegue.
