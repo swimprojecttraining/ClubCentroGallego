@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from datetime import datetime
+import xml.etree.ElementTree as ET
 
 
 # Diccionario para normalizar los códigos del archivo .hy3
@@ -13,6 +14,36 @@ MAPEO_PRUEBAS = {
     "0050Fy": "50 Mariposa", "0100Fy": "100 Mariposa", "0200Fy": "200 Mariposa", 
     "0200IM": "200 Combinado", "0400IM": "400 Combinado"
 }
+
+def parsear_lenex(archivo_stream):
+    """
+    Parsea un archivo Lenex (.lxf) y lo convierte a un DataFrame compatible.
+    """
+    tree = ET.parse(archivo_stream)
+    root = tree.getroot()
+    
+    resultados = []
+    
+    # Navegamos por el árbol XML (Lenex -> MEETS -> MEET -> SESSIONS -> SESSION -> EVENTS -> EVENT -> HEATS -> HEAT -> RESULT)
+    for result in root.findall(".//RESULT"):
+        athlete = result.find("ATHLETE")
+        if athlete:
+            nombre = f"{athlete.get('lastname')} {athlete.get('firstname')}"
+            
+            # Buscamos el tiempo (normalmente guardado en 'swimtime')
+            tiempo = result.get("swimtime") 
+            
+            # Buscamos el evento
+            event = result.find("../../..") # Subimos en el árbol al evento
+            prueba = event.get("event")
+            
+            resultados.append({
+                "Nadador": nombre,
+                "Evento": prueba,
+                "Tiempo": tiempo # Aquí aplicarás la misma lógica de conversión a segundos
+            })
+            
+    return pd.DataFrame(resultados)
 
 def parsear_hy3(archivo_texto):
     resultados = []
