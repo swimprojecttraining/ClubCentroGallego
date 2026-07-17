@@ -29,10 +29,10 @@ def renderizar_tab_marcas(datos_sidebar=None):
         st.info("💡 Por favor, selecciona un nadador en la barra lateral para gestionar sus marcas oficiales.")
         return
 
-    # =============================================================================
+# =============================================================================
     # 📊 SELECCIÓN DE PRUEBA (Exactamente después del return, directo al Sidebar)
     # =============================================================================
-    spc()  # Tu espaciador nativo
+    st.sidebar.write("")  # <--- Espacio vertical nativo y seguro
     st.sidebar.subheader("📊 Ajustes por prueba")
 
     cat_atleta = st.session_state.nadador_seleccionado_categoria
