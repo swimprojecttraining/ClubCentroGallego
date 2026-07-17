@@ -3,37 +3,36 @@ import pandas as pd
 import io
 
 def parsear_hy3(archivo_texto):
-    """
-    Lee el archivo línea por línea y extrae datos basándose en índices fijos.
-    """
     resultados = []
     nadador_actual = None
 
-    # Iteramos sobre las líneas del archivo subido
     for linea in archivo_texto:
-        if len(linea) < 2: continue # Saltar líneas vacías
+        if len(linea) < 2: continue
         
         record_type = linea[0:2]
         
-        # D1: Capturamos el nadador actual
+        # D1: Nombre del nadador
         if record_type == "D1":
-            # Ajusta estos índices según las pruebas que hagamos con tu archivo real
-            apellido = linea[12:32].strip() 
-            nombre = linea[32:52].strip()
+            # Asegúrate de que estos índices coincidan con la línea D1
+            apellido = linea[7:27].strip() 
+            nombre = linea[27:47].strip()
             nadador_actual = f"{nombre} {apellido}"
             
-        # F1: Capturamos la prueba y asociamos al nadador actual
+        # F1: Resultados
         elif record_type == "F1" and nadador_actual:
-            # El evento suele estar en la posición 12-22
-            evento = linea[12:22].strip()
-            # El tiempo suele estar en la posición 22-28
-            tiempo_raw = linea[22:30].strip()
+            # Ajuste de índices para el formato:
+            # Evento en 12:18 (0050Fr)
+            # Tiempo en 32:38 (002750)
+            evento = linea[12:18].strip()
+            tiempo_raw = linea[32:38].strip() 
             
-            resultados.append({
-                "Nadador": nadador_actual,
-                "Evento": evento,
-                "Tiempo": tiempo_raw
-            })
+            # Solo agregamos si encontramos tiempo
+            if tiempo_raw:
+                resultados.append({
+                    "Nadador": nadador_actual,
+                    "Evento": evento,
+                    "Tiempo": tiempo_raw
+                })
 
     return pd.DataFrame(resultados)
 
