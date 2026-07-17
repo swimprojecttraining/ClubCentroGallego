@@ -104,13 +104,16 @@ def renderizar_sidebar_completo():
     spc()
     st.sidebar.subheader("📊 Ajustes por prueba")
 
-    # Mantenemos tu asignación por atributo exacta
+    # 1. Mantenemos tu asignación por atributo exacta
     cat_atleta = st.session_state.nadador_seleccionado_categoria
 
-    # LLAMADA A LA FUNCIÓN: Reemplaza de un solo golpe las más de 30 líneas de ifs/elifs
+    # 🛠️ CORRECCIÓN AL NameError: Mantenemos la variable viva para el resto del sidebar
+    es_preinfantil = cat_atleta.startswith("Preinfantil") if cat_atleta else False
+
+    # 2. LLAMADA A LA FUNCIÓN: Limpia las más de 30 líneas de ifs/elifs de las marcas
     lista_pruebas = obtener_pruebas_por_categoria(cat_atleta)
 
-    # Tus componentes y validaciones originales se quedan exactamente igual
+    # 3. Tus componentes y validaciones originales se quedan exactamente igual
     titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=1)
 
     if titulo_grafico.startswith("---"):
