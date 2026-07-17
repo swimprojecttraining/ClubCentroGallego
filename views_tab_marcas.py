@@ -14,7 +14,7 @@ from formulas_lib_funciones import (
 )
 
 # 2. Tu función optimizada de caché masiva
-from connections_supabase_cache import obtener_todo_el_historial_cache
+from conections_supabase_cache import obtener_todo_el_historial_cache
 
 def renderizar_tab_marcas(datos_sidebar=None):
     st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
