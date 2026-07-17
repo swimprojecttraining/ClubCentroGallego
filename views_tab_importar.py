@@ -121,7 +121,7 @@ def guardar_en_bd(df_procesado, nombre_competencia):
 def renderizar_tab_importar():
     st.markdown("### 📥 Importación de Competencias (HY3 / Lenex)")
     # 1. Actualizado para aceptar nuevos formatos
-    archivo_subido = st.file_uploader("Selecciona el archivo (.hy3, .lxf, .len)", type=['hy3', 'txt', 'lxf', 'len'])
+    archivo_subido = st.file_uploader("Selecciona el archivo (.hy3, .lxf, .len, .xml)", type=['hy3', 'txt', 'lxf', 'len', 'xml'])
     
     if archivo_subido:
         # 2. Identificar formato
