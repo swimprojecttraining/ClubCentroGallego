@@ -29,20 +29,27 @@ def renderizar_tab_marcas(datos_sidebar=None):
         st.info("💡 Por favor, selecciona un nadador en la barra lateral para gestionar sus marcas oficiales.")
         return
 
-    # 1. OBTENCIÓN DINÁMICA DE LA CATEGORÍA REGLAMENTARIA
+    # =============================================================================
+    # SOLUCIÓN FILTRO 1: Protegemos los metadatos del atleta en caché de sesión local
+    # =============================================================================
     cat_nadador, genero_nadador = "Desconocida", "F"
     if ctx_supabase_mar:
-        try:
-            atleta_meta = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento, genero").eq("id", id_atleta_actual).execute().data
-            if atleta_meta:
-                genero_nadador = atleta_meta[0].get("genero", "F")
-                cat_nadador, _ = calcular_categoria_competencia(str(atleta_meta[0]["fecha_nacimiento"])[:10])
-        except Exception as e:
-            st.error(f"Error al calcular metadatos del atleta: {e}")
+        meta_key = f"meta_atleta_{id_atleta_actual}"
+        if meta_key not in st.session_state:
+            try:
+                atleta_meta = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento, genero").eq("id", id_atleta_actual).execute().data
+                st.session_state[meta_key] = atleta_meta
+            except Exception as e:
+                st.error(f"Error al calcular metadatos del atleta: {e}")
+                atleta_meta = None
+        else:
+            atleta_meta = st.session_state[meta_key]
 
-    # =============================================================================
-    # CORREGIDO: Carga ultra rápida desde la función caché dedicada
-    # =============================================================================
+        if atleta_meta:
+            genero_nadador = atleta_meta[0].get("genero", "F")
+            cat_nadador, _ = calcular_categoria_competencia(str(atleta_meta[0]["fecha_nacimiento"])[:10])
+
+    # Carga ultra rápida desde la función caché dedicada
     df_marcas_raw = pd.DataFrame()
     if ctx_supabase_mar:
         datos_cacheados = obtener_todo_el_historial_cache(id_atleta_actual)
@@ -105,7 +112,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
                                     }
                                     ctx_supabase_mar.table("marcas_historicas").insert(nueva_m).execute()
                                     
-                                    # CORREGIDO: Rompemos la caché para forzar la recarga visual inmediata
+                                    # Rompemos la caché para forzar la recarga visual inmediata
                                     st.cache_data.clear()
                                     
                                     st.success(f"¡Marca guardada con éxito en {prueba_local_activa}!")
@@ -133,10 +140,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
                             sel_del = st.selectbox("Eliminar Registro Histórico:", options=list(opciones_del.keys()))
                             if st.button("🗑️ Eliminar Fila Seleccionada"):
                                 ctx_supabase_mar.table("marcas_historicas").delete().eq("id", int(opciones_del[sel_del])).execute()
-                                
-                                # CORREGIDO: Rompemos la caché aquí también tras eliminar
                                 st.cache_data.clear()
-                                
                                 st.rerun()
                         
                         st.dataframe(df_visual[["edad", "tiempo", "nota"]], use_container_width=True, hide_index=True)
@@ -178,9 +182,18 @@ def renderizar_tab_marcas(datos_sidebar=None):
                 fig_mar, ax = plt.subplots(figsize=(8.5, 3.5))
                 ax.plot(df_ev["edad"], df_ev["tiempo"], marker="o", color="#3498db", linewidth=1.8, label="Progreso")
                 
+                # =============================================================================
+                # SOLUCIÓN FILTRO 2: Protegemos las marcas de referencia del gráfico en sesión
+                # =============================================================================
                 m_minima = None
                 try:
-                    ref_db = ctx_supabase_mar.table("marcas_referencia").select("m_ano").eq("prueba", p_sel).eq("categoria", cat_nadador).eq("genero", genero_nadador).execute().data
+                    ref_key = f"ref_{p_sel}_{cat_nadador}_{genero_nadador}"
+                    if ref_key not in st.session_state:
+                        ref_db = ctx_supabase_mar.table("marcas_referencia").select("m_ano").eq("prueba", p_sel).eq("categoria", cat_nadador).eq("genero", genero_nadador).execute().data
+                        st.session_state[ref_key] = ref_db
+                    else:
+                        ref_db = st.session_state[ref_key]
+
                     if ref_db and ref_db[0].get("m_ano"):
                         m_minima = float(ref_db[0]["m_ano"])
                 except Exception:
