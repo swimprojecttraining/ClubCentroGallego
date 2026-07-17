@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from formulas_lib_funciones import calcular_categoria_competencia
 
-def renderizar_tab_asignaciones(datos_sidebar=None):
+def renderizar_tab_asignaciones:
     """
     CÓDIGO AUDITADO Y VERIFICADO: 17. Rutina reservada a Head Coach de asignación de atletas a entrenadores.
     Garantiza la consistencia en el borrado transaccional preventivo y la purga de caché de datos.
