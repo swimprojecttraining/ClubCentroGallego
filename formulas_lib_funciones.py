@@ -245,6 +245,47 @@ def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo=No
                 
                 lbl_texto = f"{cfg['lbl']}: {formatear_a_minutos(val).replace(' s', '')}"
                 ax.text(x_pos, val, lbl_texto, color=cfg["col"], fontsize=6.5, ha="left", va=cfg["va"])
+
+def obtener_pruebas_por_categoria(cat_atleta: str) -> list:
+    """
+    Retorna la lista oficial de pruebas y distancias reglamentarias permitidas 
+    según la categoría del atleta, incluyendo separadores estéticos de estilo.
+    """
+    es_preinfantil = cat_atleta.startswith("Preinfantil") if cat_atleta else False
+
+    if es_preinfantil:
+        return [
+            '--- 🏊‍♂️ LIBRE ---', '25 Libre', '50 Libre',
+            '--- 🏊‍♂️ ESPALDA ---', '25 Espalda',
+            '--- 🏊‍♂️ MARIPOSA ---', '25 Mariposa',
+            '--- 🏊‍♂️ PECHO ---', '25 Pecho',
+            '--- 🏊‍♂️ COMBINADO ---', '100 Combinado'
+        ]
+    elif cat_atleta == "Infantil A":
+        return [
+            '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre',
+            '--- 🏊‍♂️ ESPALDA ---', '50 Espalda',
+            '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa',
+            '--- 🏊‍♂️ PECHO ---', '50 Pecho',
+            '--- 🏊‍♂️ COMBINADO ---', '200 Combinado'
+        ]
+    elif cat_atleta == "Infantil B":
+        return [
+            '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre',
+            '--- 🏊‍♂️ ESPALDA ---', '50 Espalda', '100 Espalda', '200 Espalda',
+            '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa', '100 Mariposa', '200 Mariposa',
+            '--- 🏊‍♂️ PECHO ---', '50 Pecho', '100 Pecho', '200 Pecho',
+            '--- 🏊‍♂️ COMBINADO ---', '200 Combinado'
+        ]
+    else:
+        return [
+            '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre',
+            '--- 🏊‍♂️ ESPALDA ---', '50 Espalda', '100 Espalda', '200 Espalda',
+            '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa', '100 Mariposa', '200 Mariposa',
+            '--- 🏊‍♂️ PECHO ---', '50 Pecho', '100 Pecho', '200 Pecho',
+            '--- 🏊‍♂️ COMBINADO ---', '200 Combinado', '400 Combinado'
+        ]
+
 # -------------------------------------------------------------
 # MOTOR MATEMÁTICO DOBLE CALCULO DE CURVA AJUSTADO
 # -------------------------------------------------------------
