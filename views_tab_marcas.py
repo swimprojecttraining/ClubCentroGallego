@@ -58,28 +58,29 @@ def renderizar_tab_marcas(datos_sidebar=None):
                 ins_nota = st.text_input("Evento Año - Lugar:")
                 
                 if st.form_submit_button("💾 Guardar Registro"):
-                    try:
-                        ins_tiempo = convertir_string_a_segundos(ins_tiempo_str)
-                        atleta_query = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta_actual).execute()
-                        fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"] if atleta_query.data else None
-                        
-                        if not fecha_nacimiento_atleta:
-                            st.error("❌ El atleta no posee fecha de nacimiento configurada.")
-                        else:
-                            edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
-                            nueva_m = {
-                                "prueba": prueba_activa, 
-                                "edad": float(edad_calculada), 
-                                "tiempo": float(ins_tiempo),
-                                "nota": ins_nota, 
-                                "usuario_id": id_atleta_actual
-                            }
-                            ctx_supabase_mar.table("marcas_historicas").insert(nueva_m).execute()
-                            st.success("¡Marca guardada con éxito!")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error al procesar: {e}")
-        
+                    if rol_usuario in ["Head Coach", "Entrenador", "Administrador"] or id_usuario == id_atleta_actual:
+                        try:
+                            ins_tiempo = convertir_string_a_segundos(ins_tiempo_str)
+                            atleta_query = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta_actual).execute()
+                            fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"] if atleta_query.data else None
+                            
+                            if not fecha_nacimiento_atleta:
+                                st.error("❌ El atleta no posee fecha de nacimiento configurada.")
+                            else:
+                                edad_calculada = calcular_edad_decimal(fecha_nacimiento_atleta, ins_fecha_evento)
+                                nueva_m = {
+                                    "prueba": prueba_activa, 
+                                    "edad": float(edad_calculada), 
+                                    "tiempo": float(ins_tiempo),
+                                    "nota": ins_nota, 
+                                    "usuario_id": id_atleta_actual
+                                }
+                                ctx_supabase_mar.table("marcas_historicas").insert(nueva_m).execute()
+                                st.success("¡Marca guardada con éxito!")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error al procesar: {e}")
+            
         with col_tabla_rapida:
             st.markdown("**Registros en Base de Datos**")
             if not df_marcas_raw.empty:
