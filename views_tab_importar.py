@@ -39,6 +39,7 @@ def normalizar_prueba(codigo):
     return MAPEO_PRUEBAS.get(codigo, codigo)
 
 def guardar_en_bd(df_procesado, nombre_competencia):
+    supabase = st.session_state.supabase
     # Asume que 'supabase' está definido globalmente en tu app
     usuarios_db = supabase.table("usuarios").select("id, nombre, fecha_nacimiento").execute()
     usuarios_dict = {u['nombre'].lower(): {'id': u['id'], 'nacimiento': u['fecha_nacimiento']} for u in usuarios_db.data}
