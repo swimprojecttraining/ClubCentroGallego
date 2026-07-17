@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from formulas_lib_funciones import formatear_a_minutos, convertir_string_a_segundos
 # Importaciones de la solución de tab_marcas
-from conections_supabase_cache import obtener_todo_el_historial_cache, obtener_pruebas_por_categoria
+from conections_supabase_cache import obtener_pruebas_por_categoria
 
 def renderizar_tab_entrenador():
     """
