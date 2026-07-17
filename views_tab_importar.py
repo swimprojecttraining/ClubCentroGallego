@@ -24,7 +24,7 @@ def parsear_lenex(archivo_stream):
     # 1. Buscamos todos los atletas primero
     for athlete in root.findall(".//ATHLETE"):
         # Extraemos nombre y apellido de los atributos del atleta
-        nombre = f"{athlete.get('lastname', '')} {athlete.get('firstname', '')}"
+        nombre = f"{athlete.get('firstname', '') {athlete.get('lastname', '')}}"
         
         # 2. Buscamos todos los resultados DENTRO de ese atleta
         for result in athlete.findall(".//RESULT"):
