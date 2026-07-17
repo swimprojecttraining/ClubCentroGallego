@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import io
-from datetime import datetime
 import xml.etree.ElementTree as ET
 
 
@@ -15,29 +14,47 @@ MAPEO_PRUEBAS = {
     "0200IM": "200 Combinado", "0400IM": "400 Combinado"
 }
 
+def normalizar_prueba(codigo):
+    return MAPEO_PRUEBAS.get(codigo, codigo)
+
+def convertir_hy3_a_segundos(valor):
+    """
+    Convierte string '012010' a 80.10
+    """
+    s = str(valor).strip()
+    if len(s) != 6 or not s.isdigit():
+        return 0.0
+    
+    minutos = int(s[0:2])
+    segundos = int(s[2:4])
+    centesimas = int(s[4:6])
+    
+    return (minutos * 60) + segundos + (centesimas / 100)
+# --- Funciones Auxiliares ---
+def convertir_hy3_a_segundos(valor):
+    s = str(valor).strip()
+    if len(s) != 6 or not s.isdigit():
+        return 0.0
+    minutos = int(s[0:2])
+    segundos = int(s[2:4])
+    centesimas = int(s[4:6])
+    return (minutos * 60) + segundos + (centesimas / 100)
+
 def parsear_lenex(archivo_stream):
-    """Parsea archivos .lxf o .len navegando correctamente la jerarquía XML"""
+    archivo_stream.seek(0)
     tree = ET.parse(archivo_stream)
     root = tree.getroot()
     resultados = []
-    
-    # 1. Buscamos todos los atletas primero
     for athlete in root.findall(".//ATHLETE"):
-        # Extraemos nombre y apellido de los atributos del atleta
-        nombre = f"{athlete.get('firstname', '') {athlete.get('lastname', '')}}"
-        
-        # 2. Buscamos todos los resultados DENTRO de ese atleta
+        nombre = f"{athlete.get('firstname', '')} {athlete.get('lastname', '')}".strip()
         for result in athlete.findall(".//RESULT"):
-            # Extraemos los datos del resultado
             tiempo_raw = result.get("swimtime", "000000").replace(":", "").replace(".", "")
             prueba = result.get("event", "Desconocido")
-            
             resultados.append({
                 "Nadador": nombre,
                 "Evento": prueba,
                 "Tiempo": tiempo_raw
             })
-            
     return pd.DataFrame(resultados)
 
 def parsear_hy3(archivo_texto):
@@ -60,23 +77,6 @@ def parsear_hy3(archivo_texto):
                     "Tiempo": tiempo_raw
                 })
     return pd.DataFrame(resultados)
-
-def normalizar_prueba(codigo):
-    return MAPEO_PRUEBAS.get(codigo, codigo)
-
-def convertir_hy3_a_segundos(valor):
-    """
-    Convierte string '012010' a 80.10
-    """
-    s = str(valor).strip()
-    if len(s) != 6 or not s.isdigit():
-        return 0.0
-    
-    minutos = int(s[0:2])
-    segundos = int(s[2:4])
-    centesimas = int(s[4:6])
-    
-    return (minutos * 60) + segundos + (centesimas / 100)
 
 def guardar_en_bd(df_procesado, nombre_competencia):
     supabase = st.session_state.supabase
@@ -112,6 +112,7 @@ def guardar_en_bd(df_procesado, nombre_competencia):
         except Exception as e:
             return False, str(e)
     return False, "No se encontraron usuarios coincidentes."
+
 
 def renderizar_tab_importar():
     st.markdown("### 📥 Importación de Competencias (HY3 / Lenex)")
