@@ -3,7 +3,12 @@ from datetime import datetime
 
 # Diccionario para normalizar los códigos del archivo .hy3 a tu formato
 MAPEO_PRUEBAS = {
-    "0050Fr": "50 Libre", "0100Fr": "100 Libre", "0200Fr": "200 Libre", "0400Fr": "400 Libre", "0800Fr": "800 Libre", "1500Fr": "1500 Libre", "0050Br": "50 Pecho","0100Br": "100 Pecho",  "0200Br": "200 Pecho", "0050Bk": "50 Espalda", "0100Bk": "100 Espalda", "0200Bk": "200 Espalda", "0050Fy": "50 Mariposa", "0100Fy": "100 Mariposa", "0200Fy": "200 Mariposa", "0200IM": "200 Combinado",  "0400IM": "400 Combinado"
+    "0050Fr": "50 Libre", "0100Fr": "100 Libre", "0200Fr": "200 Libre", 
+    "0400Fr": "400 Libre", "0800Fr": "800 Libre", "1500Fr": "1500 Libre", 
+    "0050Br": "50 Pecho","0100Br": "100 Pecho",  "0200Br": "200 Pecho", 
+    "0050Bk": "50 Espalda", "0100Bk": "100 Espalda", "0200Bk": "200 Espalda", 
+    "0050Fy": "50 Mariposa", "0100Fy": "100 Mariposa", "0200Fy": "200 Mariposa", 
+    "0200IM": "200 Combinado",  "0400IM": "400 Combinado"
     
 }
 
