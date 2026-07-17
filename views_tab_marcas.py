@@ -13,6 +13,9 @@ from formulas_lib_funciones import (
     obtener_pruebas_por_categoria # Importamos la nueva función reactiva
 )
 
+# Importamos la función de tu archivo dedicado (con una sola n)
+from conections_supabase_cache import obtener_todo_el_historial_cache
+
 def renderizar_tab_marcas(datos_sidebar=None):
     st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
     st.caption("Módulo centralizado para la gestión de marcas oficiales, análisis de récords personales y exportación curricular.")
@@ -37,15 +40,14 @@ def renderizar_tab_marcas(datos_sidebar=None):
         except Exception as e:
             st.error(f"Error al calcular metadatos del atleta: {e}")
 
-    # Descarga optimizada del pool histórico del atleta (Un solo viaje de red)
+    # =============================================================================
+    # CORREGIDO: Carga ultra rápida desde la función caché dedicada
+    # =============================================================================
     df_marcas_raw = pd.DataFrame()
     if ctx_supabase_mar:
-        try:
-            res_inicial = ctx_supabase_mar.table("marcas_historicas").select("*").eq("usuario_id", id_atleta_actual).execute()
-            if res_inicial.data:
-                df_marcas_raw = pd.DataFrame(res_inicial.data)
-        except Exception:
-            pass
+        datos_cacheados = obtener_todo_el_historial_cache(id_atleta_actual)
+        if datos_cacheados:
+            df_marcas_raw = pd.DataFrame(datos_cacheados)
 
     subtab_ingreso, subtab_top_tiempos, subtab_evolucion_prueba = st.tabs([
         "📥 1. Ingresar y Gestionar Marcas",
@@ -102,6 +104,10 @@ def renderizar_tab_marcas(datos_sidebar=None):
                                         "usuario_id": id_atleta_actual
                                     }
                                     ctx_supabase_mar.table("marcas_historicas").insert(nueva_m).execute()
+                                    
+                                    # CORREGIDO: Rompemos la caché para forzar la recarga visual inmediata
+                                    st.cache_data.clear()
+                                    
                                     st.success(f"¡Marca guardada con éxito en {prueba_local_activa}!")
                                     st.rerun()
                             except Exception as e:
@@ -127,6 +133,10 @@ def renderizar_tab_marcas(datos_sidebar=None):
                             sel_del = st.selectbox("Eliminar Registro Histórico:", options=list(opciones_del.keys()))
                             if st.button("🗑️ Eliminar Fila Seleccionada"):
                                 ctx_supabase_mar.table("marcas_historicas").delete().eq("id", int(opciones_del[sel_del])).execute()
+                                
+                                # CORREGIDO: Rompemos la caché aquí también tras eliminar
+                                st.cache_data.clear()
+                                
                                 st.rerun()
                         
                         st.dataframe(df_visual[["edad", "tiempo", "nota"]], use_container_width=True, hide_index=True)
