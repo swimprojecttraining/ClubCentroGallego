@@ -9,7 +9,7 @@ from formulas_lib_funciones import (
     calcular_fecha_alerta
 )
 
-def renderizar_tab_calendario:
+def renderizar_tab_calendario():
     """
     CÓDIGO CORREGIDO Y OPTIMIZADO: 16. Rutina reservada de captura de calendario 
     y generación masiva de hitos. Aplica optimización de consultas SQL y validación.
