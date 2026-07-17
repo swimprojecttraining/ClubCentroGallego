@@ -16,32 +16,26 @@ MAPEO_PRUEBAS = {
 }
 
 def parsear_lenex(archivo_stream):
-    """
-    Parsea un archivo Lenex (.lxf) y lo convierte a un DataFrame compatible.
-    """
-    archivo_stream.seek(0)
+    """Parsea archivos .lxf o .len navegando correctamente la jerarquía XML"""
     tree = ET.parse(archivo_stream)
     root = tree.getroot()
-    
     resultados = []
     
-    # Navegamos por el árbol XML (Lenex -> MEETS -> MEET -> SESSIONS -> SESSION -> EVENTS -> EVENT -> HEATS -> HEAT -> RESULT)
-    for result in root.findall(".//RESULT"):
-        athlete = result.find("ATHLETE")
-        if athlete:
-            nombre = f"{athlete.get('lastname')} {athlete.get('firstname')}"
-            
-            # Buscamos el tiempo (normalmente guardado en 'swimtime')
-            tiempo = result.get("swimtime") 
-            
-            # Buscamos el evento
-            event = result.find("../../..") # Subimos en el árbol al evento
-            prueba = event.get("event")
+    # 1. Buscamos todos los atletas primero
+    for athlete in root.findall(".//ATHLETE"):
+        # Extraemos nombre y apellido de los atributos del atleta
+        nombre = f"{athlete.get('lastname', '')} {athlete.get('firstname', '')}"
+        
+        # 2. Buscamos todos los resultados DENTRO de ese atleta
+        for result in athlete.findall(".//RESULT"):
+            # Extraemos los datos del resultado
+            tiempo_raw = result.get("swimtime", "000000").replace(":", "").replace(".", "")
+            prueba = result.get("event", "Desconocido")
             
             resultados.append({
                 "Nadador": nombre,
                 "Evento": prueba,
-                "Tiempo": tiempo # Aquí aplicarás la misma lógica de conversión a segundos
+                "Tiempo": tiempo_raw
             })
             
     return pd.DataFrame(resultados)
