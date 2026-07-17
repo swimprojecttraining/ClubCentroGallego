@@ -11,12 +11,18 @@ def parsear_hy3(archivo_texto):
         
         record_type = linea[0:2]
         
-        # D1: Nombre del nadador
+        # D1: Capturamos los datos del nadador
         if record_type == "D1":
-            # Asegúrate de que estos índices coincidan con la línea D1
-            apellido = linea[7:27].strip() 
-            nombre = linea[27:47].strip()
+            # Ajusta estos números basándote en dónde empieza cada cosa en tu nuevo archivo
+            # Por ejemplo:
+            nombre = linea[12:22].strip()      # Nombre
+            id_nadador = linea[22:27].strip()  # ID
+            apellido = linea[27:47].strip()    # Apellido
+            
+            # Guardamos el nadador formateado para el resto del ciclo
             nadador_actual = f"{nombre} {apellido}"
+            # Opcional: podrías guardar el ID en otra variable si lo necesitas luego
+            id_actual = id_nadador
             
         # F1: Resultados
         elif record_type == "F1" and nadador_actual:
