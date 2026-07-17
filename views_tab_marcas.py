@@ -10,10 +10,10 @@ from formulas_lib_funciones import (
     formatear_a_minutos, 
     calcular_edad_decimal, 
     calcular_categoria_competencia,
-    obtener_pruebas_por_categoria # Importamos la nueva función reactiva
+    obtener_pruebas_por_categoria
 )
 
-# Importamos la función de tu archivo dedicado (con una sola n)
+# Importamos la función de tu archivo dedicado
 from conections_supabase_cache import obtener_todo_el_historial_cache
 
 def renderizar_tab_marcas(datos_sidebar=None):
@@ -30,7 +30,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
         return
 
     # =============================================================================
-    # SOLUCIÓN FILTRO 1: Protegemos los metadatos del atleta en caché de sesión local
+    # OPTIMIZACIÓN 1: Metadatos del atleta protegidos en sesión local
     # =============================================================================
     cat_nadador, genero_nadador = "Desconocida", "F"
     if ctx_supabase_mar:
@@ -49,7 +49,9 @@ def renderizar_tab_marcas(datos_sidebar=None):
             genero_nadador = atleta_meta[0].get("genero", "F")
             cat_nadador, _ = calcular_categoria_competencia(str(atleta_meta[0]["fecha_nacimiento"])[:10])
 
-    # Carga ultra rápida desde la función caché dedicada
+    # =============================================================================
+    # OPTIMIZACIÓN 2: Carga ultra rápida desde la función caché dedicada
+    # =============================================================================
     df_marcas_raw = pd.DataFrame()
     if ctx_supabase_mar:
         datos_cacheados = obtener_todo_el_historial_cache(id_atleta_actual)
@@ -63,13 +65,11 @@ def renderizar_tab_marcas(datos_sidebar=None):
     ])
 
     # =============================================================================
-    # SUBTAB 1: INGRESO Y GESTIÓN CON SEGREGACIÓN POR EDAD (AUTÓNOMA / MÓVIL)
+    # SUBTAB 1: INGRESO Y GESTIÓN CON SEGREGACIÓN POR EDAD
     # =============================================================================
     with subtab_ingreso:
-        # Generamos la lista de pruebas restringida y específica a su edad
         lista_pruebas_restringida = obtener_pruebas_por_categoria(cat_nadador)
         
-        # Selector local auto-contenido (Ideal para pantallas táctiles/móviles)
         prueba_local_activa = st.selectbox(
             f"🏊‍♂️ Seleccione la Prueba para {cat_nadador}:", 
             options=lista_pruebas_restringida,
@@ -79,7 +79,6 @@ def renderizar_tab_marcas(datos_sidebar=None):
         
         st.markdown("---")
         
-        # Validación inmediata de encabezados visuales
         if prueba_local_activa.startswith("---"):
             st.warning("👆 Selecciona una distancia o estilo real de la lista (evita marcar los títulos de sección).")
         else:
@@ -96,8 +95,9 @@ def renderizar_tab_marcas(datos_sidebar=None):
                         if rol_usuario in ["Head Coach", "Entrenador", "Administrador"] or id_usuario == id_atleta_actual:
                             try:
                                 ins_tiempo = convertir_string_a_segundos(ins_tiempo_str)
-                                atleta_query = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta_actual).execute()
-                                fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"] if atleta_query.data else None
+                                
+                                # Usamos los metadatos cacheados para calcular la edad
+                                fecha_nacimiento_atleta = atleta_meta[0]["fecha_nacimiento"] if atleta_meta else None
                                 
                                 if not fecha_nacimiento_atleta:
                                     st.error("❌ El atleta no posee fecha de nacimiento configurada.")
@@ -153,7 +153,6 @@ def renderizar_tab_marcas(datos_sidebar=None):
     # ACCIONES ANALÍTICAS (SUBTABS 2 Y 3)
     # =============================================================================
     if not df_marcas_raw.empty:
-        # SUBTAB 2: TOP TIEMPOS
         with subtab_top_tiempos:
             st.markdown("#### 🥇 Récords Personales Absolutos (Personal Best)")
             idx_mejores = df_marcas_raw.groupby('prueba')['tiempo'].idxmin()
@@ -167,23 +166,24 @@ def renderizar_tab_marcas(datos_sidebar=None):
             })
             st.write(df_tabla_top.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
 
-        # SUBTAB 3: BUSCADOR HISTÓRICO Y EVOLUCIÓN
         with subtab_evolucion_prueba:
             st.markdown("#### 📈 Buscador Histórico Dinámico y Líneas de Campeonato")
             st.caption(f"🎯 Categoría: **{cat_nadador}** | Género: **{genero_nadador}**")
             
-            # El buscador analítico muestra solo pruebas en las que el atleta de verdad compitió
             lista_pruebas_existentes = sorted(df_marcas_raw["prueba"].unique().tolist())
             p_sel = st.selectbox("Seleccione la Prueba a Graficar:", options=lista_pruebas_existentes, key="sb_evolucion_analisis")
             
             df_ev = df_marcas_raw[df_marcas_raw["prueba"] == p_sel].sort_values("edad").reset_index(drop=True)
             
             if not df_ev.empty:
+                # OPTIMIZACIÓN 4 (Paso A): Limpieza de figuras huérfanas en RAM
+                plt.close('all') 
+                
                 fig_mar, ax = plt.subplots(figsize=(8.5, 3.5))
                 ax.plot(df_ev["edad"], df_ev["tiempo"], marker="o", color="#3498db", linewidth=1.8, label="Progreso")
                 
                 # =============================================================================
-                # SOLUCIÓN FILTRO 2: Protegemos las marcas de referencia del gráfico en sesión
+                # OPTIMIZACIÓN 3: Marcas de referencia cacheadas en sesión local
                 # =============================================================================
                 m_minima = None
                 try:
@@ -211,7 +211,11 @@ def renderizar_tab_marcas(datos_sidebar=None):
                 ax.set_ylabel("Tiempo de Carrera", fontsize=8)
                 ax.grid(True, linestyle=":", alpha=0.4)
                 ax.legend(fontsize=7)
+                
                 st.pyplot(fig_mar)
+                
+                # OPTIMIZACIÓN 4 (Paso B): Destruimos el gráfico en el servidor tras mostrarlo
+                plt.close(fig_mar) 
                 
                 df_tabla_ev = pd.DataFrame({
                     "Edad": df_ev["edad"].round(2),
