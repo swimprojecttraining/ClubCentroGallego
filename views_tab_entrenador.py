@@ -22,7 +22,7 @@ def renderizar_tab_entrenador():
 
     st.markdown("### ⚙️ Umbrales de Competencia para la Categoría")
     
-    # 1. Definimos primero la categoría seleccionada por el entrenador (cat_nadador)
+# 1. Definimos primero la categoría seleccionada por el entrenador (cat_nadador)
     u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
     
     # 2. Implementación exclusiva del filtrado de pruebas traído de tab_marcas
@@ -32,7 +32,7 @@ def renderizar_tab_entrenador():
         f"🏊‍♂️ Seleccione la Prueba para {u_cat}:", 
         options=lista_pruebas_restringida,
         index=1 if len(lista_pruebas_restringida) > 1 else 0,
-        key="sb_prueba_local_ingreso"
+        key="sb_prueba_entrenador_ingreso"  # <--- CAMBIADO AQUÍ PARA EVITAR EL DUPLICADO
     )
     
     # 3. Sincronizamos la prueba seleccionada localmente con la lógica del resto de la función
