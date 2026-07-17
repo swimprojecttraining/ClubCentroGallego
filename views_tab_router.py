@@ -48,7 +48,7 @@ def mostrar_vista_enrutador():
         st.info("⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control de marcas se encuentra oculto para evitar alteraciones accidentales en la base de datos real.")
         tab_grafico, = st.tabs(["📝 Gráfico de Proyecciones"])
     else:
-        tab_grafico, tab_pizarra, tab_reportes, tab_marcas, tab_entrenador, tab_asignaciones, tab_calendario, tab_admin = st.tabs([
+        tab_grafico, tab_pizarra, tab_reportes, tab_marcas, tab_importar, tab_entrenador, tab_asignaciones, tab_calendario, tab_admin = st.tabs([
             "📉 Gráfico de Proyecciones",
             "📝 Pizarra Diaria", 
             "📊 Reportes de Entrenamiento", 
