@@ -16,42 +16,12 @@ from formulas_lib_funciones import (
 # Importamos la función de tu archivo dedicado
 from conections_supabase_cache import obtener_todo_el_historial_cache
 
-def renderizar_tab_marcas(datos_sidebar=None):
-    st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
-    st.caption("Módulo centralizado para la gestión de marcas oficiales, análisis de récords personales y exportación curricular.")
-
-    ctx_supabase_mar = st.session_state.get("supabase")
-    rol_usuario = st.session_state.get("rol")
-    id_usuario = st.session_state.get("usuario_id")
-    id_atleta_actual = st.session_state.get("nadador_seleccionado_id")
-
-    if not id_atleta_actual:
-        st.info("💡 Por favor, selecciona un nadador en la barra lateral para gestionar sus marcas oficiales.")
-        return
-
-    # =============================================================================
-    # OPTIMIZACIÓN 1: Metadatos del atleta protegidos en sesión local
-    # =============================================================================
-    cat_nadador, genero_nadador = "Desconocida", "F"
-    if ctx_supabase_mar:
-        meta_key = f"meta_atleta_{id_atleta_actual}"
-        if meta_key not in st.session_state:
-            try:
-                atleta_meta = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento, genero").eq("id", id_atleta_actual).execute().data
-                st.session_state[meta_key] = atleta_meta
-            except Exception as e:
-                st.error(f"Error al calcular metadatos del atleta: {e}")
-                atleta_meta = None
-        else:
-            atleta_meta = st.session_state[meta_key]
-
-        if atleta_meta:
-            genero_nadador = atleta_meta[0].get("genero", "F")
-            cat_nadador, _ = calcular_categoria_competencia(str(atleta_meta[0]["fecha_nacimiento"])[:10])
-
-    # =============================================================================
-    # OPTIMIZACIÓN 2: Carga ultra rápida desde la función caché dedicada
-    # =============================================================================
+# =============================================================================
+# EL FRAGMENTO: Todo lo que está aquí adentro se ejecuta de forma aislada
+# =============================================================================
+@st.fragment
+def renderizar_tabs_aisladas(id_atleta_actual, cat_nadador, genero_nadador, ctx_supabase_mar, rol_usuario, id_usuario):
+    # Carga ultra rápida desde la función caché dedicada
     df_marcas_raw = pd.DataFrame()
     if ctx_supabase_mar:
         datos_cacheados = obtener_todo_el_historial_cache(id_atleta_actual)
@@ -64,9 +34,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
         "📈 3. Buscador Histórico y Evolución Cronológica"
     ])
 
-    # =============================================================================
-    # SUBTAB 1: INGRESO Y GESTIÓN CON SEGREGACIÓN POR EDAD
-    # =============================================================================
+    # --- SUBTAB 1: INGRESO Y GESTIÓN ---
     with subtab_ingreso:
         lista_pruebas_restringida = obtener_pruebas_por_categoria(cat_nadador)
         
@@ -96,8 +64,8 @@ def renderizar_tab_marcas(datos_sidebar=None):
                             try:
                                 ins_tiempo = convertir_string_a_segundos(ins_tiempo_str)
                                 
-                                # Usamos los metadatos cacheados para calcular la edad
-                                fecha_nacimiento_atleta = atleta_meta[0]["fecha_nacimiento"] if atleta_meta else None
+                                atleta_query = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento").eq("id", id_atleta_actual).execute()
+                                fecha_nacimiento_atleta = atleta_query.data[0]["fecha_nacimiento"] if atleta_query.data else None
                                 
                                 if not fecha_nacimiento_atleta:
                                     st.error("❌ El atleta no posee fecha de nacimiento configurada.")
@@ -112,9 +80,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
                                     }
                                     ctx_supabase_mar.table("marcas_historicas").insert(nueva_m).execute()
                                     
-                                    # Rompemos la caché para forzar la recarga visual inmediata
                                     st.cache_data.clear()
-                                    
                                     st.success(f"¡Marca guardada con éxito en {prueba_local_activa}!")
                                     st.rerun()
                             except Exception as e:
@@ -149,9 +115,7 @@ def renderizar_tab_marcas(datos_sidebar=None):
                 else:
                     st.info("💡 Base de datos vacía para este atleta.")
 
-    # =============================================================================
-    # ACCIONES ANALÍTICAS (SUBTABS 2 Y 3)
-    # =============================================================================
+    # --- SUBTABS 2 Y 3: ANÁLISIS ---
     if not df_marcas_raw.empty:
         with subtab_top_tiempos:
             st.markdown("#### 🥇 Récords Personales Absolutos (Personal Best)")
@@ -176,15 +140,11 @@ def renderizar_tab_marcas(datos_sidebar=None):
             df_ev = df_marcas_raw[df_marcas_raw["prueba"] == p_sel].sort_values("edad").reset_index(drop=True)
             
             if not df_ev.empty:
-                # OPTIMIZACIÓN 4 (Paso A): Limpieza de figuras huérfanas en RAM
                 plt.close('all') 
                 
                 fig_mar, ax = plt.subplots(figsize=(8.5, 3.5))
                 ax.plot(df_ev["edad"], df_ev["tiempo"], marker="o", color="#3498db", linewidth=1.8, label="Progreso")
                 
-                # =============================================================================
-                # OPTIMIZACIÓN 3: Marcas de referencia cacheadas en sesión local
-                # =============================================================================
                 m_minima = None
                 try:
                     ref_key = f"ref_{p_sel}_{cat_nadador}_{genero_nadador}"
@@ -213,8 +173,6 @@ def renderizar_tab_marcas(datos_sidebar=None):
                 ax.legend(fontsize=7)
                 
                 st.pyplot(fig_mar)
-                
-                # OPTIMIZACIÓN 4 (Paso B): Destruimos el gráfico en el servidor tras mostrarlo
                 plt.close(fig_mar) 
                 
                 df_tabla_ev = pd.DataFrame({
@@ -224,3 +182,41 @@ def renderizar_tab_marcas(datos_sidebar=None):
                     "Nota": df_ev["nota"]
                 })
                 st.write(df_tabla_ev.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
+
+
+# =============================================================================
+# FUNCIÓN PRINCIPAL: Punto de entrada del módulo
+# =============================================================================
+def renderizar_tab_marcas(datos_sidebar=None):
+    st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
+    st.caption("Módulo centralizado para la gestión de marcas oficiales, análisis de récords personales y exportación curricular.")
+
+    ctx_supabase_mar = st.session_state.get("supabase")
+    rol_usuario = st.session_state.get("rol")
+    id_usuario = st.session_state.get("usuario_id")
+    id_atleta_actual = st.session_state.get("nadador_seleccionado_id")
+
+    if not id_atleta_actual:
+        st.info("💡 Por favor, selecciona un nadador en la barra lateral para gestionar sus marcas oficiales.")
+        return
+
+    # Extraemos metadatos una sola vez fuera del fragmento para evitar reprocesos
+    cat_nadador, genero_nadador = "Desconocida", "F"
+    if ctx_supabase_mar:
+        meta_key = f"meta_atleta_{id_atleta_actual}"
+        if meta_key not in st.session_state:
+            try:
+                atleta_meta = ctx_supabase_mar.table("usuarios").select("fecha_nacimiento, genero").eq("id", id_atleta_actual).execute().data
+                st.session_state[meta_key] = atleta_meta
+            except Exception as e:
+                st.error(f"Error al calcular metadatos del atleta: {e}")
+                atleta_meta = None
+        else:
+            atleta_meta = st.session_state[meta_key]
+
+        if atleta_meta:
+            genero_nadador = atleta_meta[0].get("genero", "F")
+            cat_nadador, _ = calcular_categoria_competencia(str(atleta_meta[0]["fecha_nacimiento"])[:10])
+
+    # Ejecutamos toda la lógica visual pesada dentro del entorno aislado
+    renderizar_tabs_aisladas(id_atleta_actual, cat_nadador, genero_nadador, ctx_supabase_mar, rol_usuario, id_usuario)
