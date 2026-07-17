@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 from formulas_lib_funciones import formatear_a_minutos, convertir_string_a_segundos
+# Importaciones de la solución de tab_marcas
+from conections_supabase_cache import obtener_todo_el_historial_cache, obtener_pruebas_por_categoria
 
 def renderizar_tab_entrenador():
     """
@@ -20,16 +22,29 @@ def renderizar_tab_entrenador():
 
     st.markdown("### ⚙️ Umbrales de Competencia para la Categoría")
     
-    titulo_grafico = st.session_state.get("prueba_seleccionada", "50 Libre")
+    # 1. Definimos primero la categoría seleccionada por el entrenador (cat_nadador)
+    u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
+    
+    # 2. Implementación exclusiva del filtrado de pruebas traído de tab_marcas
+    lista_pruebas_restringida = obtener_pruebas_por_categoria(u_cat)
+    
+    prueba_local_activa = st.selectbox(
+        f"🏊‍♂️ Seleccione la Prueba para {u_cat}:", 
+        options=lista_pruebas_restringida,
+        index=1 if len(lista_pruebas_restringida) > 1 else 0,
+        key="sb_prueba_local_ingreso"
+    )
+    
+    # 3. Sincronizamos la prueba seleccionada localmente con la lógica del resto de la función
+    titulo_grafico = prueba_local_activa
     genero_atleta = st.session_state.get("nadador_seleccionado_genero", "F")
     es_preinfantil = st.session_state.get("es_preinfantil", False)
 
+    # 4. Control de exclusiones basado en la prueba activa elegida en el selectbox
     pruebas_excluidas = ['25 Libre', '25 Espalda', '25 Pecho', '25 Mariposa', '100 Combinado']
     if titulo_grafico in pruebas_excluidas or es_preinfantil:
         st.info(f"💡 **Aviso:** Las marcas de referencia para pruebas Preinfantiles ({titulo_grafico}) se calculan automáticamente.")
         return
-
-    u_cat = st.selectbox("Categoría a Modificar u Organizar:", options=["Infantil A", "Infantil B", "Juvenil A", "Juvenil B", "Máxima"])
     
     db_m_ano, db_m_panam_b, db_m_panam_a, db_m_wa_b, db_m_wa_a, db_m_wr = None, None, None, None, None, None
     
