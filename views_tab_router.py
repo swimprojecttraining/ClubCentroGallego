@@ -70,13 +70,13 @@ def mostrar_vista_enrutador():
         with tab_marcas:
             renderizar_tab_marcas(datos_sidebar)
         with tab_entrenador:
-            renderizar_tab_entrenador(datos_sidebar)
+            renderizar_tab_entrenador
         with tab_asignaciones:
-            renderizar_tab_asignaciones(datos_sidebar)
+            renderizar_tab_asignaciones
         with tab_calendario:
-            renderizar_tab_calendario(datos_sidebar)
+            renderizar_tab_calendario
         with tab_admin:
-            renderizar_tab_admin(datos_sidebar)
+            renderizar_tab_admin
             
     # 🎨 Espaciado global para evitar el efecto de "contenido apretado"
     st.markdown("""
