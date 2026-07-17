@@ -21,9 +21,9 @@ def parsear_hy3(archivo_texto):
         if len(linea) < 2: continue
         record_type = linea[0:2]
         if record_type == "D1":
-            nombre = linea[12:22].strip()
-            apellido = linea[27:47].strip()
-            nadador_actual = f"{apellido} {nombre}"
+            apellido = linea[12:22].strip()
+            nombre = linea[27:47].strip()
+            nadador_actual = f"{nombre} {apellido}"
         elif record_type == "F1" and nadador_actual:
             evento = linea[12:18].strip()
             tiempo_raw = linea[32:38].strip()
