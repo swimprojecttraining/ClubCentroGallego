@@ -38,6 +38,20 @@ def parsear_hy3(archivo_texto):
 def normalizar_prueba(codigo):
     return MAPEO_PRUEBAS.get(codigo, codigo)
 
+def convertir_hy3_a_segundos(valor):
+    """
+    Convierte string '012010' a 80.10
+    """
+    s = str(valor).strip()
+    if len(s) != 6 or not s.isdigit():
+        return 0.0
+    
+    minutos = int(s[0:2])
+    segundos = int(s[2:4])
+    centesimas = int(s[4:6])
+    
+    return (minutos * 60) + segundos + (centesimas / 100)
+
 def guardar_en_bd(df_procesado, nombre_competencia):
     supabase = st.session_state.supabase
     # Asume que 'supabase' está definido globalmente en tu app
@@ -82,6 +96,7 @@ def renderizar_tab_importar():
         try:
             df = parsear_hy3(stringio)
             if not df.empty:
+                df['Tiempo'] = df['Tiempo'].apply(convertir_hy3_a_segundos)
                 st.success("✅ ¡Archivo procesado!")
                 st.dataframe(df, use_container_width=True)
                 
