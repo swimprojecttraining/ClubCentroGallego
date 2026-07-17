@@ -13,7 +13,7 @@ from formulas_lib_funciones import (
 )
 
 # Importación de tu nueva función optimizada desde el archivo de caché dedicado
-from connections_supabase_cache import obtener_todo_el_historial_cache
+from conections_supabase_cache import obtener_todo_el_historial_cache
 
 def renderizar_tab_marcas(datos_sidebar=None):
     st.markdown("### ⏱️ Panel de Control Curricular y Marcas Oficiales")
