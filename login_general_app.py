@@ -14,7 +14,19 @@ from formulas_lib_funciones import (
     enviar_email, 
     calcular_categoria_competencia
 )
-
+# ============================================================
+# ⚙️ CONEXIÓN GLOBAL CACHEADA (A nivel raíz del archivo)
+# ============================================================
+@st.cache_resource
+def obtener_cliente_supabase():
+    """
+    Crea y mantiene viva la instancia de conexión a Supabase en memoria.
+    Se ejecuta una sola vez para la app y la reutilizan todos los usuarios/reruns.
+    """
+    return create_client(
+        st.secrets["SUPABASE_URL"], 
+        st.secrets["SUPABASE_KEY"]
+    )
 def login_usuario(user, password, client_db):
     try:
         user_lower = user.strip().lower()
