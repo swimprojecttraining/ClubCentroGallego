@@ -77,6 +77,8 @@ def renderizar_tab_club():
             df_pagos = pd.DataFrame()
 
         # --- CRUCE Y PROCESAMIENTO DE DATOS ---
+        cols_mostrar = ["nombre", "usuario", "estado_pago", "monto", "fecha_pago", "referencia_pago", "observaciones"]
+
         if not df_pagos.empty:
             if mes_sel != "Todos":
                 df_pagos_filtrado = df_pagos[df_pagos["mes"] == int(mes_sel)]
@@ -88,8 +90,15 @@ def renderizar_tab_club():
             df_merged = df_nadadores.copy()
             df_merged["estado_pago"] = "Pendiente"
             df_merged["monto"] = 0.0
+            df_merged["fecha_pago"] = None
+            df_merged["referencia_pago"] = ""
+            df_merged["observaciones"] = ""
 
-        # Normalización de valores nulos post-merge
+        # Normalización robusta de columnas por si faltan en el merge
+        for col in cols_mostrar:
+            if col not in df_merged.columns:
+                df_merged[col] = "Pendiente" if col == "estado_pago" else (0.0 if col == "monto" else "")
+
         df_merged["estado_pago"] = df_merged["estado_pago"].fillna("Pendiente")
         df_merged["monto"] = df_merged["monto"].fillna(0.0)
 
@@ -120,9 +129,6 @@ def renderizar_tab_club():
         st.markdown("---")
 
         # --- TABLA PRINCIPAL DE PAGOS ---
-        cols_mostrar = ["nombre", "usuario", "estado_pago", "monto", "fecha_pago", "referencia_pago", "observaciones"]
-        
-        # Renombrado estético para la vista
         df_display = df_merged[cols_mostrar].copy()
         df_display.columns = ["Atleta", "Usuario", "Estado", "Monto ($)", "Fecha Pago", "N° Referencia", "Observaciones"]
 
@@ -170,7 +176,6 @@ def renderizar_tab_club():
                     }
 
                     try:
-                        # Upsert para insertar o actualizar si coincide la clave
                         supabase.table("control_pagos").upsert(registro_pago).execute()
                         st.success("✅ Pago y estatus administrativo actualizados correctamente.")
                         st.rerun()
