@@ -132,7 +132,7 @@ def renderizar_sidebar_completo():
     lista_atletas = []      # Variable empaquetada
     df_global = pd.DataFrame() # DataFrame empaquetado
 
-    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+    if st.session_state.rol in ["Head Coach", "Entrenador", "Club", "Administrador"]:
         spc()
         st.sidebar.subheader("👥 Análisis Colectivo")
         modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
