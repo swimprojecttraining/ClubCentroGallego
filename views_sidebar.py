@@ -61,7 +61,7 @@ def renderizar_sidebar_completo():
     # -------------------------------------------------------------
     # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Individual)
     # -------------------------------------------------------------
-    if st.session_state.rol in ["Head Coach", "Entrenador", "Administrador"]:
+    if st.session_state.rol in ["Head Coach", "Entrenador", "Club", "Administrador"]:
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
