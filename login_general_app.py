@@ -174,7 +174,7 @@ def mostrar_pantalla_login():
                             st.session_state.reg_datos_temporales = None
                             st.rerun()
                 else:
-                    nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Head Coach", "Entrenador", "Administrador"], key="reg_rol_selector")
+                    nuevo_rol = st.selectbox("Seleccione el Rol para la nueva cuenta:", options=["Nadador", "Head Coach", "Entrenador", "Club", "Administrador"], key="reg_rol_selector")
                     es_nadador_reg = (nuevo_rol == "Nadador")
                     
                     with st.form("form_registro_dinamico"):
@@ -206,7 +206,7 @@ def mostrar_pantalla_login():
                                             st.error("El nombre de usuario ya está tomado.")
                                         else:
                                             codigo_temp = random.randint(100000, 999999)
-                                            status_inicial = "Pendiente" if nuevo_rol in ["Head Coach", "Entrenador", "Administrador"] else "Activo"
+                                            status_inicial = "Pendiente" if nuevo_rol in ["Head Coach", "Entrenador", "Club", "Administrador"] else "Activo"
                                             
                                             st.session_state.reg_datos_temporales = {
                                                 "nombre": nuevo_nombre, 
