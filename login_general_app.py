@@ -45,22 +45,38 @@ def login_usuario(user, password, client_db):
                 st.error(f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica.")
                 return False
                 
+            # --- VARIABLES GENERALES PARA CUALQUIER ROL ---
             st.session_state.autenticado = True
             st.session_state.usuario_id = user_data["id"]
+            st.session_state.nombre_usuario = user_data["nombre"]  # 💡 Genérico para el sistema
             st.session_state.nombre_nadador = user_data["nombre"]
-            st.session_state.genero = user_data.get("genero", "F")
+            st.session_state.genero = user_data.get("genero", "M")
             st.session_state.rol = user_data.get("rol", "Nadador")
             st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
             
-            # Poblar variables de categoría usando tus rangos reales del archivo formulas
-            cat, ed_c = calcular_categoria_competencia(st.session_state.fecha_nacimiento)
-            st.session_state.categoria_atleta = cat
-            st.session_state.edad_comp_atleta = ed_c
-            
-            st.session_state.nadador_seleccionado_id = user_data["id"]
-            st.session_state.nadador_seleccionado_nombre = user_data["nombre"]
-            st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
-            st.session_state.nadador_seleccionado_categoria = cat
+            # --- SEGREGACIÓN SEGÚN ROL DE USUARIO ---
+            if st.session_state.rol == "Nadador":
+                # Lógica exclusiva para atletas
+                if st.session_state.fecha_nacimiento:
+                    cat, ed_c = calcular_categoria_competencia(st.session_state.fecha_nacimiento)
+                else:
+                    cat, ed_c = "Sin Categoría", 0
+                
+                st.session_state.categoria_atleta = cat
+                st.session_state.edad_comp_atleta = ed_c
+                st.session_state.nadador_seleccionado_id = user_data["id"]
+                st.session_state.nadador_seleccionado_nombre = user_data["nombre"]
+                st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
+                st.session_state.nadador_seleccionado_categoria = cat
+            else:
+                # Inicialización limpia para Club / Administrador / Entrenadores
+                st.session_state.categoria_atleta = None
+                st.session_state.edad_comp_atleta = None
+                st.session_state.nadador_seleccionado_id = None
+                st.session_state.nadador_seleccionado_nombre = None
+                st.session_state.nadador_seleccionado_genero = None
+                st.session_state.nadador_seleccionado_categoria = None
+
             return True
         return False
     except Exception as e:
