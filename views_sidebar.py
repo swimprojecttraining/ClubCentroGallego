@@ -29,7 +29,7 @@ from views_styles import spc
 def renderizar_sidebar_completo():
     """
     Renderiza el centro de mandos interactivo (SIDEBAR) con código depurado,
-    lógica secuencial correcta y sin redundancias de consultas.
+    soporte completo para rol Club y manejo seguro de valores nulos.
     """
     # 🔐 Garantizar el aislamiento usando la conexión dinámica del club seleccionado
     if "supabase" not in st.session_state or st.session_state.supabase is None:
@@ -39,7 +39,9 @@ def renderizar_sidebar_completo():
     # -------------------------------------------------------------
     # CONTROL DE SESIÓN GENERAL
     # -------------------------------------------------------------
-    st.sidebar.markdown(f"**Usuario:** {st.session_state.nombre_nadador}  \n**Nivel:** `{st.session_state.rol}`")
+    nombre_mostrar = st.session_state.get("nombre_usuario") or st.session_state.get("nombre_nadador", "Usuario")
+    st.sidebar.markdown(f"**Usuario:** {nombre_mostrar}  \n**Nivel:** `{st.session_state.rol}`")
+    
     if st.sidebar.button("🚪 Salir del Sistema"):
         st.session_state.autenticado = False
         st.rerun()
@@ -59,9 +61,11 @@ def renderizar_sidebar_completo():
             st.rerun()
 
     # -------------------------------------------------------------
-    # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Individual)
+    # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Administración / Club / Entrenadores)
     # -------------------------------------------------------------
-    if st.session_state.rol in ["Head Coach", "Entrenador", "Club", "Administrador"]:
+    roles_administrativos = ["Head Coach", "Entrenador", "Administrador", "Club"]
+
+    if st.session_state.rol in roles_administrativos:
         spc()
         st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
         try:
@@ -83,44 +87,48 @@ def renderizar_sidebar_completo():
                 
                 st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
                 st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
-                st.session_state.nadador_seleccionado_genero = atleta_row["genero"]
+                st.session_state.nadador_seleccionado_genero = atleta_row.get("genero", "M")
                 
-                cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+                cat_calc, _ = calcular_categoria_competencia(atleta_row["fecha_nacimiento"]) if atleta_row.get("fecha_nacimiento") else ("Sin Categoría", 0)
                 st.session_state.nadador_seleccionado_categoria = cat_calc
             else:
-                st.sidebar.warning("⚠️ No tienes nadadores asignados en este momento.")
+                st.sidebar.warning("⚠️ No hay nadadores disponibles en este momento.")
                 st.session_state.nadador_seleccionado_id = None
+                st.session_state.nadador_seleccionado_nombre = None
+                st.session_state.nadador_seleccionado_genero = "M"
+                st.session_state.nadador_seleccionado_categoria = ""
         except Exception as e:
             st.error(f"Error cargando nómina de atletas filtrada: {e}")
     else:
+        # Rol Nadador
         st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
         st.session_state.nadador_seleccionado_nombre = st.session_state.nombre_nadador
         st.session_state.nadador_seleccionado_genero = st.session_state.genero
         st.session_state.nadador_seleccionado_categoria = st.session_state.categoria_atleta
 
-# -------------------------------------------------------------
-    # 📊 SELECCIÓN DE PRUEBA (Debe ir antes del Análisis Colectivo)
+    # -------------------------------------------------------------
+    # 📊 SELECCIÓN DE PRUEBA
     # -------------------------------------------------------------
     spc()
     st.sidebar.subheader("📊 Ajustes por prueba")
 
-    # 1. Mantenemos tu asignación por atributo exacta
-    cat_atleta = st.session_state.nadador_seleccionado_categoria
-
-    # 🛠️ CORRECCIÓN AL NameError: Mantenemos la variable viva para el resto del sidebar
+    cat_atleta = st.session_state.get("nadador_seleccionado_categoria") or ""
     es_preinfantil = cat_atleta.startswith("Preinfantil") if cat_atleta else False
 
-    # 2. LLAMADA A LA FUNCIÓN: Limpia las más de 30 líneas de ifs/elifs de las marcas
-    lista_pruebas = obtener_pruebas_por_categoria(cat_atleta)
+    # Lista segura de pruebas
+    lista_pruebas = obtener_pruebas_por_categoria(cat_atleta) if cat_atleta else ["--- Seleccione Nadador ---"]
+    if not lista_pruebas:
+        lista_pruebas = ["--- Sin Pruebas Disponibles ---"]
 
-    # 3. Tus componentes y validaciones originales se quedan exactamente igual
-    titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=1)
+    index_default = 1 if len(lista_pruebas) > 1 else 0
+    titulo_grafico = st.sidebar.selectbox("Estilo y Distancia:", options=lista_pruebas, index=index_default)
 
     if titulo_grafico.startswith("---"):
-        st.sidebar.info("👆 Selecciona una distancia específica en el menú superior para ver o editar los datos.")
+        st.sidebar.info("👆 Selecciona un atleta o prueba válida para continuar.")
         st.stop()
 
     st.session_state["prueba_seleccionada"] = titulo_grafico
+
     # -------------------------------------------------------------
     # 👥 ANÁLISIS COLECTIVO (MODO EQUIPO)
     # -------------------------------------------------------------
@@ -129,10 +137,10 @@ def renderizar_sidebar_completo():
     filtro_genero = "Todos"
     cat_sel = None
     ids_sel = []
-    lista_atletas = []      # Variable empaquetada
-    df_global = pd.DataFrame() # DataFrame empaquetado
+    lista_atletas = []
+    df_global = pd.DataFrame()
 
-    if st.session_state.rol in ["Head Coach", "Entrenador", "Club", "Administrador"]:
+    if st.session_state.rol in roles_administrativos:
         spc()
         st.sidebar.subheader("👥 Análisis Colectivo")
         modo_equipo = st.sidebar.checkbox("Activar Comparativa de Equipo", value=False)
@@ -146,18 +154,15 @@ def renderizar_sidebar_completo():
             try:
                 atletas_preload = obtener_nadadores_activos_cache() or []
                 
-                # Restringir asignados si es Entrenador
                 if st.session_state.rol == "Entrenador":
                     ids_asignados = obtener_atletas_asignados_cache(st.session_state.usuario_id)
                     atletas_preload = [a for a in atletas_preload if a.get("id") in ids_asignados] if ids_asignados else []
 
-                # 2. Aplicar Filtro de Género
                 if filtro_genero == "Femenino (F)":
                     atletas_preload = [a for a in atletas_preload if a.get("genero") == "F"]
                 elif filtro_genero == "Masculino (M)":
                     atletas_preload = [a for a in atletas_preload if a.get("genero") == "M"]
 
-                # 3. Aplicar Filtro Secundario
                 if tipo_filtro == "Categoría Etaria" and atletas_preload:
                     cat_list = [
                         calcular_categoria_competencia(a.get("fecha_nacimiento"))[0] 
@@ -179,7 +184,6 @@ def renderizar_sidebar_completo():
                 else:
                     lista_atletas = atletas_preload
 
-                # 4. Consulta de marcas usando conexión de la sesión
                 if lista_atletas and titulo_grafico and not titulo_grafico.startswith("---"):
                     lista_ids_filtrados = [a["id"] for a in lista_atletas if "id" in a]
                     df_global = obtener_marcas_equipo_cache(st.session_state.supabase, lista_ids_filtrados, titulo_grafico)
@@ -196,7 +200,7 @@ def renderizar_sidebar_completo():
     if es_preinfantil:
         def get_m_ano_infantil_a(prueba_str):
             try:
-                ref_resp = obtener_marcas_referencia_cache(prueba_str, st.session_state.nadador_seleccionado_genero, "Infantil A")
+                ref_resp = obtener_marcas_referencia_cache(prueba_str, st.session_state.get("nadador_seleccionado_genero", "M"), "Infantil A")
                 if ref_resp and ref_resp[0].get("m_ano") is not None:
                     return float(ref_resp[0]["m_ano"])  
             except Exception:
@@ -224,15 +228,19 @@ def renderizar_sidebar_completo():
             m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
     else:
         try:
-            ref_resp = obtener_marcas_referencia_cache(titulo_grafico, st.session_state.nadador_seleccionado_genero, st.session_state.nadador_seleccionado_categoria)
-            if ref_resp:
-                ref_data = ref_resp[0]
-                m_ano = float(ref_data["m_ano"]) if ref_data["m_ano"] is not None else 0.0
-                m_panam_b = float(ref_data["m_panam_b"]) if ref_data["m_panam_b"] is not None else 0.0
-                m_panam_a = float(ref_data["m_panam_a"]) if ref_data["m_panam_a"] is not None else 0.0
-                m_wa_b = float(ref_data["m_wa_b"]) if ref_data["m_wa_b"] is not None else 0.0
-                m_wa_a = float(ref_data["m_wa_a"]) if ref_data["m_wa_a"] is not None else 0.0
-                m_wr = float(ref_data["m_wr"]) if ref_data["m_wr"] is not None else 25.0
+            genero_sel = st.session_state.get("nadador_seleccionado_genero", "M")
+            cat_sel_atleta = st.session_state.get("nadador_seleccionado_categoria", "")
+            
+            if cat_sel_atleta:
+                ref_resp = obtener_marcas_referencia_cache(titulo_grafico, genero_sel, cat_sel_atleta)
+                if ref_resp:
+                    ref_data = ref_resp[0]
+                    m_ano = float(ref_data["m_ano"]) if ref_data.get("m_ano") is not None else 0.0
+                    m_panam_b = float(ref_data["m_panam_b"]) if ref_data.get("m_panam_b") is not None else 0.0
+                    m_panam_a = float(ref_data["m_panam_a"]) if ref_data.get("m_panam_a") is not None else 0.0
+                    m_wa_b = float(ref_data["m_wa_b"]) if ref_data.get("m_wa_b") is not None else 0.0
+                    m_wa_a = float(ref_data["m_wa_a"]) if ref_data.get("m_wa_a") is not None else 0.0
+                    m_wr = float(ref_data["m_wr"]) if ref_data.get("m_wr") is not None else 25.0
         except Exception as e:
             st.error(f"Error extrayendo marcas de la categoría: {e}")
 
@@ -244,7 +252,8 @@ def renderizar_sidebar_completo():
     simulacion_externa = st.sidebar.checkbox("Activar Modo Simulación Externa", value=False)
 
     try:
-        datos_historicos = obtener_marcas_historicas_cache(titulo_grafico, st.session_state.nadador_seleccionado_id)
+        id_atleta_sel = st.session_state.get("nadador_seleccionado_id")
+        datos_historicos = obtener_marcas_historicas_cache(titulo_grafico, id_atleta_sel) if id_atleta_sel else None
             
         if datos_historicos:
             df_procesado = pd.DataFrame(datos_historicos)
@@ -275,13 +284,10 @@ def renderizar_sidebar_completo():
         val_T_target = float(round(m_wa_a * 0.99, 2)) if m_wa_a > 0 else float(round(m_wr * 1.08, 2))
 
     # -------------------------------------------------------------
-    # 📐 PARÁMETROS DE LÍMITES Y PB (INDICADORES DE CANDADO 🔓/🔒)
+    # 📐 PARÁMETROS DE LÍMITES Y PB
     # -------------------------------------------------------------
     spc()
-    if simulacion_externa:
-        st.sidebar.subheader("📐 Parámetros de Límites y PB 🔓")
-    else:
-        st.sidebar.subheader("📐 Parámetros de Límites y PB 🔒")
+    st.sidebar.subheader("📐 Parámetros de Límites y PB " + ("🔓" if simulacion_externa else "🔒"))
 
     t0 = st.sidebar.number_input("1. Edad Start (t0):", min_value=4.0, value=val_t0, step=0.1, disabled=inputs_bloqueados)
 
@@ -328,54 +334,41 @@ def renderizar_sidebar_completo():
     st.session_state["ttarget_segundos"] = T_target
     st.session_state["tpb_segundos"] = T_pb
 
-# -------------------------------------------------------------
+    # -------------------------------------------------------------
     # 🔎 CONTROLES DE VISTA
     # -------------------------------------------------------------
     tipo_vista = st.sidebar.selectbox("Enfoque del Gráfico", ["Macro (Historial Completo)", "Micro (Ventana Anual)"])
     
     if tipo_vista == "Micro (Ventana Anual)":   
-        # 1. Intentamos obtener la fecha de nacimiento
         usuario_id = st.session_state.get("nadador_seleccionado_id")
-        user = obtener_usuario_por_id_cache(usuario_id)
+        user = obtener_usuario_por_id_cache(usuario_id) if usuario_id else None
 
         if user and user.get("fecha_nacimiento"):
-            # 2. Convertimos a fechas reales el inicio y fin absoluto de la carrera (t0 a t_peak)
             birth_date = datetime.date.fromisoformat(str(user["fecha_nacimiento"])[:10])
             min_date = birth_date + timedelta(days=int(float(t0) * 365.25))
             max_date = birth_date + timedelta(days=int(float(t_peak) * 365.25))
             
-            # 3. ESTABLECEMOS LA TEMPORADA ANUAL POR DEFECTO (1-1 al 31-12)
             año_actual = datetime.date.today().year
-            
-            # Validamos que el año actual quepa en la carrera del nadador, si no, usamos el límite
             if año_actual < min_date.year:
                 año_actual = min_date.year
             elif año_actual > max_date.year:
                 año_actual = max_date.year
                 
-            # Forzamos la ventana exacta de la temporada: del 1 de Enero al 31 de Diciembre
-            default_start = datetime.date(año_actual, 1, 1)
-            default_end = datetime.date(año_actual, 12, 31)
-            
-            # Clampeamos con los límites absolutos del modelo matemático por seguridad
-            default_start = max(min_date, default_start)
-            default_end = min(max_date, default_end)
+            default_start = max(min_date, datetime.date(año_actual, 1, 1))
+            default_end = min(max_date, datetime.date(año_actual, 12, 31))
 
-            # 4. Renderizamos el slider de calendario centrado en la temporada
             rango_fechas = st.sidebar.slider(
                 "🔎 Rango de la Ventana (Fechas)",
                 min_value=min_date,
                 max_value=max_date,
                 value=(default_start, default_end),
-                step=timedelta(days=1),  # Precisión diaria para ajustar la temporada a mano
+                step=timedelta(days=1),
                 format="DD/MM/YYYY"
             )
             
-            # 5. Convertimos las fechas seleccionadas de vuelta a edades decimales para el resto de la app
             edad_min_zoom = (rango_fechas[0] - birth_date).days / 365.25
             edad_max_zoom = (rango_fechas[1] - birth_date).days / 365.25
         else:
-            # Fallback: Si no hay fecha de nacimiento, usamos las edades como antes
             limite_inf_abs = float(t0)
             limite_sup_abs = float(t_peak)
             rango_def_min = max(limite_inf_abs, min(float(t_pb), limite_sup_abs))
@@ -388,7 +381,8 @@ def renderizar_sidebar_completo():
     else:
         edad_min_zoom = 0.0
         edad_max_zoom = 100.0
-# -------------------------------------------------------------
+
+    # -------------------------------------------------------------
     # 📦 CONTENEDOR DE SLIDERS
     # -------------------------------------------------------------
     with contenedor_sliders:
@@ -408,7 +402,7 @@ def renderizar_sidebar_completo():
     return {
         "usuario_id": st.session_state.get("nadador_seleccionado_id"),
         "genero": st.session_state.get("nadador_seleccionado_genero", "M"),
-        "nombre": st.session_state.get("nadador_seleccionado_nombre") or st.session_state.get("nombre_nadador"),
+        "nombre": st.session_state.get("nadador_seleccionado_nombre", "Atleta"),
         "categoria": st.session_state.get("nadador_seleccionado_categoria", ""),
         "titulo_grafico": titulo_grafico,
         "simulacion_externa": simulacion_externa,
