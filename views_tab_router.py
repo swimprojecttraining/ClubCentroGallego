@@ -16,6 +16,7 @@ from views_tab_marcas import renderizar_tab_marcas
 from views_tab_pizarra import renderizar_tab_pizarra
 from views_tab_reportes import renderizar_tab_reportes
 from views_tab_importar import renderizar_tab_importar
+from views_tab_club import renderizar_tab_club
 
 def mostrar_vista_enrutador():
     """
@@ -47,6 +48,11 @@ def mostrar_vista_enrutador():
     if simulacion_externa:
         st.info("⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control de marcas se encuentra oculto para evitar alteraciones accidentales en la base de datos real.")
         tab_grafico, = st.tabs(["📝 Gráfico de Proyecciones"])
+    elif rol_usuario == "Club":
+        # Modo Club: Únicamente su entorno administrativo
+        tab_club, = st.tabs(["🏛️ Gestión Administrativa"])
+        with tab_club:
+            renderizar_tab_club()
     else:
         tab_grafico, tab_pizarra, tab_reportes, tab_marcas, tab_importar, tab_entrenador, tab_asignaciones, tab_calendario, tab_admin = st.tabs([
             "📉 Gráfico de Proyecciones",
