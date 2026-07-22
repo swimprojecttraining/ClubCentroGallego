@@ -24,6 +24,8 @@ def mostrar_vista_enrutador():
     Captura los parámetros de la barra lateral y distribuye de forma aislada
     el flujo hacia archivos independientes dentro de la carpeta views.
     """
+    rol_usuario = st.session_state.get("rol", "Nadador")
+    simulacion_externa = st.session_state.get("simulacion_externa", False)
 # Ejecutamos la barra lateral y extraemos su diccionario
     datos_sidebar = renderizar_sidebar_completo()
     
