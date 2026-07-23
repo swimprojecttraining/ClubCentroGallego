@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 from formulas_lib_funciones import calcular_categoria_competencia
-from pdf_memo_utility import generar_pdf_memorandum_nativ
+from pdf_memo_utility import generar_pdf_memorandum_nativo
 
 def enviar_correo_con_pdf(destinatario, asunto, cuerpo, pdf_bytes, nombre_archivo_pdf):
     """
