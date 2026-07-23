@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import datetime
 
+from formulas_lib_funciones import calcular_categoria_competencia
+
 def renderizar_tab_club():
     """
     Pestaña principal de administración del club.
