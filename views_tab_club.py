@@ -321,224 +321,224 @@ def renderizar_tab_club():
     # SUB-PESTAÑAS PENDIENTES (PASO 3)
     # =========================================================================
 
-with subtab_comunicacion:
-    st.markdown("## 📜 Emisión de Documentos y Comunicación Oficial")
-    st.caption("Preparación de memorandums, avisos y comunicados en papel membrete con exportación a PDF y envío directo.")
-
-    # Sub-pestañas internas dentro de la subtab
-    tab_editor, tab_export_envio = st.tabs(["✍️ Editor y Maquetación", "📤 Exportación y Despacho"])
-
-    # ---------------------------------------------------------------------
-    # TAB 1: EDITOR Y PLANTILLAS
-    # ---------------------------------------------------------------------
-    with tab_editor:
-        # Selección de Plantilla Predefinida
-        plantillas = {
-            "Memorandum Interno": {
-                "tipo": "Memorandum",
-                "de": "Comisión Técnica de Natación",
-                "para": "Entrenadores y Personal Técnico",
-                "asunto": "Ajuste de Horarios de Entrenamiento en Piscina Olímpica",
-                "secciones": [
-                    {"subtitulo": "1. Modificación de Horarios", "texto": "Se informa que a partir del próximo lunes los entrenamientos matutinos iniciarán a las 5:30 AM."},
-                    {"subtitulo": "2. Control de Asistencia", "texto": "Es obligatorio registrar la toma de asistencia en la aplicación al finalizar cada bloque."}
-                ],
-                "clausulas": "* El incumplimiento reiterado afectará la asignación de materiales."
-            },
-            "Comunicado Oficial / Convocatoria": {
-                "tipo": "Comunicado Oficial",
-                "de": "Junta Directiva / Subcomisión de Natación",
-                "para": "Atletas y Representantes",
-                "asunto": "Convocatoria Chequeo Nacional de Marcas Mínimas",
-                "secciones": [
-                    {"subtitulo": "1. Convocatoria", "texto": "Se convoca formalmente a todos los atletas clasificados a presentarse al chequeo técnico."},
-                    {"subtitulo": "2. Requisitos de Inscripción", "texto": "Tener la solvencia administrativa al día y entregar copia de la cédula de identidad."}
-                ],
-                "clausulas": "* Atletas sin chequeo formal no podrán optar a avales para campeonatos nacionales."
-            }
-        }
-
-        col_p1, col_p2 = st.columns([3, 1])
-        with col_p1:
-            plantilla_sel = st.selectbox(
-                "📂 Cargar Plantilla Base:", 
-                list(plantillas.keys()), 
-                key="select_plantilla_comunicaciones"
-            )
-        with col_p2:
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("🔄 Cargar Plantilla", use_container_width=True, key="btn_cargar_plantilla_com"):
-                p_data = plantillas[plantilla_sel]
-                st.session_state.meta_memo = {
-                    "codigo": f"DOC-2026-{pd.Timestamp.now().strftime('%m%d%H%M')}",
-                    "tipo": p_data["tipo"],
-                    "para": p_data["para"],
-                    "de": p_data["de"],
-                    "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
-                    "asunto": p_data["asunto"]
+    with subtab_comunicacion:
+        st.markdown("## 📜 Emisión de Documentos y Comunicación Oficial")
+        st.caption("Preparación de memorandums, avisos y comunicados en papel membrete con exportación a PDF y envío directo.")
+    
+        # Sub-pestañas internas dentro de la subtab
+        tab_editor, tab_export_envio = st.tabs(["✍️ Editor y Maquetación", "📤 Exportación y Despacho"])
+    
+        # ---------------------------------------------------------------------
+        # TAB 1: EDITOR Y PLANTILLAS
+        # ---------------------------------------------------------------------
+        with tab_editor:
+            # Selección de Plantilla Predefinida
+            plantillas = {
+                "Memorandum Interno": {
+                    "tipo": "Memorandum",
+                    "de": "Comisión Técnica de Natación",
+                    "para": "Entrenadores y Personal Técnico",
+                    "asunto": "Ajuste de Horarios de Entrenamiento en Piscina Olímpica",
+                    "secciones": [
+                        {"subtitulo": "1. Modificación de Horarios", "texto": "Se informa que a partir del próximo lunes los entrenamientos matutinos iniciarán a las 5:30 AM."},
+                        {"subtitulo": "2. Control de Asistencia", "texto": "Es obligatorio registrar la toma de asistencia en la aplicación al finalizar cada bloque."}
+                    ],
+                    "clausulas": "* El incumplimiento reiterado afectará la asignación de materiales."
+                },
+                "Comunicado Oficial / Convocatoria": {
+                    "tipo": "Comunicado Oficial",
+                    "de": "Junta Directiva / Subcomisión de Natación",
+                    "para": "Atletas y Representantes",
+                    "asunto": "Convocatoria Chequeo Nacional de Marcas Mínimas",
+                    "secciones": [
+                        {"subtitulo": "1. Convocatoria", "texto": "Se convoca formalmente a todos los atletas clasificados a presentarse al chequeo técnico."},
+                        {"subtitulo": "2. Requisitos de Inscripción", "texto": "Tener la solvencia administrativa al día y entregar copia de la cédula de identidad."}
+                    ],
+                    "clausulas": "* Atletas sin chequeo formal no podrán optar a avales para campeonatos nacionales."
                 }
-                st.session_state.cuerpo_memo_secciones = p_data["secciones"]
-                st.session_state.clausulas_memo = p_data["clausulas"]
-                st.success("Plantilla cargada correctamente.")
-                st.rerun()
-
-        # Inicialización de estado de sesión
-        if "meta_memo" not in st.session_state:
-            st.session_state.meta_memo = {
-                "codigo": "MEMO-2026-001",
-                "tipo": "Memorandum",
-                "para": "",
-                "de": "",
-                "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
-                "asunto": ""
             }
-
-        if "cuerpo_memo_secciones" not in st.session_state:
-            st.session_state.cuerpo_memo_secciones = [{"subtitulo": "1. Asunto Principal", "texto": ""}]
-
-        if "clausulas_memo" not in st.session_state:
-            st.session_state.clausulas_memo = ""
-
-        # Formulario de Cabecera
-        meta = st.session_state.meta_memo
-        
-        with st.container(border=True):
-            st.markdown("#### 🏛️ Datos de Cabecera")
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                meta["codigo"] = st.text_input("N° Documento:", value=meta.get("codigo", "MEMO-2026-001"), key="input_memo_codigo")
-                meta["tipo"] = st.selectbox("Tipo:", ["Memorandum", "Comunicado Oficial", "Resolución", "Aviso"], index=0, key="select_memo_tipo")
-            with c2:
-                meta["para"] = st.text_input("Para:", value=meta.get("para", ""), key="input_memo_para")
-                meta["de"] = st.text_input("De:", value=meta.get("de", ""), key="input_memo_de")
-            with c3:
-                meta["fecha"] = st.text_input("Fecha:", value=meta.get("fecha", ""), key="input_memo_fecha")
-                meta["asunto"] = st.text_input("Asunto:", value=meta.get("asunto", ""), key="input_memo_asunto")
-            
-            st.session_state.meta_memo = meta
-
-        st.markdown("#### 📝 Cuerpo del Documento (Secciones Dinámicas)")
-        secciones = st.session_state.cuerpo_memo_secciones
-        
-        for idx, sec in enumerate(secciones):
-            with st.container(border=True):
-                col_s1, col_s2 = st.columns([5, 1])
-                with col_s1:
-                    sec["subtitulo"] = st.text_input(f"Subtítulo {idx+1}:", value=sec.get("subtitulo", ""), key=f"sub_com_{idx}")
-                    sec["texto"] = st.text_area(f"Texto {idx+1}:", value=sec.get("texto", ""), height=90, key=f"txt_com_{idx}")
-                with col_s2:
-                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                    if st.button("🗑️", key=f"del_sec_com_{idx}") and len(secciones) > 1:
-                        secciones.pop(idx)
-                        st.session_state.cuerpo_memo_secciones = secciones
-                        st.rerun()
-
-        if st.button("➕ Agregar Nueva Sección", key="btn_add_sec_com"):
-            secciones.append({"subtitulo": f"{len(secciones)+1}. Nueva Sección", "texto": ""})
-            st.session_state.cuerpo_memo_secciones = secciones
-            st.rerun()
-
-        st.markdown("#### 📜 Cláusulas y Disposiciones Finales")
-        st.session_state.clausulas_memo = st.text_area(
-            "Disposiciones reglamentarias o notas al pie:", 
-            value=st.session_state.clausulas_memo, 
-            height=80, 
-            key="area_clausulas_com"
-        )
-
-    # ---------------------------------------------------------------------
-    # TAB 2: EXPORTACIÓN Y DESPACHO (WHATSAPP / EMAIL CON PDF)
-    # ---------------------------------------------------------------------
-    with tab_export_envio:
-        st.markdown("### 📤 Generación, Exportación y Despacho Directo")
-        
-        # Generar los Bytes del PDF actual en memoria desde la utilidad
-        pdf_bytes = generar_pdf_memorandum_nativo()
-        nombre_pdf = f"{meta.get('codigo', 'documento')}.pdf"
-
-        col_d1, col_d2 = st.columns([2, 2])
-        with col_d1:
-            st.download_button(
-                label="📥 Descargar Documento PDF (8.5 x 11 in)",
-                data=pdf_bytes,
-                file_name=nombre_pdf,
-                mime="application/pdf",
-                type="primary",
-                use_container_width=True,
-                key="btn_download_pdf_com"
-            )
-        with col_d2:
-            if st.button("💾 Guardar Historial en Supabase", use_container_width=True, key="btn_guardar_db_com"):
-                try:
-                    payload = {
-                        "codigo_correlativo": meta.get("codigo"),
-                        "tipo_documento": meta.get("tipo"),
-                        "titulo": meta.get("asunto"),
-                        "para_destinatario": meta.get("para"),
-                        "de_emisor": meta.get("de"),
-                        "asunto": meta.get("asunto"),
-                        "contenido_json": st.session_state.cuerpo_memo_secciones,
-                        "clausulas_texto": st.session_state.clausulas_memo
+    
+            col_p1, col_p2 = st.columns([3, 1])
+            with col_p1:
+                plantilla_sel = st.selectbox(
+                    "📂 Cargar Plantilla Base:", 
+                    list(plantillas.keys()), 
+                    key="select_plantilla_comunicaciones"
+                )
+            with col_p2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("🔄 Cargar Plantilla", use_container_width=True, key="btn_cargar_plantilla_com"):
+                    p_data = plantillas[plantilla_sel]
+                    st.session_state.meta_memo = {
+                        "codigo": f"DOC-2026-{pd.Timestamp.now().strftime('%m%d%H%M')}",
+                        "tipo": p_data["tipo"],
+                        "para": p_data["para"],
+                        "de": p_data["de"],
+                        "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
+                        "asunto": p_data["asunto"]
                     }
-                    supabase.table("documentos_oficiales").upsert(payload, on_conflict="codigo_correlativo").execute()
-                    st.success("✅ Guardado en base de datos correctamente.")
-                except Exception as e:
-                    st.error(f"Error al guardar en BD: {e}")
-
-        st.markdown("---")
-        st.markdown("#### 🎯 Destinatarios y Canales de Envíos")
-
-        # Cargar directorio desde Supabase
-        try:
-            res_user = supabase.table("usuarios").select("nombre, email, telefono, rol").execute()
-            df_destinatarios = pd.DataFrame(res_user.data) if res_user.data else pd.DataFrame()
-        except Exception:
-            df_destinatarios = pd.DataFrame([
-                {"nombre": "Atletas Categoría Juvenil", "email": "juveniles@centrogallego.com", "telefono": "+584141234567", "rol": "Atletas"},
-                {"nombre": "Junta Directiva", "email": "directiva@centrogallego.com", "telefono": "+584129876543", "rol": "Directiva"}
-            ])
-
-        txt_resumen_wa = f"🏛️ *{meta.get('tipo', 'DOCUMENTO').upper()} N° {meta.get('codigo')}*\n\n" \
-                         f"*ASUNTO:* {meta.get('asunto')}\n" \
-                         f"*PARA:* {meta.get('para')}\n\n" \
-                         f"Estimados miembros, adjunto remitimos la información oficial emitida."
-
-        asunto_mail = f"[{meta.get('tipo')}] {meta.get('asunto')} - N° {meta.get('codigo')}"
-
-        st.text_area("Mensaje de acompañamiento (WhatsApp / Email):", value=txt_resumen_wa, height=100, key="txt_area_wa_msg_com")
-
-        st.markdown("##### 👥 Directorio de Despacho")
-        
-        for idx, row in df_destinatarios.iterrows():
+                    st.session_state.cuerpo_memo_secciones = p_data["secciones"]
+                    st.session_state.clausulas_memo = p_data["clausulas"]
+                    st.success("Plantilla cargada correctamente.")
+                    st.rerun()
+    
+            # Inicialización de estado de sesión
+            if "meta_memo" not in st.session_state:
+                st.session_state.meta_memo = {
+                    "codigo": "MEMO-2026-001",
+                    "tipo": "Memorandum",
+                    "para": "",
+                    "de": "",
+                    "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
+                    "asunto": ""
+                }
+    
+            if "cuerpo_memo_secciones" not in st.session_state:
+                st.session_state.cuerpo_memo_secciones = [{"subtitulo": "1. Asunto Principal", "texto": ""}]
+    
+            if "clausulas_memo" not in st.session_state:
+                st.session_state.clausulas_memo = ""
+    
+            # Formulario de Cabecera
+            meta = st.session_state.meta_memo
+            
             with st.container(border=True):
-                col_u1, col_u2, col_u3, col_u4 = st.columns([2.5, 2, 1.5, 1.5])
+                st.markdown("#### 🏛️ Datos de Cabecera")
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    meta["codigo"] = st.text_input("N° Documento:", value=meta.get("codigo", "MEMO-2026-001"), key="input_memo_codigo")
+                    meta["tipo"] = st.selectbox("Tipo:", ["Memorandum", "Comunicado Oficial", "Resolución", "Aviso"], index=0, key="select_memo_tipo")
+                with c2:
+                    meta["para"] = st.text_input("Para:", value=meta.get("para", ""), key="input_memo_para")
+                    meta["de"] = st.text_input("De:", value=meta.get("de", ""), key="input_memo_de")
+                with c3:
+                    meta["fecha"] = st.text_input("Fecha:", value=meta.get("fecha", ""), key="input_memo_fecha")
+                    meta["asunto"] = st.text_input("Asunto:", value=meta.get("asunto", ""), key="input_memo_asunto")
                 
-                nom = row.get("nombre", "Sin Nombre")
-                email = row.get("email", "")
-                telf = str(row.get("telefono", "")).replace("+", "").replace(" ", "").replace("-", "")
-                
-                col_u1.write(f"**{nom}**")
-                col_u2.caption(f"✉️ {email}\n📞 {telf}")
-                
-                if telf:
-                    wa_url = f"https://api.whatsapp.com/send?phone={telf}&text={urllib.parse.quote(txt_resumen_wa)}"
-                    col_u3.link_button("🟢 WhatsApp", wa_url, use_container_width=True, key=f"btn_wa_com_{idx}")
-                else:
-                    col_u3.caption("Sin teléfono")
-
-                if email:
-                    if col_u4.button("📩 Enviar PDF Mail", key=f"btn_mail_com_{idx}", use_container_width=True):
-                        with st.spinner(f"Enviando PDF a {email}..."):
-                            ok, msg_err = enviar_correo_con_pdf(
-                                destinatario=email,
-                                asunto=asunto_mail,
-                                cuerpo=txt_resumen_wa,
-                                pdf_bytes=pdf_bytes,
-                                nombre_archivo_pdf=nombre_pdf
-                            )
-                            if ok:
-                                st.success(f"¡Enviado a {nom}!")
-                            else:
-                                st.error(msg_err)
-                else:
-                    col_u4.caption("Sin correo")
+                st.session_state.meta_memo = meta
+    
+            st.markdown("#### 📝 Cuerpo del Documento (Secciones Dinámicas)")
+            secciones = st.session_state.cuerpo_memo_secciones
+            
+            for idx, sec in enumerate(secciones):
+                with st.container(border=True):
+                    col_s1, col_s2 = st.columns([5, 1])
+                    with col_s1:
+                        sec["subtitulo"] = st.text_input(f"Subtítulo {idx+1}:", value=sec.get("subtitulo", ""), key=f"sub_com_{idx}")
+                        sec["texto"] = st.text_area(f"Texto {idx+1}:", value=sec.get("texto", ""), height=90, key=f"txt_com_{idx}")
+                    with col_s2:
+                        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                        if st.button("🗑️", key=f"del_sec_com_{idx}") and len(secciones) > 1:
+                            secciones.pop(idx)
+                            st.session_state.cuerpo_memo_secciones = secciones
+                            st.rerun()
+    
+            if st.button("➕ Agregar Nueva Sección", key="btn_add_sec_com"):
+                secciones.append({"subtitulo": f"{len(secciones)+1}. Nueva Sección", "texto": ""})
+                st.session_state.cuerpo_memo_secciones = secciones
+                st.rerun()
+    
+            st.markdown("#### 📜 Cláusulas y Disposiciones Finales")
+            st.session_state.clausulas_memo = st.text_area(
+                "Disposiciones reglamentarias o notas al pie:", 
+                value=st.session_state.clausulas_memo, 
+                height=80, 
+                key="area_clausulas_com"
+            )
+    
+        # ---------------------------------------------------------------------
+        # TAB 2: EXPORTACIÓN Y DESPACHO (WHATSAPP / EMAIL CON PDF)
+        # ---------------------------------------------------------------------
+        with tab_export_envio:
+            st.markdown("### 📤 Generación, Exportación y Despacho Directo")
+            
+            # Generar los Bytes del PDF actual en memoria desde la utilidad
+            pdf_bytes = generar_pdf_memorandum_nativo()
+            nombre_pdf = f"{meta.get('codigo', 'documento')}.pdf"
+    
+            col_d1, col_d2 = st.columns([2, 2])
+            with col_d1:
+                st.download_button(
+                    label="📥 Descargar Documento PDF (8.5 x 11 in)",
+                    data=pdf_bytes,
+                    file_name=nombre_pdf,
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True,
+                    key="btn_download_pdf_com"
+                )
+            with col_d2:
+                if st.button("💾 Guardar Historial en Supabase", use_container_width=True, key="btn_guardar_db_com"):
+                    try:
+                        payload = {
+                            "codigo_correlativo": meta.get("codigo"),
+                            "tipo_documento": meta.get("tipo"),
+                            "titulo": meta.get("asunto"),
+                            "para_destinatario": meta.get("para"),
+                            "de_emisor": meta.get("de"),
+                            "asunto": meta.get("asunto"),
+                            "contenido_json": st.session_state.cuerpo_memo_secciones,
+                            "clausulas_texto": st.session_state.clausulas_memo
+                        }
+                        supabase.table("documentos_oficiales").upsert(payload, on_conflict="codigo_correlativo").execute()
+                        st.success("✅ Guardado en base de datos correctamente.")
+                    except Exception as e:
+                        st.error(f"Error al guardar en BD: {e}")
+    
+            st.markdown("---")
+            st.markdown("#### 🎯 Destinatarios y Canales de Envíos")
+    
+            # Cargar directorio desde Supabase
+            try:
+                res_user = supabase.table("usuarios").select("nombre, email, telefono, rol").execute()
+                df_destinatarios = pd.DataFrame(res_user.data) if res_user.data else pd.DataFrame()
+            except Exception:
+                df_destinatarios = pd.DataFrame([
+                    {"nombre": "Atletas Categoría Juvenil", "email": "juveniles@centrogallego.com", "telefono": "+584141234567", "rol": "Atletas"},
+                    {"nombre": "Junta Directiva", "email": "directiva@centrogallego.com", "telefono": "+584129876543", "rol": "Directiva"}
+                ])
+    
+            txt_resumen_wa = f"🏛️ *{meta.get('tipo', 'DOCUMENTO').upper()} N° {meta.get('codigo')}*\n\n" \
+                             f"*ASUNTO:* {meta.get('asunto')}\n" \
+                             f"*PARA:* {meta.get('para')}\n\n" \
+                             f"Estimados miembros, adjunto remitimos la información oficial emitida."
+    
+            asunto_mail = f"[{meta.get('tipo')}] {meta.get('asunto')} - N° {meta.get('codigo')}"
+    
+            st.text_area("Mensaje de acompañamiento (WhatsApp / Email):", value=txt_resumen_wa, height=100, key="txt_area_wa_msg_com")
+    
+            st.markdown("##### 👥 Directorio de Despacho")
+            
+            for idx, row in df_destinatarios.iterrows():
+                with st.container(border=True):
+                    col_u1, col_u2, col_u3, col_u4 = st.columns([2.5, 2, 1.5, 1.5])
+                    
+                    nom = row.get("nombre", "Sin Nombre")
+                    email = row.get("email", "")
+                    telf = str(row.get("telefono", "")).replace("+", "").replace(" ", "").replace("-", "")
+                    
+                    col_u1.write(f"**{nom}**")
+                    col_u2.caption(f"✉️ {email}\n📞 {telf}")
+                    
+                    if telf:
+                        wa_url = f"https://api.whatsapp.com/send?phone={telf}&text={urllib.parse.quote(txt_resumen_wa)}"
+                        col_u3.link_button("🟢 WhatsApp", wa_url, use_container_width=True, key=f"btn_wa_com_{idx}")
+                    else:
+                        col_u3.caption("Sin teléfono")
+    
+                    if email:
+                        if col_u4.button("📩 Enviar PDF Mail", key=f"btn_mail_com_{idx}", use_container_width=True):
+                            with st.spinner(f"Enviando PDF a {email}..."):
+                                ok, msg_err = enviar_correo_con_pdf(
+                                    destinatario=email,
+                                    asunto=asunto_mail,
+                                    cuerpo=txt_resumen_wa,
+                                    pdf_bytes=pdf_bytes,
+                                    nombre_archivo_pdf=nombre_pdf
+                                )
+                                if ok:
+                                    st.success(f"¡Enviado a {nom}!")
+                                else:
+                                    st.error(msg_err)
+                    else:
+                        col_u4.caption("Sin correo")
