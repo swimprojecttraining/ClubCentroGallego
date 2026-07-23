@@ -215,28 +215,44 @@ def renderizar_tab_club():
             else:
                 df_plantilla["categoria"] = "Sin Fecha"
 
-            # --- FILTROS DE PLANTILLA ---
-            col_f1, col_f2 = st.columns(2)
+            # --- FILTROS DE PLANTILLA (3 COLUMNAS) ---
+            col_f1, col_f2, col_f3 = st.columns([1, 1, 1])
+            
             with col_f1:
                 estatus_filtro = st.selectbox(
-                    "Filtrar por Estatus de Plantilla:", 
+                    "Estatus:", 
                     ["Todos", "Activo", "Inactivo", "Suspendido", "Retirado"], 
                     key="filtro_estatus_plantilla"
                 )
+
             with col_f2:
+                # Obtener categorías únicas presentes en la plantilla actual
+                cats_unicas = sorted([c for c in df_plantilla["categoria"].unique() if c])
+                categoria_filtro = st.selectbox(
+                    "Categoría:", 
+                    ["Todas"] + cats_unicas, 
+                    key="filtro_cat_plantilla"
+                )
+
+            with col_f3:
                 busqueda_plantilla = st.text_input(
-                    "🔍 Buscar en Plantilla:", 
-                    placeholder="Nombre o correo electrónico...", 
+                    "🔍 Buscar:", 
+                    placeholder="Nombre o correo...", 
                     key="busq_plantilla"
                 )
 
+            # --- APLICACIÓN DE FILTROS ---
             df_p_filtrado = df_plantilla.copy()
             
-            # Aplicar filtro de estatus
+            # 1. Filtro por Estatus
             if estatus_filtro != "Todos" and "estatus" in df_p_filtrado.columns:
                 df_p_filtrado = df_p_filtrado[df_p_filtrado["estatus"] == estatus_filtro]
 
-            # Aplicar filtro de búsqueda de texto
+            # 2. Filtro por Categoría
+            if categoria_filtro != "Todas":
+                df_p_filtrado = df_p_filtrado[df_p_filtrado["categoria"] == categoria_filtro]
+
+            # 3. Filtro por Búsqueda de Texto
             if busqueda_plantilla:
                 df_p_filtrado = df_p_filtrado[
                     df_p_filtrado["nombre"].str.contains(busqueda_plantilla, case=False, na=False) |
@@ -266,7 +282,7 @@ def renderizar_tab_club():
                 "nombre": "Atleta",
                 "email": "Correo Electrónico",
                 "fecha_nacimiento": "Fecha Nacimiento",
-                "categoria": "Categoría (Calculada)",
+                "categoria": "Categoría",
                 "estatus": "Estatus"
             }
             df_p_display.columns = [nombres_columnas.get(c, c) for c in cols_disponibles]
