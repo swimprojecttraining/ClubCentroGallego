@@ -1,9 +1,45 @@
 # views_tab_club.py (Módulo de Gestión Administrativa del Club)
 import streamlit as st
-import pandas as pd
 import datetime
+import pandas as pd
+import urllib.parse
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 
 from formulas_lib_funciones import calcular_categoria_competencia
+from pdf_memo_utility import generar_pdf_memorandum_nativ
+
+def enviar_correo_con_pdf(destinatario, asunto, cuerpo, pdf_bytes, nombre_archivo_pdf):
+    """
+    Envía un correo electrónico con el PDF adjunto generado en memoria.
+    """
+    try:
+        smtp_server = st.secrets.get("smtp", {}).get("server", "smtp.gmail.com")
+        smtp_port = int(st.secrets.get("smtp", {}).get("port", 587))
+        sender_email = st.secrets.get("smtp", {}).get("email", "tu_club@gmail.com")
+        sender_password = st.secrets.get("smtp", {}).get("password", "tu_app_password")
+
+        msg = MIMEMultipart()
+        msg['From'] = f"Centro Gallego - Natación <{sender_email}>"
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+
+        msg.attach(MIMEText(cuerpo, 'plain'))
+
+        adjunto = MIMEApplication(pdf_bytes, _subtype="pdf")
+        adjunto.add_header('Content-Disposition', 'attachment', filename=nombre_archivo_pdf)
+        msg.attach(adjunto)
+
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+        server.quit()
+        return True, "Correo enviado con éxito."
+    except Exception as e:
+        return False, f"Error al enviar correo: {str(e)}"
 
 def renderizar_tab_club():
     """
