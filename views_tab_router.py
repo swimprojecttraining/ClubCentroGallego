@@ -55,6 +55,7 @@ def mostrar_vista_enrutador():
         tab_club, = st.tabs(["🏛️ Gestión Administrativa"])
         with tab_club:
             renderizar_tab_club()
+            return
     else:
         tab_grafico, tab_pizarra, tab_reportes, tab_marcas, tab_importar, tab_entrenador, tab_asignaciones, tab_calendario, tab_admin = st.tabs([
             "📉 Gráfico de Proyecciones",
