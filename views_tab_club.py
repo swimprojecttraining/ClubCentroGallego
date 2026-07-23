@@ -190,10 +190,10 @@ def renderizar_tab_club():
         st.caption("Control de atletas activos, inactivos y actualización de datos de la plantilla institucional.")
         st.info("💡 **Nota pendiente:** Próximamente se incluirá el campo de cédula de identidad en la actualización de registros.")
 
-        # Cargar todos los nadadores incluyendo fecha de nacimiento y categoría
+        # Cargar todos los nadadores con sus datos de perfil requeridos
         try:
             res_plantilla = supabase.table("usuarios")\
-                .select("id, nombre, email, estatus, fecha_nacimiento, categoria")\
+                .select("id, nombre, email, estatus, fecha_nacimiento")\
                 .eq("rol", "Nadador")\
                 .execute()
             
@@ -205,6 +205,14 @@ def renderizar_tab_club():
         if df_plantilla.empty:
             st.warning("No hay atletas registrados en el sistema.")
         else:
+            # --- CÁLCULO DINÁMICO DE CATEGORÍA ---
+            if "fecha_nacimiento" in df_plantilla.columns:
+                df_plantilla["categoria"] = df_plantilla["fecha_nacimiento"].apply(
+                    lambda fecha: calcular_categoria_competencia(fecha)[0]
+                )
+            else:
+                df_plantilla["categoria"] = "Sin Fecha"
+
             # --- FILTROS DE PLANTILLA ---
             col_f1, col_f2 = st.columns(2)
             with col_f1:
@@ -222,11 +230,11 @@ def renderizar_tab_club():
 
             df_p_filtrado = df_plantilla.copy()
             
-            # Aplicar filtro de estatus si existe la columna
+            # Aplicar filtro de estatus
             if estatus_filtro != "Todos" and "estatus" in df_p_filtrado.columns:
                 df_p_filtrado = df_p_filtrado[df_p_filtrado["estatus"] == estatus_filtro]
 
-            # Aplicar filtro de búsqueda de texto (excluyendo usuario)
+            # Aplicar filtro de búsqueda de texto
             if busqueda_plantilla:
                 df_p_filtrado = df_p_filtrado[
                     df_p_filtrado["nombre"].str.contains(busqueda_plantilla, case=False, na=False) |
@@ -251,12 +259,12 @@ def renderizar_tab_club():
             
             df_p_display = df_p_filtrado[cols_disponibles].copy()
             
-            # Diccionario de renombrado limpio y adaptado
+            # Renombrado estético de encabezados
             nombres_columnas = {
                 "nombre": "Atleta",
                 "email": "Correo Electrónico",
-                "fecha_nacimiento": "Fecha de Nacimiento",
-                "categoria": "Categoría",
+                "fecha_nacimiento": "Fecha Nacimiento",
+                "categoria": "Categoría (Calculada)",
                 "estatus": "Estatus"
             }
             df_p_display.columns = [nombres_columnas.get(c, c) for c in cols_disponibles]
