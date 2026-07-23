@@ -188,11 +188,12 @@ def renderizar_tab_club():
     with subtab_atletas:
         st.markdown("### 👥 Gestión de Plantilla y Atletas")
         st.caption("Control de atletas activos, inactivos y actualización de datos de la plantilla institucional.")
+        st.info("💡 **Nota pendiente:** Próximamente se incluirá el campo de cédula de identidad en la actualización de registros.")
 
-        # Cargar todos los nadadores con sus campos principales (usando 'created_at')
+        # Cargar todos los nadadores incluyendo fecha de nacimiento y categoría
         try:
             res_plantilla = supabase.table("usuarios")\
-                .select("id, nombre, usuario, email, estatus, created_at")\
+                .select("id, nombre, email, estatus, fecha_nacimiento, categoria")\
                 .eq("rol", "Nadador")\
                 .execute()
             
@@ -215,7 +216,7 @@ def renderizar_tab_club():
             with col_f2:
                 busqueda_plantilla = st.text_input(
                     "🔍 Buscar en Plantilla:", 
-                    placeholder="Nombre, usuario o correo...", 
+                    placeholder="Nombre o correo electrónico...", 
                     key="busq_plantilla"
                 )
 
@@ -225,11 +226,10 @@ def renderizar_tab_club():
             if estatus_filtro != "Todos" and "estatus" in df_p_filtrado.columns:
                 df_p_filtrado = df_p_filtrado[df_p_filtrado["estatus"] == estatus_filtro]
 
-            # Aplicar filtro de búsqueda de texto
+            # Aplicar filtro de búsqueda de texto (excluyendo usuario)
             if busqueda_plantilla:
                 df_p_filtrado = df_p_filtrado[
                     df_p_filtrado["nombre"].str.contains(busqueda_plantilla, case=False, na=False) |
-                    df_p_filtrado["usuario"].str.contains(busqueda_plantilla, case=False, na=False) |
                     df_p_filtrado["email"].str.contains(busqueda_plantilla, case=False, na=False)
                 ]
 
@@ -246,18 +246,18 @@ def renderizar_tab_club():
             st.markdown("---")
 
             # --- TABLA DE PLANTILLA ---
-            cols_p_mostrar = ["nombre", "usuario", "email", "estatus", "created_at"]
+            cols_p_mostrar = ["nombre", "email", "fecha_nacimiento", "categoria", "estatus"]
             cols_disponibles = [c for c in cols_p_mostrar if c in df_p_filtrado.columns]
             
             df_p_display = df_p_filtrado[cols_disponibles].copy()
             
-            # Diccionario de renombrado dinámico para las columnas disponibles
+            # Diccionario de renombrado limpio y adaptado
             nombres_columnas = {
                 "nombre": "Atleta",
-                "usuario": "Usuario",
                 "email": "Correo Electrónico",
-                "estatus": "Estatus",
-                "created_at": "Fecha de Registro"
+                "fecha_nacimiento": "Fecha de Nacimiento",
+                "categoria": "Categoría",
+                "estatus": "Estatus"
             }
             df_p_display.columns = [nombres_columnas.get(c, c) for c in cols_disponibles]
 
@@ -270,7 +270,7 @@ def renderizar_tab_club():
                     atleta_mod_id = st.selectbox(
                         "Seleccionar Atleta:",
                         options=df_plantilla["id"].tolist(),
-                        format_func=lambda x: f"{df_plantilla[df_plantilla['id'] == x]['nombre'].values[0]} (@{df_plantilla[df_plantilla['id'] == x]['usuario'].values[0]})"
+                        format_func=lambda x: df_plantilla[df_plantilla['id'] == x]['nombre'].values[0]
                     )
                     
                     nuevo_estatus_atleta = st.selectbox(
