@@ -207,15 +207,15 @@ def renderizar_tab_club():
         if df_plantilla.empty:
             st.warning("No hay atletas registrados en el sistema.")
         else:
-            # --- CÁLCULO DINÁMICO DE CATEGORÍA ---
+            # --- CÁLCULO DINÁMICO Y SEGURO DE CATEGORÍA ---
             if "fecha_nacimiento" in df_plantilla.columns:
                 df_plantilla["categoria"] = df_plantilla["fecha_nacimiento"].apply(
-                    lambda fecha: calcular_categoria_competencia(fecha)[0]
+                    lambda fecha: calcular_categoria_competencia(fecha)[0] if pd.notna(fecha) and fecha else "Sin Fecha"
                 )
             else:
                 df_plantilla["categoria"] = "Sin Fecha"
 
-            # --- FILTROS DE PLANTILLA (3 COLUMNAS) ---
+            # --- FILTROS DE PLANTILLA (3 COLUMNAS VISIBLES) ---
             col_f1, col_f2, col_f3 = st.columns([1, 1, 1])
             
             with col_f1:
@@ -226,8 +226,8 @@ def renderizar_tab_club():
                 )
 
             with col_f2:
-                # Obtener categorías únicas presentes en la plantilla actual
-                cats_unicas = sorted([c for c in df_plantilla["categoria"].unique() if c])
+                # Extracción robusta de categorías sin fallos por valores nulos
+                cats_unicas = sorted([str(c) for c in df_plantilla["categoria"].dropna().unique() if c])
                 categoria_filtro = st.selectbox(
                     "Categoría:", 
                     ["Todas"] + cats_unicas, 
