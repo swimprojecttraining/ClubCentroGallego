@@ -21,7 +21,13 @@ def obtener_nadadores_activos_cache():
     supabase = _get_db()
     if not supabase: return []
     try:
-        resp = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
+        resp = (
+            supabase.table("usuarios")
+            .select("id, nombre, genero, fecha_nacimiento, estatus") # <--- Agregamos 'estatus' al select
+            .eq("rol", "Nadador")
+            .in_("estatus", ["Activo", "Pendiente"])                 # <--- Incluye Activo y Pendiente
+            .execute()
+        )
         return resp.data if resp.data else []
     except: return []
 
