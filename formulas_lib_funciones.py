@@ -11,7 +11,7 @@ import secrets
 
 
 
-from conections_supabase import get_db
+from conections_supabase import _get_db
 from datetime import datetime, timedelta, timezone
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
@@ -30,13 +30,12 @@ def desencriptar_credencial(texto_cifrado: str, llave_maestra: str) -> str:
         st.error(f"Error crítico de descifrado de credenciales: {e}")
         st.stop()
 
-
 def generar_y_guardar_invitacion(nombre: str, email: str, rol: str, id_creador: str) -> dict:
     """
     Genera un token criptográficamente seguro, calcula la expiración a 48h
     y guarda el registro en la tabla 'invitaciones'.
     """
-    supabase = get_db()
+    supabase = _get_db()
     if not supabase:
         return {"exito": False, "mensaje": "Error de conexión con la base de datos."}
 
@@ -83,7 +82,7 @@ def validar_token_invitacion(token: str) -> dict:
     """
     Verifica si el token existe, no ha sido usado y aún no ha expirado.
     """
-    supabase = get_db()
+    supabase = _get_db()
     if not supabase:
         return {"valido": False, "mensaje": "Error de conexión."}
 
@@ -180,6 +179,7 @@ def enviar_email(
         return True, "Correo enviado con éxito."
     except Exception as e:
         return False, f"Error al enviar correo: {str(e)}"
+
 # -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
