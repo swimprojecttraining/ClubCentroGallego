@@ -130,8 +130,7 @@ def renderizar_tab_club():
                         "Retirado",
                     ],
                     index=0,
-                    help="Seleccione 'Pendiente' si la cuenta aun no tiene los datos completos.",
-                    " Seleccione 'Activo' si la cuenta ya tiene todos los datos completos.",
+                    help="Seleccione 'Pendiente' si la cuenta aún no tiene los datos completos. Seleccione 'Activo' si ya los tiene completos.",
                 )
 
             btn_guardar = st.form_submit_button(
