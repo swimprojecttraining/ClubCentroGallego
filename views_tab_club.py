@@ -126,12 +126,12 @@ def renderizar_tab_club():
                     options=[
                         "Pendiente",
                         "Activo",
-                        "Inactivo",
+                        "Suspendido",
                         "Retirado",
-                        "Trasladado",
                     ],
                     index=0,
-                    help="Se recomienda 'Pendiente' para cuentas por activar.",
+                    help="Seleccione 'Pendiente' si la cuenta aun no tiene los datos completos.",
+                    " Seleccione 'Activo' si la cuenta ya tiene todos los datos completos.",
                 )
 
             btn_guardar = st.form_submit_button(
