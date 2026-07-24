@@ -11,7 +11,7 @@ import secrets
 
 
 
-from conections_supabase import _get_db
+from conections_supabase_cache import _get_db
 from datetime import datetime, timedelta, timezone
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
