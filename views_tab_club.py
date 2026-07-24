@@ -1,20 +1,16 @@
 # views_tab_club.py (Módulo de Gestión Administrativa del Club)
 import datetime
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 import smtplib
 import urllib.parse
 import pandas as pd
 import streamlit as st
 
-from formulas_lib_funciones import (
-    calcular_categoria_competencia,
-    enviar_email,
-    hash_password,
-)
+from formulas_lib_funciones import (calcular_categoria_competencia, enviar_email, hash_password)
 from pdf_memo_utility import generar_pdf_memorandum_nativo
 
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 def enviar_correo_con_pdf(
     destinatario: str,
@@ -665,114 +661,99 @@ def renderizar_tab_club():
                         except Exception as e:
                             st.error(f"Error al actualizar en BD: {e}")
 
-    # =========================================================================
+# =========================================================================
     # SUB-PESTAÑA 4: COMUNICADOS Y CORRESPONDENCIA
     # =========================================================================
     with subtab_comunicacion:
         st.markdown("## 📜 Emisión de Documentos y Comunicación Oficial")
         st.caption(
-            "Preparación de memorandums, avisos y comunicados en papel membrete con exportación a PDF y envío directo."
+            "Gestión dinámica de plantillas, memorandums, comunicados y correspondencia institucional."
         )
 
         tab_editor, tab_export_envio = st.tabs(
             ["✍️ Editor y Maquetación", "📤 Exportación y Despacho"]
         )
 
-        # TAB 1: EDITOR
-        with tab_editor:
-            plantillas = {
-                "Memorandum Interno": {
-                    "tipo": "Memorandum",
-                    "de": "Comisión Técnica de Natación",
-                    "para": "Entrenadores y Personal Técnico",
-                    "asunto": (
-                        "Ajuste de Horarios de Entrenamiento en Piscina Olímpica"
-                    ),
-                    "secciones": [
-                        {
-                            "subtitulo": "1. Modificación de Horarios",
-                            "texto": (
-                                "Se informa que a partir del próximo lunes los"
-                                " entrenamientos matutinos iniciarán a las 5:30"
-                                " AM."
-                            ),
-                        },
-                        {
-                            "subtitulo": "2. Control de Asistencia",
-                            "texto": (
-                                "Es obligatorio registrar la toma de asistencia"
-                                " en la aplicación al finalizar cada bloque."
-                            ),
-                        },
-                    ],
-                    "clausulas": (
-                        "* El incumplimiento reiterado afectará la asignación"
-                        " de materiales."
-                    ),
-                },
-                "Comunicado Oficial / Convocatoria": {
-                    "tipo": "Comunicado Oficial",
-                    "de": "Junta Directiva / Subcomisión de Natación",
-                    "para": "Atletas y Representantes",
-                    "asunto": "Convocatoria Chequeo Nacional de Marcas Mínimas",
-                    "secciones": [
-                        {
-                            "subtitulo": "1. Convocatoria",
-                            "texto": (
-                                "Se convoca formalmente a todos los atletas"
-                                " clasificados a presentarse al chequeo técnico."
-                            ),
-                        },
-                        {
-                            "subtitulo": "2. Requisitos de Inscripción",
-                            "texto": (
-                                "Tener la solvencia administrativa al día y"
-                                " entregar copia de la cédula de identidad."
-                            ),
-                        },
-                    ],
-                    "clausulas": (
-                        "* Atletas sin chequeo formal no podrán optar a avales"
-                        " para campeonatos nacionales."
-                    ),
-                },
-            }
+        # -------------------------------------------------------------------------
+        # CONSULTA Y CARGA DE PLANTILLAS DESDE BASE DE DATOS
+        # -------------------------------------------------------------------------
+        try:
+            res_plantillas = (
+                supabase.table("documentos_oficiales")
+                .select("*")
+                .eq("es_plantilla", True)
+                .execute()
+            )
+            lista_plantillas = (
+                res_plantillas.data if res_plantillas.data else []
+            )
+        except Exception as e:
+            lista_plantillas = []
+            st.error(f"Error al consultar plantillas en BD: {e}")
 
+        dict_plantillas = {p["titulo"]: p for p in lista_plantillas}
+
+        # -------------------------------------------------------------------------
+        # TAB 1: EDITOR Y MAQUETACIÓN
+        # -------------------------------------------------------------------------
+        with tab_editor:
             col_p1, col_p2 = st.columns([3, 1])
+
             with col_p1:
+                opciones_plantillas = [
+                    "-- Seleccionar Plantilla de la BD --"
+                ] + list(dict_plantillas.keys())
                 plantilla_sel = st.selectbox(
-                    "📂 Cargar Plantilla Base:",
-                    list(plantillas.keys()),
-                    key="select_plantilla_comunicaciones",
+                    "📂 Cargar Plantilla desde la Base de Datos:",
+                    opciones_plantillas,
+                    key="select_plantilla_bd",
                 )
+
             with col_p2:
                 st.markdown(
                     "<div style='height: 28px;'></div>", unsafe_allow_html=True
                 )
                 if st.button(
-                    "🔄 Cargar Plantilla",
+                    "🔄 Cargar en Editor",
                     use_container_width=True,
-                    key="btn_cargar_plantilla_com",
+                    key="btn_cargar_plantilla_bd",
                 ):
-                    p_data = plantillas[plantilla_sel]
-                    st.session_state.meta_memo = {
-                        "codigo": (
-                            f"DOC-2026-{pd.Timestamp.now().strftime('%m%d%H%M')}"
-                        ),
-                        "tipo": p_data["tipo"],
-                        "para": p_data["para"],
-                        "de": p_data["de"],
-                        "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
-                        "asunto": p_data["asunto"],
-                    }
-                    st.session_state.cuerpo_memo_secciones = p_data["secciones"]
-                    st.session_state.clausulas_memo = p_data["clausulas"]
-                    st.success("Plantilla cargada correctamente.")
-                    st.rerun()
+                    if plantilla_sel in dict_plantillas:
+                        p_data = dict_plantillas[plantilla_sel]
+                        st.session_state.id_plantilla_origen = p_data.get("id")
+                        st.session_state.meta_memo = {
+                            "codigo": (
+                                f"DOC-2026-{pd.Timestamp.now().strftime('%m%d%H%M')}"
+                            ),
+                            "tipo": p_data.get(
+                                "tipo_documento", "Comunicado Oficial"
+                            ),
+                            "para": p_data.get("para_destinatario", ""),
+                            "de": p_data.get("de_emisor", ""),
+                            "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
+                            "asunto": p_data.get("asunto", ""),
+                        }
+                        st.session_state.cuerpo_memo_secciones = p_data.get(
+                            "contenido_json", []
+                        )
+                        st.session_state.clausulas_memo = p_data.get(
+                            "clausulas_texto", ""
+                        )
+                        st.success(
+                            f"Plantilla '{plantilla_sel}' cargada con éxito."
+                        )
+                        st.rerun()
+                    else:
+                        st.warning(
+                            "Seleccione una plantilla válida de la lista."
+                        )
 
+            # Inicialización del estado en sesión
             if "meta_memo" not in st.session_state:
                 st.session_state.meta_memo = {
-                    "codigo": "MEMO-2026-001",
+                    "codigo": (
+                        f"MEMO-2026-{pd.Timestamp.now().strftime('%m%d%H%M')}"
+                    ),
                     "tipo": "Memorandum",
                     "para": "",
                     "de": "",
@@ -790,18 +771,24 @@ def renderizar_tab_club():
 
             meta = st.session_state.meta_memo
 
+            # Formulario de Cabecera
             with st.container(border=True):
                 st.markdown("#### 🏛️ Datos de Cabecera")
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     meta["codigo"] = st.text_input(
                         "N° Documento:",
-                        value=meta.get("codigo", "MEMO-2026-001"),
+                        value=meta.get("codigo", ""),
                         key="input_memo_codigo",
                     )
                     meta["tipo"] = st.selectbox(
                         "Tipo:",
-                        ["Memorandum", "Comunicado Oficial", "Resolución", "Aviso"],
+                        [
+                            "Memorandum",
+                            "Comunicado Oficial",
+                            "Resolución",
+                            "Aviso",
+                        ],
                         index=0,
                         key="select_memo_tipo",
                     )
@@ -828,6 +815,7 @@ def renderizar_tab_club():
 
                 st.session_state.meta_memo = meta
 
+            # Secciones Dinámicas
             st.markdown("#### 📝 Cuerpo del Documento (Secciones Dinámicas)")
             secciones = st.session_state.cuerpo_memo_secciones
 
@@ -875,32 +863,33 @@ def renderizar_tab_club():
                 key="area_clausulas_com",
             )
 
-        # TAB 2: EXPORTACIÓN
+        # -------------------------------------------------------------------------
+        # TAB 2: EXPORTACIÓN Y DESPACHO
+        # -------------------------------------------------------------------------
         with tab_export_envio:
-            st.markdown("### 📤 Generación, Exportación y Despacho Directo")
+            st.markdown("### 📤 Generación, Guardado y Despacho Directo")
 
             pdf_bytes = generar_pdf_memorandum_nativo()
             nombre_pdf = f"{meta.get('codigo', 'documento')}.pdf"
 
-            col_d1, col_d2 = st.columns([2, 2])
-            with col_d1:
+            c_down, c_save_doc, c_save_tpl = st.columns([1.5, 1.5, 2])
+
+            with c_down:
                 st.download_button(
-                    label="📥 Descargar Documento PDF (8.5 x 11 in)",
+                    label="📥 Descargar PDF",
                     data=pdf_bytes,
                     file_name=nombre_pdf,
                     mime="application/pdf",
                     type="primary",
                     use_container_width=True,
-                    key="btn_download_pdf_com",
                 )
-            with col_d2:
+
+            with c_save_doc:
                 if st.button(
-                    "💾 Guardar Historial en Supabase",
-                    use_container_width=True,
-                    key="btn_guardar_db_com",
+                    "💾 Guardar Documento Real", use_container_width=True
                 ):
                     try:
-                        payload = {
+                        payload_doc = {
                             "codigo_correlativo": meta.get("codigo"),
                             "tipo_documento": meta.get("tipo"),
                             "titulo": meta.get("asunto"),
@@ -911,19 +900,114 @@ def renderizar_tab_club():
                                 st.session_state.cuerpo_memo_secciones
                             ),
                             "clausulas_texto": st.session_state.clausulas_memo,
+                            "es_plantilla": False,
                         }
                         supabase.table("documentos_oficiales").upsert(
-                            payload, on_conflict="codigo_correlativo"
+                            payload_doc, on_conflict="codigo_correlativo"
                         ).execute()
-                        st.success(
-                            "✅ Guardado en base de datos correctamente."
-                        )
+                        st.success("✅ Documento real registrado en BD.")
                     except Exception as e:
-                        st.error(f"Error al guardar en BD: {e}")
+                        st.error(f"Error al guardar documento: {e}")
+
+            # Gestión de Plantillas en BD
+            with st.expander("🛠️ **Gestión de Plantillas en BD**", expanded=True):
+                st.info(
+                    "Guarde este contenido como una nueva plantilla o actualice una plantilla existente."
+                )
+
+                modo_plantilla = st.radio(
+                    "Acción sobre la plantilla:",
+                    [
+                        "Crear como Nueva Plantilla",
+                        "Sobrescribir Plantilla Existente",
+                    ],
+                    horizontal=True,
+                )
+
+                if modo_plantilla == "Crear como Nueva Plantilla":
+                    nombre_nueva_plantilla = st.text_input(
+                        "Nombre identificador de la nueva plantilla:",
+                        value=f"Plantilla - {meta.get('asunto', 'Sin Título')}",
+                    )
+                    if st.button("⭐ Guardar como Nueva Plantilla"):
+                        if not nombre_nueva_plantilla.strip():
+                            st.error(
+                                "Ingrese un nombre válido para la plantilla."
+                            )
+                        else:
+                            payload_tpl = {
+                                "codigo_correlativo": f"TPL-{pd.Timestamp.now().strftime('%Y%m%d%H%M%S')}",
+                                "tipo_documento": meta.get("tipo"),
+                                "titulo": nombre_nueva_plantilla.strip(),
+                                "para_destinatario": meta.get("para"),
+                                "de_emisor": meta.get("de"),
+                                "asunto": meta.get("asunto"),
+                                "contenido_json": (
+                                    st.session_state.cuerpo_memo_secciones
+                                ),
+                                "clausulas_texto": (
+                                    st.session_state.clausulas_memo
+                                ),
+                                "es_plantilla": True,
+                            }
+                            try:
+                                supabase.table("documentos_oficiales").insert(
+                                    payload_tpl
+                                ).execute()
+                                st.success(
+                                    f"✅ Plantilla **'{nombre_nueva_plantilla}'** guardada correctamente."
+                                )
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al guardar la plantilla: {e}")
+
+                else:
+                    if not lista_plantillas:
+                        st.warning(
+                            "No hay plantillas registradas para modificar."
+                        )
+                    else:
+                        plantilla_a_modificar = st.selectbox(
+                            "Selecciona la plantilla a sobrescribir:",
+                            options=[p["id"] for p in lista_plantillas],
+                            format_func=lambda x: next(
+                                (
+                                    p["titulo"]
+                                    for p in lista_plantillas
+                                    if p["id"] == x
+                                ),
+                                str(x),
+                            ),
+                        )
+                        if st.button("🔄 Actualizar Plantilla Seleccionada"):
+                            payload_update = {
+                                "tipo_documento": meta.get("tipo"),
+                                "para_destinatario": meta.get("para"),
+                                "de_emisor": meta.get("de"),
+                                "asunto": meta.get("asunto"),
+                                "contenido_json": (
+                                    st.session_state.cuerpo_memo_secciones
+                                ),
+                                "clausulas_texto": (
+                                    st.session_state.clausulas_memo
+                                ),
+                                "es_plantilla": True,
+                            }
+                            try:
+                                supabase.table("documentos_oficiales").update(
+                                    payload_update
+                                ).eq("id", plantilla_a_modificar).execute()
+                                st.success(
+                                    "✅ Plantilla actualizada exitosamente."
+                                )
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al actualizar plantilla: {e}")
 
             st.markdown("---")
-            st.markdown("#### 🎯 Destinatarios y Canales de Envíos")
+            st.markdown("#### 🎯 Directorio y Despacho")
 
+            # Los destinatarios se obtienen dinámicamente de Supabase
             try:
                 res_user = (
                     supabase.table("usuarios")
@@ -935,21 +1019,9 @@ def renderizar_tab_club():
                     if res_user.data
                     else pd.DataFrame()
                 )
-            except Exception:
-                df_destinatarios = pd.DataFrame([
-                    {
-                        "nombre": "Atletas Categoría Juvenil",
-                        "email": "juveniles@centrogallego.com",
-                        "telefono": "+584141234567",
-                        "rol": "Atletas",
-                    },
-                    {
-                        "nombre": "Junta Directiva",
-                        "email": "directiva@centrogallego.com",
-                        "telefono": "+584129876543",
-                        "rol": "Directiva",
-                    },
-                ])
+            except Exception as e:
+                df_destinatarios = pd.DataFrame()
+                st.error(f"Error al cargar lista de destinatarios: {e}")
 
             txt_resumen_wa = (
                 f"🏛️ *{meta.get('tipo', 'DOCUMENTO').upper()} N°"
@@ -970,54 +1042,61 @@ def renderizar_tab_club():
                 key="txt_area_wa_msg_com",
             )
 
-            st.markdown("##### 👥 Directorio de Despacho")
-
-            for idx, row in df_destinatarios.iterrows():
-                with st.container(border=True):
-                    col_u1, col_u2, col_u3, col_u4 = st.columns(
-                        [2.5, 2, 1.5, 1.5]
-                    )
-
-                    nom = row.get("nombre", "Sin Nombre")
-                    email = row.get("email", "")
-                    telf = (
-                        str(row.get("telefono", ""))
-                        .replace("+", "")
-                        .replace(" ", "")
-                        .replace("-", "")
-                    )
-
-                    col_u1.write(f"**{nom}**")
-                    col_u2.caption(f"✉️ {email}\n📞 {telf}")
-
-                    if telf:
-                        wa_url = f"https://api.whatsapp.com/send?phone={telf}&text={urllib.parse.quote(txt_resumen_wa)}"
-                        col_u3.link_button(
-                            "🟢 WhatsApp",
-                            wa_url,
-                            use_container_width=True,
-                            key=f"btn_wa_com_{idx}",
+            if df_destinatarios.empty:
+                st.info("No hay destinatarios registrados en la base de datos.")
+            else:
+                for idx, row in df_destinatarios.iterrows():
+                    with st.container(border=True):
+                        col_u1, col_u2, col_u3, col_u4 = st.columns(
+                            [2.5, 2, 1.5, 1.5]
                         )
-                    else:
-                        col_u3.caption("Sin teléfono")
 
-                    if email:
-                        if col_u4.button(
-                            "📩 Enviar PDF Mail",
-                            key=f"btn_mail_com_{idx}",
-                            use_container_width=True,
-                        ):
-                            with st.spinner(f"Enviando PDF a {email}..."):
-                                ok, msg_err = enviar_correo_con_pdf(
-                                    destinatario=email,
-                                    asunto=asunto_mail,
-                                    cuerpo=txt_resumen_wa,
-                                    pdf_bytes=pdf_bytes,
-                                    nombre_archivo_pdf=nombre_pdf,
-                                )
-                                if ok:
-                                    st.success(f"¡Enviado a {nom}!")
-                                else:
-                                    st.error(msg_err)
-                    else:
-                        col_u4.caption("Sin correo")
+                        nom = row.get("nombre", "Sin Nombre")
+                        email = row.get("email", "")
+                        telf = (
+                            str(row.get("telefono", ""))
+                            .replace("+", "")
+                            .replace(" ", "")
+                            .replace("-", "")
+                            if row.get("telefono")
+                            else ""
+                        )
+
+                        col_u1.write(f"**{nom}**")
+                        col_u2.caption(
+                            f"✉️ {email if email else 'Sin correo'}\n📞"
+                            f" {telf if telf else 'Sin teléfono'}"
+                        )
+
+                        if telf:
+                            wa_url = f"https://api.whatsapp.com/send?phone={telf}&text={urllib.parse.quote(txt_resumen_wa)}"
+                            col_u3.link_button(
+                                "🟢 WhatsApp",
+                                wa_url,
+                                use_container_width=True,
+                                key=f"btn_wa_com_{idx}",
+                            )
+                        else:
+                            col_u3.caption("Sin teléfono")
+
+                        if email:
+                            if col_u4.button(
+                                "📩 Enviar PDF Mail",
+                                key=f"btn_mail_com_{idx}",
+                                use_container_width=True,
+                            ):
+                                with st.spinner(f"Enviando PDF a {email}..."):
+                                    # Se invoca la función global reutilizable
+                                    ok, msg_err = enviar_email(
+                                        destinatario=email,
+                                        asunto=asunto_mail,
+                                        cuerpo=txt_resumen_wa,
+                                        adjunto_bytes=pdf_bytes,
+                                        adjunto_nombre=nombre_pdf,
+                                    )
+                                    if ok:
+                                        st.success(f"¡Enviado a {nom}!")
+                                    else:
+                                        st.error(msg_err)
+                        else:
+                            col_u4.caption("Sin correo")
