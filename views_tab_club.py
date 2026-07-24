@@ -15,12 +15,12 @@ from pdf_memo_utility import generar_pdf_memorandum_nativo
 def renderizar_tab_club():
     """Pestaña principal de administración del club.
 
-    Entorno autónomo para pre-registro, control financiero, plantilla técnica y
+    Entorno autónomo para pre-registro, control financiero, nómina técnica y
     comunicaciones.
     """
     st.markdown("## 🏛️ Centro de Control Administrativo")
     st.caption(
-        "Gestión de altas, control financiero de cuotas, plantilla técnica y correspondencia oficial."
+        "Gestión de altas, control financiero de cuotas, nómina técnica y correspondencia oficial."
     )
     st.markdown("---")
 
@@ -40,7 +40,7 @@ def renderizar_tab_club():
     ) = st.tabs([
         "📝 Pre-Registro y Altas",
         "💳 Control Financiero y Pagos",
-        "👥 Plantilla y Atletas",
+        "👥 Nómina de Entrenadores y Atletas",
         "📄 Comunicados y Correspondencia",
     ])
 
