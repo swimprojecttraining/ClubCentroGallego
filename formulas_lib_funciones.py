@@ -9,6 +9,9 @@ import pandas as pd
 import smtplib
 import secrets
 
+
+
+from conections_supabase import get_db
 from datetime import datetime, timedelta, timezone
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
@@ -27,9 +30,6 @@ def desencriptar_credencial(texto_cifrado: str, llave_maestra: str) -> str:
         st.error(f"Error crítico de descifrado de credenciales: {e}")
         st.stop()
 
-
-# Asumiendo que tienes tu cliente de Supabase configurado
-# from conections_supabase import get_db
 
 def generar_y_guardar_invitacion(nombre: str, email: str, rol: str, id_creador: str) -> dict:
     """
