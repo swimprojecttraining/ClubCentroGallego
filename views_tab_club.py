@@ -836,7 +836,7 @@ def renderizar_tab_club():
 
             with c_save_doc:
                 if st.button(
-                    "💾 Guardar Documento Real", use_container_width=True
+                    "💾 Guardar Documento Definitivo", use_container_width=True
                 ):
                     try:
                         payload_doc = {
