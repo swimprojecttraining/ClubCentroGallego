@@ -80,7 +80,12 @@ def renderizar_sidebar_completo():
             
             if atletas_disponibles:
                 df_atl = pd.DataFrame(atletas_disponibles)
-                dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
+                
+                # Etiqueta visual para diferenciar activos de pendientes
+                dict_atletas = {
+                    a["id"]: f"⏳ {a['nombre']} (Pendiente)" if a.get("estatus") == "Pendiente" else a["nombre"]
+                    for a in atletas_disponibles
+                }
                 
                 sel_id = st.sidebar.selectbox("Monitorear Nadador:", options=list(dict_atletas.keys()), format_func=lambda x: dict_atletas[x])
                 atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
@@ -177,9 +182,17 @@ def renderizar_sidebar_completo():
                         ]
                 
                 elif tipo_filtro == "Atletas Específicos" and atletas_preload:
-                    dict_nom = {a["id"]: a["nombre"] for a in atletas_preload if "id" in a and "nombre" in a}
+                    # ⏳ Si está pendiente le agrega el ícono y la etiqueta, de lo contrario deja solo el nombre
+                    dict_nom = {
+                        a["id"]: f"⏳ {a['nombre']} (Pendiente)" if a.get("estatus") == "Pendiente" else a["nombre"]
+                        for a in atletas_preload if "id" in a and "nombre" in a
+                    }
                     if dict_nom:
-                        ids_sel = st.sidebar.multiselect("Seleccione nadadores:", options=list(dict_nom.keys()), format_func=lambda x: dict_nom[x])
+                        ids_sel = st.sidebar.multiselect(
+                            "Seleccione nadadores:", 
+                            options=list(dict_nom.keys()), 
+                            format_func=lambda x: dict_nom[x]
+                        )
                         lista_atletas = [a for a in atletas_preload if a.get("id") in ids_sel]
                 else:
                     lista_atletas = atletas_preload
