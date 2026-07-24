@@ -18,7 +18,7 @@ def renderizar_tab_club():
     Entorno autónomo para pre-registro, control financiero, nómina técnica y
     comunicaciones.
     """
-    st.markdown("## 🏛️ Centro de Control Administrativo")
+    st.markdown("### 🏛️ Centro de Control Administrativo")
     st.caption(
         "Gestión de altas, control financiero de cuotas, nómina técnica y correspondencia oficial."
     )
