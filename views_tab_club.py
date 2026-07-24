@@ -1,58 +1,15 @@
 # views_tab_club.py (Módulo de Gestión Administrativa del Club)
 import datetime
-import smtplib
 import urllib.parse
 import pandas as pd
 import streamlit as st
 
-from formulas_lib_funciones import (calcular_categoria_competencia, enviar_email, hash_password)
+from formulas_lib_funciones import (
+    calcular_categoria_competencia,
+    enviar_email,
+    hash_password,
+)
 from pdf_memo_utility import generar_pdf_memorandum_nativo
-
-from email.mime.application import MIMEApplication
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
-def enviar_correo_con_pdf(
-    destinatario: str,
-    asunto: str,
-    cuerpo: str,
-    pdf_bytes: bytes,
-    nombre_archivo_pdf: str,
-):
-    """Envía un correo electrónico institucional con un PDF adjunto en memoria."""
-    try:
-        smtp_server = st.secrets.get("smtp", {}).get("server", "smtp.gmail.com")
-        smtp_port = int(st.secrets.get("smtp", {}).get("port", 587))
-        sender_email = st.secrets.get("smtp", {}).get(
-            "email", "tu_club@gmail.com"
-        )
-        sender_password = st.secrets.get("smtp", {}).get(
-            "password", "tu_app_password"
-        )
-
-        msg = MIMEMultipart()
-        msg["From"] = f"Centro Gallego - Natación <{sender_email}>"
-        msg["To"] = destinatario
-        msg["Subject"] = asunto
-
-        msg.attach(MIMEText(cuerpo, "plain"))
-
-        adjunto = MIMEApplication(pdf_bytes, _subtype="pdf")
-        adjunto.add_header(
-            "Content-Disposition",
-            "attachment",
-            filename=nombre_archivo_pdf,
-        )
-        msg.attach(adjunto)
-
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.send_message(msg)
-        server.quit()
-        return True, "Correo enviado con éxito."
-    except Exception as e:
-        return False, f"Error al enviar correo: {str(e)}"
 
 
 def renderizar_tab_club():
@@ -63,7 +20,7 @@ def renderizar_tab_club():
     """
     st.markdown("## 🏛️ Centro de Control Administrativo")
     st.caption(
-        "Gestión de altas, control financiero de cuotas, nómina técnica y correspondencia oficial."
+        "Gestión de altas, control financiero de cuotas, plantilla técnica y correspondencia oficial."
     )
     st.markdown("---")
 
@@ -194,14 +151,12 @@ def renderizar_tab_club():
                 for err in errores:
                     st.error(f"⚠️ {err}")
             else:
-                # Saneamiento de variables (Vacíos -> None / NULL)
                 cedula_val = cedula.strip().upper()
                 nombre_val = nombre.strip().title()
                 email_val = email.strip().lower() if email.strip() else None
                 telefono_val = telefono.strip() if telefono.strip() else None
                 usuario_val = usuario.strip() if usuario.strip() else None
 
-                # Hash seguro de contraseña mediante librería centralizada
                 contrasena_val = (
                     hash_password(contrasena.strip())
                     if contrasena.strip()
@@ -230,12 +185,11 @@ def renderizar_tab_club():
                             f"✅ **{nombre_val}** registrado exitosamente con Cédula **{cedula_val}** y estatus **{estatus}**."
                         )
 
-                        # Auto-envío de notificación si se suministró correo y el estatus es Pendiente
                         if email_val and estatus == "Pendiente":
                             cuerpo_inv = (
                                 f"<h3>¡Hola, {nombre_val}!</h3>"
                                 f"<p>Has sido registrado en el sistema del Club en estatus PENDIENTE. "
-                                f"Por favor contacta al administrador o ingresa a la plataforma para completar tu activación.</p>"
+                                f"Por favor contacta al administrador para completar tu activación.</p>"
                             )
                             enviar_email(
                                 email_val,
@@ -396,7 +350,6 @@ def renderizar_tab_club():
                     )
                 ]
 
-            # Métricas
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Total Recaudado ($)", f"${df_merged['monto'].sum():,.2f}")
             m2.metric(
@@ -426,7 +379,6 @@ def renderizar_tab_club():
             ]
             st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-            # Formulario Registrar Pago
             with st.expander(
                 "📝 **Registrar / Actualizar Pago de Atleta**", expanded=False
             ):
@@ -661,7 +613,7 @@ def renderizar_tab_club():
                         except Exception as e:
                             st.error(f"Error al actualizar en BD: {e}")
 
-# =========================================================================
+    # =========================================================================
     # SUB-PESTAÑA 4: COMUNICADOS Y CORRESPONDENCIA
     # =========================================================================
     with subtab_comunicacion:
@@ -674,9 +626,7 @@ def renderizar_tab_club():
             ["✍️ Editor y Maquetación", "📤 Exportación y Despacho"]
         )
 
-        # -------------------------------------------------------------------------
-        # CONSULTA Y CARGA DE PLANTILLAS DESDE BASE DE DATOS
-        # -------------------------------------------------------------------------
+        # --- CONSULTA Y CARGA DE PLANTILLAS DESDE SUPABASE ---
         try:
             res_plantillas = (
                 supabase.table("documentos_oficiales")
@@ -748,7 +698,7 @@ def renderizar_tab_club():
                             "Seleccione una plantilla válida de la lista."
                         )
 
-            # Inicialización del estado en sesión
+            # Inicialización de estado en sesión
             if "meta_memo" not in st.session_state:
                 st.session_state.meta_memo = {
                     "codigo": (
@@ -900,7 +850,7 @@ def renderizar_tab_club():
                                 st.session_state.cuerpo_memo_secciones
                             ),
                             "clausulas_texto": st.session_state.clausulas_memo,
-                            "es_plantilla": False,
+                            "es_plantilla": False,  # Guarda como documento oficial emitido
                         }
                         supabase.table("documentos_oficiales").upsert(
                             payload_doc, on_conflict="codigo_correlativo"
@@ -909,7 +859,7 @@ def renderizar_tab_club():
                     except Exception as e:
                         st.error(f"Error al guardar documento: {e}")
 
-            # Gestión de Plantillas en BD
+            # Gestión Dinámica de Plantillas
             with st.expander("🛠️ **Gestión de Plantillas en BD**", expanded=True):
                 st.info(
                     "Guarde este contenido como una nueva plantilla o actualice una plantilla existente."
@@ -1007,7 +957,6 @@ def renderizar_tab_club():
             st.markdown("---")
             st.markdown("#### 🎯 Directorio y Despacho")
 
-            # Los destinatarios se obtienen dinámicamente de Supabase
             try:
                 res_user = (
                     supabase.table("usuarios")
@@ -1086,7 +1035,6 @@ def renderizar_tab_club():
                                 use_container_width=True,
                             ):
                                 with st.spinner(f"Enviando PDF a {email}..."):
-                                    # Se invoca la función global reutilizable
                                     ok, msg_err = enviar_email(
                                         destinatario=email,
                                         asunto=asunto_mail,
