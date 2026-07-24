@@ -7,6 +7,8 @@ import numpy as np
 from scipy.optimize import fsolve
 import pandas as pd
 import smtplib
+
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -25,34 +27,66 @@ def desencriptar_credencial(texto_cifrado: str, llave_maestra: str) -> str:
 # -------------------------------------------------------------
 # GESTIÓN DE CORREOS AUTOMATIZADOS (SMTP)
 # -------------------------------------------------------------
-def enviar_email(destinatario: str, asunto: str, cuerpo_html: str) -> tuple:
-    """Envía notificaciones automatizadas utilizando las credenciales de entorno."""
+def enviar_email(
+    destinatario: str,
+    asunto: str,
+    cuerpo: str,
+    adjunto_bytes: bytes = None,
+    adjunto_nombre: str = None,
+):
+    """Envía un correo electrónico institucional mediante los secretos configurados en Streamlit.
+
+    Soporta contenido HTML/Texto plano y adjuntos opcionales.
+    """
+    smtp_config = st.secrets.get("smtp", {})
+    smtp_server = smtp_config.get("server", "smtp.gmail.com")
+    smtp_port = int(smtp_config.get("port", 587))
+
+    # El correo emisor proviene del usuario autenticado en sesión o de los secretos del sistema
+    usuario_sesion = st.session_state.get("usuario_actual", {})
+    sender_email = (
+        usuario_sesion.get("email")
+        or smtp_config.get("email")
+        or smtp_config.get("user")
+    )
+    sender_password = smtp_config.get("password") or smtp_config.get("pass")
+
+    if not sender_email or not sender_password:
+        return (
+            False,
+            "No se encontraron las credenciales SMTP o el correo del emisor.",
+        )
+
     try:
-        # Extracción de credenciales desde los secretos del entorno
-        remitente = st.secrets["smtp"]["email"]
-        password = st.secrets["smtp"]["password"]
-        servidor = st.secrets["smtp"]["server"]
-        puerto = st.secrets["smtp"].get("port", 587)
-
-        # Configuración del mensaje
         msg = MIMEMultipart()
-        msg['From'] = remitente
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-        msg.attach(MIMEText(cuerpo_html, 'html'))
+        msg["From"] = sender_email
+        msg["To"] = destinatario
+        msg["Subject"] = asunto
 
-        # Conexión al servidor SMTP
-        server = smtplib.SMTP(servidor, puerto)
+        # Detección simple de formato
+        if any(tag in cuerpo.lower() for tag in ["<html", "<h", "<p>", "<br>"]):
+            msg.attach(MIMEText(cuerpo, "html"))
+        else:
+            msg.attach(MIMEText(cuerpo, "plain"))
+
+        # Inserción de adjunto si existe
+        if adjunto_bytes and adjunto_nombre:
+            adjunto = MIMEApplication(adjunto_bytes, _subtype="pdf")
+            adjunto.add_header(
+                "Content-Disposition",
+                "attachment",
+                filename=adjunto_nombre,
+            )
+            msg.attach(adjunto)
+
+        server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        server.login(remitente, password)
+        server.login(sender_email, sender_password)
         server.send_message(msg)
         server.quit()
-        
-        return True, "Correo enviado correctamente."
+        return True, "Correo enviado con éxito."
     except Exception as e:
-        error_msg = f"Error en el servidor SMTP: {e}"
-        print(error_msg)
-        return False, error_msg
+        return False, f"Error al enviar correo: {str(e)}"
 # -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
