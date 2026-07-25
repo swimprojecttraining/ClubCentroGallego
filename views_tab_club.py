@@ -4,12 +4,102 @@ import datetime
 import pandas as pd
 import urllib.parse
 import smtplib
+import random
+import string
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 from formulas_lib_funciones import calcular_categoria_competencia
 from pdf_memo_utility import generar_pdf_memorandum_nativo
+
+def generar_codigo_invitacion(longitud=6):
+    """Genera un código alfanumérico único de 6 caracteres (Ej: CG8921)"""
+    caracteres = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(caracteres, k=longitud))
+
+def render_pre_alta_atleta(supabase, id_usuario_club):
+    st.subheader("➕ Registro de Atleta / Miembro del Club")
+    st.caption("Registra el perfil del atleta. Si no cuenta con usuario/clave, el sistema generará un código de activación válido por 24 horas.")
+
+    with st.form(key="form_pre_alta_atleta", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Campos Obligatorios / Indispensables
+            nombre = st.text_input("Nombre y Apellido *", placeholder="Ej: Ximena Pérez")
+            genero = st.selectbox("Género *", options=["F", "M"])
+            rol = st.selectbox("Rol en el Club *", options=["Nadador", "Entrenador", "Atleta", "Representante"])
+            fecha_nacimiento = st.date_input("Fecha de Nacimiento *")
+        
+        with col2:
+            # Campos Complemetarios del Perfil
+            cedula = st.text_input("Cédula de Identidad", placeholder="Ej: V-12345678")
+            telefono = st.text_input("Teléfono", placeholder="Ej: +58 414 1234567")
+            email = st.text_input("Correo Electrónico", placeholder="ejemplo@correo.com")
+            
+        submit_button = st.form_submit_button(label="Guardar Ficha y Generar Código de Activación")
+
+    if submit_button:
+        # Validación de campos obligatorios
+        if not nombre.strip():
+            st.error("❌ El nombre y apellido son obligatorios.")
+            return
+
+        try:
+            # 1. Insertar el perfil del usuario en la tabla 'usuarios'
+            # usuario y contrasena quedan NULL hasta que la persona reclame su cuenta
+            datos_usuario = {
+                "nombre": nombre.strip(),
+                "genero": genero,
+                "rol": rol,
+                "fecha_nacimiento": str(fecha_nacimiento),
+                "cedula": cedula.strip() if cedula.strip() else None,
+                "telefono": telefono.strip() if telefono.strip() else None,
+                "email": email.strip() if email.strip() else None,
+                "estatus": "Activo",
+                "usuario": None,
+                "contrasena": None
+            }
+
+            res_usuario = supabase.table("usuarios").insert(datos_usuario).execute()
+
+            if res_usuario.data:
+                usuario_creado = res_usuario.data[0]
+                
+                # 2. Generar el código de invitación (24 horas de vigencia)
+                codigo_token = generar_codigo_invitacion()
+                expiracion = (datetime.now() + timedelta(hours=24)).isoformat()
+
+                datos_invitacion = {
+                    "email": email.strip() if email.strip() else None,
+                    "nombre": nombre.strip(),
+                    "rol": rol,
+                    "token": codigo_token,
+                    "expira_en": expiracion,
+                    "usado": False,
+                    "creado_por": id_usuario_club
+                }
+
+                supabase.table("invitaciones").insert(datos_invitacion).execute()
+
+                # 3. Confirmación visual y entrega del código
+                st.success(f"✅ ¡Ficha de **{nombre}** creada exitosamente en el club!")
+                
+                st.info(f"""
+                🔑 **Código de Activación Temporal:**
+                
+                ### `{codigo_token}`
+                
+                * **Vigencia:** 24 horas (Expira el {(datetime.now() + timedelta(hours=24)).strftime('%d/%m/%Y a las %H:%M')}).
+                * Comparte este código con el atleta para que active su acceso digital desde la pantalla de Inicio/Login.
+                """)
+            else:
+                st.error("Error al registrar el perfil del usuario.")
+
+        except Exception as e:
+            st.error(f"❌ Error durante el registro: {e}")
 
 def enviar_correo_con_pdf(destinatario, asunto, cuerpo, pdf_bytes, nombre_archivo_pdf):
     """
