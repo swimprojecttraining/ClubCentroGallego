@@ -252,11 +252,10 @@ def renderizar_tab_club():
     # SUB-PESTAÑA 2: ESTADO DE PLANTILLA Y ATLETAS
     # =========================================================================
     with subtab_atletas:
-        st.markdown("### 👥 Gestión de Plantilla y Atletas")
-        st.caption("Control de atletas activos, inactivos y actualización de datos de la plantilla institucional.")
-        st.info("💡 **Nota pendiente:** Próximamente se incluirá el campo de cédula de identidad en la actualización de registros.")
+        st.markdown("### 👥 Gestión de Plantilla y Fichas de Atletas")
+        st.caption("Control de atletas activos, pre-altas y edición integral de fichas institucionales.")
 
-        # --- MÓDULO NUEVO DE PRE-ALTA / INVITACIONES OTP ---
+        # --- MÓDULO DE PRE-ALTA / INVITACIONES OTP ---
         id_usuario_club = st.session_state.get("usuario_id")
         with st.expander("➕ **Registrar Nuevo Atleta (Pre-Alta / Invitación OTP)**", expanded=False):
             if id_usuario_club and supabase:
@@ -266,10 +265,10 @@ def renderizar_tab_club():
 
         st.markdown("---")
 
-        # Cargar todos los nadadores con sus datos de perfil requeridos
+        # Cargar plantilla completa de nadadores con campos de perfil extendidos
         try:
             res_plantilla = supabase.table("usuarios")\
-                .select("id, nombre, email, estatus, fecha_nacimiento")\
+                .select("id, nombre, email, estatus, fecha_nacimiento, cedula, telefono")\
                 .eq("rol", "Nadador")\
                 .execute()
             
@@ -281,6 +280,11 @@ def renderizar_tab_club():
         if df_plantilla.empty:
             st.warning("No hay atletas registrados en el sistema.")
         else:
+            # Asegurar existencia de columnas opcionales en el dataframe
+            for opcional in ["cedula", "telefono", "fecha_nacimiento", "email"]:
+                if opcional not in df_plantilla.columns:
+                    df_plantilla[opcional] = ""
+
             # --- CÁLCULO DINÁMICO Y SEGURO DE CATEGORÍA ---
             if "fecha_nacimiento" in df_plantilla.columns:
                 df_plantilla["categoria"] = df_plantilla["fecha_nacimiento"].apply(
@@ -310,7 +314,7 @@ def renderizar_tab_club():
             with col_f3:
                 busqueda_plantilla = st.text_input(
                     "🔍 Buscar:", 
-                    placeholder="Nombre o correo...", 
+                    placeholder="Nombre, cédula o correo...", 
                     key="busq_plantilla"
                 )
 
@@ -328,8 +332,9 @@ def renderizar_tab_club():
             # 3. Filtro por Búsqueda de Texto
             if busqueda_plantilla:
                 df_p_filtrado = df_p_filtrado[
-                    df_p_filtrado["nombre"].str.contains(busqueda_plantilla, case=False, na=False) |
-                    df_p_filtrado["email"].str.contains(busqueda_plantilla, case=False, na=False)
+                    df_p_filtrado["nombre"].astype(str).str.contains(busqueda_plantilla, case=False, na=False) |
+                    df_p_filtrado["email"].astype(str).str.contains(busqueda_plantilla, case=False, na=False) |
+                    df_p_filtrado["cedula"].astype(str).str.contains(busqueda_plantilla, case=False, na=False)
                 ]
 
             # --- TARJETAS MÉTRICAS DE PLANTILLA ---
@@ -345,14 +350,16 @@ def renderizar_tab_club():
             st.markdown("---")
 
             # --- TABLA DE PLANTILLA ---
-            cols_p_mostrar = ["nombre", "email", "fecha_nacimiento", "categoria", "estatus"]
+            cols_p_mostrar = ["nombre", "cedula", "email", "telefono", "fecha_nacimiento", "categoria", "estatus"]
             cols_disponibles = [c for c in cols_p_mostrar if c in df_p_filtrado.columns]
             
             df_p_display = df_p_filtrado[cols_disponibles].copy()
             
             nombres_columnas = {
                 "nombre": "Atleta",
+                "cedula": "Cédula / Doc",
                 "email": "Correo Electrónico",
+                "telefono": "Teléfono",
                 "fecha_nacimiento": "Fecha Nacimiento",
                 "categoria": "Categoría",
                 "estatus": "Estatus"
@@ -361,34 +368,69 @@ def renderizar_tab_club():
 
             st.dataframe(df_p_display, use_container_width=True, hide_index=True)
 
-            # --- FORMULARIO DE ACTUALIZACIÓN DE ESTATUS DE ATLETA ---
+            # --- FORMULARIO INTERACTIVO DE EDICIÓN INTEGRAL DE FICHA (ROL CLUB) ---
             st.markdown("---")
-            with st.expander("⚙️ **Actualizar Estatus de Atleta en el Club**", expanded=False):
-                with st.form("form_actualizar_atleta_estatus"):
-                    atleta_mod_id = st.selectbox(
-                        "Seleccionar Atleta:",
-                        options=df_plantilla["id"].tolist(),
-                        format_func=lambda x: df_plantilla[df_plantilla['id'] == x]['nombre'].values[0]
-                    )
-                    
-                    nuevo_estatus_atleta = st.selectbox(
-                        "Nuevo Estatus Institucional:", 
-                        ["Activo", "Inactivo", "Suspendido", "Retirado"]
-                    )
-                    
-                    btn_act_atleta = st.form_submit_button("💾 Guardar Nuevo Estatus", use_container_width=True)
+            with st.expander("⚙️ **Editar Ficha y Perfil del Atleta (Gobernanza del Club)**", expanded=False):
+                st.write("Seleccione un atleta para modificar sus datos institucionales y ficha personal.")
+                
+                # Selección del atleta a editar
+                atleta_mod_id = st.selectbox(
+                    "Seleccionar Atleta a Modificar:",
+                    options=df_plantilla["id"].tolist(),
+                    format_func=lambda x: f"{df_plantilla[df_plantilla['id'] == x]['nombre'].values[0]} ({df_plantilla[df_plantilla['id'] == x]['email'].values[0]})",
+                    key="select_atleta_ficha_edit"
+                )
 
-                    if btn_act_atleta:
+                # Carga de datos actuales del atleta seleccionado
+                row_atleta = df_plantilla[df_plantilla["id"] == atleta_mod_id].iloc[0]
+
+                # Parseo seguro de fecha de nacimiento
+                fecha_nac_val = datetime.date(2010, 1, 1)
+                if pd.notna(row_atleta.get("fecha_nacimiento")) and row_atleta.get("fecha_nacimiento"):
+                    try:
+                        fecha_nac_val = pd.to_datetime(row_atleta["fecha_nacimiento"]).date()
+                    except Exception:
+                        pass
+
+                with st.form("form_editar_ficha_atleta"):
+                    c_e1, c_e2 = st.columns(2)
+                    with c_e1:
+                        edit_nombre = st.text_input("Nombre Completo:", value=str(row_atleta.get("nombre", "")))
+                        edit_email = st.text_input("Correo Electrónico:", value=str(row_atleta.get("email", "")))
+                        edit_cedula = st.text_input("Cédula / Documento de Identidad:", value=str(row_atleta.get("cedula", "") if pd.notna(row_atleta.get("cedula")) else ""))
+                    
+                    with c_e2:
+                        edit_telefono = st.text_input("Teléfono de Contacto:", value=str(row_atleta.get("telefono", "") if pd.notna(row_atleta.get("telefono")) else ""))
+                        edit_fecha_nac = st.date_input("Fecha de Nacimiento:", value=fecha_nac_val)
+                        
+                        estatus_opciones = ["Activo", "Inactivo", "Suspendido", "Retirado"]
+                        estatus_actual = row_atleta.get("estatus", "Activo")
+                        idx_estatus = estatus_opciones.index(estatus_actual) if estatus_actual in estatus_opciones else 0
+                        
+                        edit_estatus = st.selectbox("Estatus Institucional:", estatus_opciones, index=idx_estatus)
+
+                    btn_guardar_ficha = st.form_submit_button("💾 Guardar Cambios en la Ficha", use_container_width=True)
+
+                    if btn_guardar_ficha:
+                        payload_actualizacion = {
+                            "nombre": edit_nombre,
+                            "email": edit_email,
+                            "cedula": edit_cedula,
+                            "telefono": edit_telefono,
+                            "fecha_nacimiento": str(edit_fecha_nac),
+                            "estatus": edit_estatus
+                        }
+
                         try:
                             supabase.table("usuarios")\
-                                .update({"estatus": nuevo_estatus_atleta})\
+                                .update(payload_actualizacion)\
                                 .eq("id", atleta_mod_id)\
                                 .execute()
                             
-                            st.success("✅ Estatus del atleta actualizado exitosamente en el sistema.")
+                            st.success(f"✅ Ficha de **{edit_nombre}** actualizada exitosamente.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error al actualizar el estatus en la base de datos: {e}")
+                            st.error(f"Error al actualizar la ficha en la base de datos: {e}")
 
     # =========================================================================
     # SUB-PESTAÑA 3: COMUNICADOS Y CORRESPONDENCIA
