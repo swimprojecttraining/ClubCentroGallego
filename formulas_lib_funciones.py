@@ -7,6 +7,14 @@ import numpy as np
 from scipy.optimize import fsolve
 import pandas as pd
 import smtplib
+import string
+import secrets
+from datetime import datetime, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+
+
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -324,3 +332,51 @@ def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak,
             T_t = eq_T_pb - D_eq * (1 - np.exp(-h_eq * (t - eq_t_pb)))
         tiempos.append(T_t)
     return np.array(tiempos)
+
+# --- UTILIDADES DE INVITACIÓN Y SEGURIDAD ---
+
+def generar_codigo_invitacion(longitud=6):
+    """
+    Genera un código alfanumérico OTP en mayúsculas válido para invitaciones y pre-altas.
+    """
+    alfabeto = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(alfabeto) for _ in range(longitud))
+
+def calcular_expiracion_token(horas_validez=24):
+    """
+    Calcula el timestamp UTC de expiración para la invitación.
+    """
+    return datetime.utcnow() + timedelta(hours=horas_validez)
+
+# --- INFRAESTRUCTURA DE CORREO CON ADJUNTOS ---
+
+def enviar_correo_con_pdf(destinatario, asunto, cuerpo_html, pdf_bytes=None, nombre_archivo_pdf="documento.pdf"):
+    """
+    Envía correos electrónicos vía SMTP con soporte para adjuntar buffers PDF en memoria.
+    """
+    try:
+        remitente = st.secrets["smtp"]["email"]
+        password = st.secrets["smtp"]["password"]
+        servidor_smtp = st.secrets["smtp"]["server"]
+        puerto_smtp = st.secrets["smtp"]["port"]
+
+        msg = MIMEMultipart()
+        msg['From'] = remitente
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+
+        msg.attach(MIMEText(cuerpo_html, 'html'))
+
+        if pdf_bytes:
+            adjunto = MIMEApplication(pdf_bytes, _subtype="pdf")
+            adjunto.add_header('Content-Disposition', 'attachment', filename=nombre_archivo_pdf)
+            msg.attach(adjunto)
+
+        server = smtplib.SMTP(servidor_smtp, puerto_smtp)
+        server.starttls()
+        server.login(remitente, password)
+        server.send_message(msg)
+        server.quit()
+        return True, "Correo enviado exitosamente."
+    except Exception as e:
+        return False, f"Error al enviar correo: {str(e)}"
