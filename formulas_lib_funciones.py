@@ -7,13 +7,6 @@ import numpy as np
 from scipy.optimize import fsolve
 import pandas as pd
 import smtplib
-import secrets
-
-
-
-from conections_supabase_cache import _get_db
-from datetime import datetime, timedelta, timezone
-from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -29,157 +22,37 @@ def desencriptar_credencial(texto_cifrado: str, llave_maestra: str) -> str:
     except Exception as e:
         st.error(f"Error crítico de descifrado de credenciales: {e}")
         st.stop()
-
-def generar_y_guardar_invitacion(nombre: str, email: str, rol: str, id_creador: str) -> dict:
-    """
-    Genera un token criptográficamente seguro, calcula la expiración a 48h
-    y guarda el registro en la tabla 'invitaciones'.
-    """
-    supabase = _get_db()
-    if not supabase:
-        return {"exito": False, "mensaje": "Error de conexión con la base de datos."}
-
-    # 1. Generar token único seguro (URL-safe)
-    token = secrets.token_urlsafe(32)
-
-    # 2. Definir tiempo de expiración (48 horas exactas desde el momento actual)
-    expiracion = datetime.now(timezone.utc) + timedelta(hours=48)
-
-    payload = {
-        "email": email.lower().strip(),
-        "nombre": nombre.strip(),
-        "rol": rol,
-        "token": token,
-        "expira_en": expiracion.isoformat(),
-        "usado": False,
-        "creado_por": id_creador
-    }
-
-    try:
-        # 3. Insertar en Supabase
-        res = supabase.table("invitaciones").insert(payload).execute()
-        
-        if res.data:
-            # 4. Construir el enlace dinámico para el correo
-            # Reemplazar con el dominio real de tu app cuando esté en producción
-            base_url = st.query_params.get("base_url", "https://tu-app-nadadores.streamlit.app") 
-            enlace_activacion = f"{base_url}/?token={token}"
-            
-            return {
-                "exito": True,
-                "token": token,
-                "enlace": enlace_activacion,
-                "expira_en": expiracion,
-                "mensaje": "Invitación generada exitosamente."
-            }
-        return {"exito": False, "mensaje": "No se pudo registrar la invitación."}
-
-    except Exception as e:
-        return {"exito": False, "mensaje": f"Error al generar invitación: {str(e)}"}
-
-
-def validar_token_invitacion(token: str) -> dict:
-    """
-    Verifica si el token existe, no ha sido usado y aún no ha expirado.
-    """
-    supabase = _get_db()
-    if not supabase:
-        return {"valido": False, "mensaje": "Error de conexión."}
-
-    try:
-        res = (
-            supabase.table("invitaciones")
-            .select("*")
-            .eq("token", token)
-            .eq("usado", False)
-            .execute()
-        )
-
-        if not res.data:
-            return {"valido": False, "mensaje": "El enlace de invitación es inválido o ya fue utilizado."}
-
-        invitacion = res.data[0]
-        
-        # Parsear fecha de expiración almacenada
-        fecha_expira = datetime.fromisoformat(invitacion["expira_en"].replace("Z", "+00:00"))
-        ahora = datetime.now(timezone.utc)
-
-        if ahora > fecha_expira:
-            return {"valido": False, "mensaje": "⏳ El enlace de invitación ha caducado (superó las 48 horas). Contacte al club."}
-
-        return {
-            "valido": True,
-            "datos": invitacion,
-            "mensaje": "Token válido."
-        }
-
-    except Exception as e:
-        return {"valido": False, "mensaje": f"Error validando el token: {str(e)}"}
-
 # -------------------------------------------------------------
 # GESTIÓN DE CORREOS AUTOMATIZADOS (SMTP)
 # -------------------------------------------------------------
-def enviar_email(
-    destinatario: str,
-    asunto: str,
-    cuerpo: str,
-    adjunto_bytes: bytes = None,
-    adjunto_nombre: str = None,
-):
-    """Envía un correo electrónico institucional mediante los secretos configurados en Streamlit.
-
-    Soporta contenido HTML/Texto plano y adjuntos opcionales.
-    """
-    smtp_config = st.secrets.get("smtp", {})
-    smtp_server = smtp_config.get("server", "smtp.gmail.com")
-    smtp_port = int(smtp_config.get("port", 587))
-
-    # El correo emisor proviene del usuario autenticado en sesión o de los secretos del sistema
-    usuario_sesion = st.session_state.get("usuario_actual", {})
-    sender_email = (
-        usuario_sesion.get("email")
-        or smtp_config.get("email")
-        or smtp_config.get("user")
-    )
-    sender_password = smtp_config.get("password") or smtp_config.get("pass")
-
-    if not sender_email or not sender_password:
-        return (
-            False,
-            "No se encontraron las credenciales SMTP o el correo del emisor.",
-        )
-
+def enviar_email(destinatario: str, asunto: str, cuerpo_html: str) -> tuple:
+    """Envía notificaciones automatizadas utilizando las credenciales de entorno."""
     try:
+        # Extracción de credenciales desde los secretos del entorno
+        remitente = st.secrets["smtp"]["email"]
+        password = st.secrets["smtp"]["password"]
+        servidor = st.secrets["smtp"]["server"]
+        puerto = st.secrets["smtp"].get("port", 587)
+
+        # Configuración del mensaje
         msg = MIMEMultipart()
-        msg["From"] = sender_email
-        msg["To"] = destinatario
-        msg["Subject"] = asunto
+        msg['From'] = remitente
+        msg['To'] = destinatario
+        msg['Subject'] = asunto
+        msg.attach(MIMEText(cuerpo_html, 'html'))
 
-        # Detección simple de formato
-        if any(tag in cuerpo.lower() for tag in ["<html", "<h", "<p>", "<br>"]):
-            msg.attach(MIMEText(cuerpo, "html"))
-        else:
-            msg.attach(MIMEText(cuerpo, "plain"))
-
-        # Inserción de adjunto si existe
-        if adjunto_bytes and adjunto_nombre:
-            adjunto = MIMEApplication(adjunto_bytes, _subtype="pdf")
-            adjunto.add_header(
-                "Content-Disposition",
-                "attachment",
-                filename=adjunto_nombre,
-            )
-            msg.attach(adjunto)
-
-        server = smtplib.SMTP(smtp_server, smtp_port)
+        # Conexión al servidor SMTP
+        server = smtplib.SMTP(servidor, puerto)
         server.starttls()
-        server.login(sender_email, sender_password)
+        server.login(remitente, password)
         server.send_message(msg)
         server.quit()
-        return True, "Correo enviado con éxito."
+        
+        return True, "Correo enviado correctamente."
     except Exception as e:
-        return False, f"Error al enviar correo: {str(e)}"
-
+        error_msg = f"Error en el servidor SMTP: {e}"
+        print(error_msg)
+        return False, error_msg
 # -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
