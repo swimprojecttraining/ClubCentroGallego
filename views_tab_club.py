@@ -1,143 +1,82 @@
-# views_tab_club.py (Módulo de Gestión Administrativa del Club)
+# views_tab_club.py (Módulo de Gestión Administrativa y Gobernanza del Club)
 import streamlit as st
 import datetime
 import pandas as pd
 import urllib.parse
-import smtplib
-import random
-import string
-from datetime import datetime, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
 
-from formulas_lib_funciones import calcular_categoria_competencia
+# Importaciones centralizadas desde la librería de utilidades de la app
+from formulas_lib_funciones import (
+    calcular_categoria_competencia,
+    generar_codigo_invitacion,
+    calcular_expiracion_token,
+    enviar_correo_con_pdf
+)
 from pdf_memo_utility import generar_pdf_memorandum_nativo
 
-def generar_codigo_invitacion(longitud=6):
-    """Genera un código alfanumérico único de 6 caracteres (Ej: CG8921)"""
-    caracteres = string.ascii_uppercase + string.digits
-    return ''.join(random.choices(caracteres, k=longitud))
 
 def render_pre_alta_atleta(supabase, id_usuario_club):
-    st.subheader("➕ Registro de Atleta / Miembro del Club")
-    st.caption("Registra el perfil del atleta. Si no cuenta con usuario/clave, el sistema generará un código de activación válido por 24 horas.")
-
-    with st.form(key="form_pre_alta_atleta", clear_on_submit=True):
+    """
+    Sub-interfaz para el registro de Pre-Alta de atletas e invitaciones con código OTP.
+    Permite al Club emitir credenciales de acceso temporal antes del autoregistro.
+    """
+    with st.form("form_pre_alta_atleta", clear_on_submit=True):
+        st.markdown("##### ➕ Pre-Alta de Integrante e Invitación")
+        
         col1, col2 = st.columns(2)
-        
         with col1:
-            # Campos Obligatorios / Indispensables
-            nombre = st.text_input("Nombre y Apellido *", placeholder="Ej: Ximena Pérez")
-            genero = st.selectbox("Género *", options=["F", "M"])
-            rol = st.selectbox("Rol en el Club *", options=["Nadador", "Entrenador", "Atleta", "Representante"])
-            fecha_nacimiento = st.date_input("Fecha de Nacimiento *")
-        
+            nuevo_nombre = st.text_input("Nombre Completo", placeholder="Ej: Ximena Pérez")
+            nuevo_email = st.text_input("Correo Electrónico", placeholder="ejemplo@correo.com")
         with col2:
-            # Campos Complemetarios del Perfil
-            cedula = st.text_input("Cédula de Identidad", placeholder="Ej: V-12345678")
-            telefono = st.text_input("Teléfono", placeholder="Ej: +58 414 1234567")
-            email = st.text_input("Correo Electrónico", placeholder="ejemplo@correo.com")
+            nuevo_rol = st.selectbox("Rol Asignado", ["Nadador", "Entrenador", "Administrador"])
+            st.caption("Se generará un código de validación OTP válido por 24 horas.")
             
-        submit_button = st.form_submit_button(label="Guardar Ficha y Generar Código de Activación")
+        btn_pre_alta = st.form_submit_button("🔑 Generar Ficha e Invitación OTP", use_container_width=True)
 
-    if submit_button:
-        # Validación de campos obligatorios
-        if not nombre.strip():
-            st.error("❌ El nombre y apellido son obligatorios.")
-            return
-
-        try:
-            # 1. Insertar el perfil del usuario en la tabla 'usuarios'
-            # usuario y contrasena quedan NULL hasta que la persona reclame su cuenta
-            datos_usuario = {
-                "nombre": nombre.strip(),
-                "genero": genero,
-                "rol": rol,
-                "fecha_nacimiento": str(fecha_nacimiento),
-                "cedula": cedula.strip() if cedula.strip() else None,
-                "telefono": telefono.strip() if telefono.strip() else None,
-                "email": email.strip() if email.strip() else None,
-                "estatus": "Activo",
-                "usuario": None,
-                "contrasena": None
+        if btn_pre_alta:
+            if not nuevo_nombre or not nuevo_email:
+                st.error("Por favor complete el nombre y el correo electrónico.")
+                return
+            
+            # Generar datos del Token OTP usando las utilidades centralizadas
+            token_otp = generar_codigo_invitacion(longitud=6)
+            expiracion = calcular_expiracion_token(horas_validez=24)
+            
+            # Mapeo en tabla public.invitaciones
+            datos_invitacion = {
+                "email": nuevo_email,
+                "nombre": nuevo_nombre,
+                "rol": nuevo_rol,
+                "token": token_otp,
+                "expira_en": expiracion.isoformat(),
+                "usado": False,
+                "creado_por": id_usuario_club
             }
+            
+            try:
+                res = supabase.table("invitaciones").insert(datos_invitacion).execute()
+                if res.data:
+                    st.success(f"✅ Pre-Alta registrada exitosamente para **{nuevo_nombre}**.")
+                    st.info(f"🔑 **Código OTP de Invitación:** `{token_otp}` (Expira en 24h)")
+                    
+                    # Generación de enlace rápido para envío directo por WhatsApp
+                    mensaje_wa = (
+                        f"Hola {nuevo_nombre}, has sido pre-registrado en el Club. "
+                        f"Tu código de activación es: {token_otp}. "
+                        f"Ingresa a la aplicación para completar el registro de tu ficha."
+                    )
+                    url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(mensaje_wa)}"
+                    st.markdown(f"[📲 Enviar Invitación / Código por WhatsApp]({url_wa})")
+            except Exception as e:
+                st.error(f"Error al registrar la invitación en la base de datos: {e}")
 
-            res_usuario = supabase.table("usuarios").insert(datos_usuario).execute()
-
-            if res_usuario.data:
-                usuario_creado = res_usuario.data[0]
-                
-                # 2. Generar el código de invitación (24 horas de vigencia)
-                codigo_token = generar_codigo_invitacion()
-                expiracion = (datetime.now() + timedelta(hours=24)).isoformat()
-
-                datos_invitacion = {
-                    "email": email.strip() if email.strip() else None,
-                    "nombre": nombre.strip(),
-                    "rol": rol,
-                    "token": codigo_token,
-                    "expira_en": expiracion,
-                    "usado": False,
-                    "creado_por": id_usuario_club
-                }
-
-                supabase.table("invitaciones").insert(datos_invitacion).execute()
-
-                # 3. Confirmación visual y entrega del código
-                st.success(f"✅ ¡Ficha de **{nombre}** creada exitosamente en el club!")
-                
-                st.info(f"""
-                🔑 **Código de Activación Temporal:**
-                
-                ### `{codigo_token}`
-                
-                * **Vigencia:** 24 horas (Expira el {(datetime.now() + timedelta(hours=24)).strftime('%d/%m/%Y a las %H:%M')}).
-                * Comparte este código con el atleta para que active su acceso digital desde la pantalla de Inicio/Login.
-                """)
-            else:
-                st.error("Error al registrar el perfil del usuario.")
-
-        except Exception as e:
-            st.error(f"❌ Error durante el registro: {e}")
-
-def enviar_correo_con_pdf(destinatario, asunto, cuerpo, pdf_bytes, nombre_archivo_pdf):
-    """
-    Envía un correo electrónico con el PDF adjunto generado en memoria.
-    """
-    try:
-        smtp_server = st.secrets.get("smtp", {}).get("server", "smtp.gmail.com")
-        smtp_port = int(st.secrets.get("smtp", {}).get("port", 587))
-        sender_email = st.secrets.get("smtp", {}).get("email", "tu_club@gmail.com")
-        sender_password = st.secrets.get("smtp", {}).get("password", "tu_app_password")
-
-        msg = MIMEMultipart()
-        msg['From'] = f"Centro Gallego - Natación <{sender_email}>"
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-
-        msg.attach(MIMEText(cuerpo, 'plain'))
-
-        adjunto = MIMEApplication(pdf_bytes, _subtype="pdf")
-        adjunto.add_header('Content-Disposition', 'attachment', filename=nombre_archivo_pdf)
-        msg.attach(adjunto)
-
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.send_message(msg)
-        server.quit()
-        return True, "Correo enviado con éxito."
-    except Exception as e:
-        return False, f"Error al enviar correo: {str(e)}"
 
 def renderizar_tab_club():
     """
-    Pestaña principal de administración del club.
+    Pestaña principal de administración y gobernanza del club.
     Entorno autónomo para control financiero, estatus de atletas y correspondencia.
     """
     st.markdown("## 🏛️ Centro de Control Administrativo")
-    st.caption("Gestión financiera, estado de cuotas y herramientas institucionales.")
+    st.caption("Gestión financiera, estado de cuotas, gobernanza de fichas y herramientas institucionales.")
     st.markdown("---")
 
     supabase = st.session_state.get("supabase")
@@ -191,132 +130,141 @@ def renderizar_tab_club():
 
         if df_nadadores.empty:
             st.warning("No hay nadadores registrados en la base de datos.")
-            return
-
-        # 2. Cargar registros de pagos para la temporada
-        try:
-            res_pagos = supabase.table("control_pagos")\
-                .select("*")\
-                .eq("temporada", temporada_sel)\
-                .execute()
-            
-            df_pagos = pd.DataFrame(res_pagos.data) if res_pagos.data else pd.DataFrame()
-        except Exception as e:
-            df_pagos = pd.DataFrame()
-
-        # --- CRUCE Y PROCESAMIENTO DE DATOS ---
-        cols_mostrar = ["nombre", "usuario", "estado_pago", "monto", "fecha_pago", "referencia_pago", "observaciones"]
-
-        if not df_pagos.empty:
-            if mes_sel != "Todos":
-                df_pagos_filtrado = df_pagos[df_pagos["mes"] == int(mes_sel)]
-            else:
-                df_pagos_filtrado = df_pagos
-            
-            df_merged = pd.merge(df_nadadores, df_pagos_filtrado, left_on="id", right_on="usuario_id", how="left")
         else:
-            df_merged = df_nadadores.copy()
-            df_merged["estado_pago"] = "Pendiente"
-            df_merged["monto"] = 0.0
-            df_merged["fecha_pago"] = None
-            df_merged["referencia_pago"] = ""
-            df_merged["observaciones"] = ""
-
-        # Normalización robusta de columnas por si faltan en el merge
-        for col in cols_mostrar:
-            if col not in df_merged.columns:
-                df_merged[col] = "Pendiente" if col == "estado_pago" else (0.0 if col == "monto" else "")
-
-        df_merged["estado_pago"] = df_merged["estado_pago"].fillna("Pendiente")
-        df_merged["monto"] = df_merged["monto"].fillna(0.0)
-
-        # Filtro de estatus
-        if estado_sel != "Todos":
-            df_merged = df_merged[df_merged["estado_pago"] == estado_sel]
-
-        # Filtro por búsqueda de texto
-        if busqueda_texto:
-            df_merged = df_merged[
-                df_merged["nombre"].str.contains(busqueda_texto, case=False, na=False) |
-                df_merged["usuario"].str.contains(busqueda_texto, case=False, na=False)
-            ]
-
-        # --- TARJETAS MÉTRICAS (KPIs) ---
-        m1, m2, m3, m4 = st.columns(4)
-        
-        total_recaudado = df_merged["monto"].sum()
-        cant_solventes = len(df_merged[df_merged["estado_pago"] == "Solvente"])
-        cant_pendientes = len(df_merged[df_merged["estado_pago"] == "Pendiente"])
-        cant_exonerados = len(df_merged[df_merged["estado_pago"] == "Exonerado"])
-
-        m1.metric("Total Recaudado ($)", f"${total_recaudado:,.2f}")
-        m2.metric("🟢 Solventes", cant_solventes)
-        m3.metric("🔴 Pendientes", cant_pendientes)
-        m4.metric("⚪ Exonerados", cant_exonerados)
-
-        st.markdown("---")
-
-        # --- TABLA PRINCIPAL DE PAGOS ---
-        df_display = df_merged[cols_mostrar].copy()
-        df_display.columns = ["Atleta", "Usuario", "Estado", "Monto ($)", "Fecha Pago", "N° Referencia", "Observaciones"]
-
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-        # --- FORMULARIO DE REGISTRO / ACTUALIZACIÓN DE PAGO ---
-        st.markdown("---")
-        with st.expander("📝 **Registrar / Actualizar Pago de Atleta**", expanded=False):
-            with st.form("form_registrar_pago"):
-                c1, c2, c3 = st.columns([2, 1, 1])
+            # 2. Cargar registros de pagos para la temporada
+            try:
+                res_pagos = supabase.table("control_pagos")\
+                    .select("*")\
+                    .eq("temporada", temporada_sel)\
+                    .execute()
                 
-                with c1:
-                    atleta_id_sel = st.selectbox(
-                        "Seleccionar Atleta:", 
-                        options=df_nadadores["id"].tolist(),
-                        format_func=lambda x: df_nadadores[df_nadadores["id"] == x]["nombre"].values[0]
-                    )
-                with c2:
-                    mes_pago = st.selectbox("Mes Afectado:", list(range(1, 13)), index=mes_actual - 1)
-                with c3:
-                    monto_pago = st.number_input("Monto Recibido ($):", min_value=0.0, step=5.0)
+                df_pagos = pd.DataFrame(res_pagos.data) if res_pagos.data else pd.DataFrame()
+            except Exception as e:
+                df_pagos = pd.DataFrame()
 
-                c4, c5, c6 = st.columns([1, 1, 2])
-                with c4:
-                    nuevo_estado = st.selectbox("Estatus de Pago:", ["Solvente", "Pendiente", "Exonerado"])
-                with c5:
-                    fecha_pago_val = st.date_input("Fecha del Pago:", value=datetime.date.today())
-                with c6:
-                    ref_pago_val = st.text_input("N° Referencia / Comprobante:", placeholder="Ej: Transf-998231")
+            # --- CRUCE Y PROCESAMIENTO DE DATOS ---
+            cols_mostrar = ["nombre", "usuario", "estado_pago", "monto", "fecha_pago", "referencia_pago", "observaciones"]
 
-                obs_pago_val = st.text_input("Observaciones / Notas de pago:")
+            if not df_pagos.empty:
+                if mes_sel != "Todos":
+                    df_pagos_filtrado = df_pagos[df_pagos["mes"] == int(mes_sel)]
+                else:
+                    df_pagos_filtrado = df_pagos
+                
+                df_merged = pd.merge(df_nadadores, df_pagos_filtrado, left_on="id", right_on="usuario_id", how="left")
+            else:
+                df_merged = df_nadadores.copy()
+                df_merged["estado_pago"] = "Pendiente"
+                df_merged["monto"] = 0.0
+                df_merged["fecha_pago"] = None
+                df_merged["referencia_pago"] = ""
+                df_merged["observaciones"] = ""
 
-                btn_guardar_pago = st.form_submit_button("💾 Registrar Estatus Administrativo", use_container_width=True)
+            # Normalización robusta de columnas por si faltan en el merge
+            for col in cols_mostrar:
+                if col not in df_merged.columns:
+                    df_merged[col] = "Pendiente" if col == "estado_pago" else (0.0 if col == "monto" else "")
 
-                if btn_guardar_pago:
-                    registro_pago = {
-                        "usuario_id": atleta_id_sel,
-                        "temporada": temporada_sel,
-                        "mes": mes_pago,
-                        "monto": monto_pago,
-                        "estado_pago": nuevo_estado,
-                        "fecha_pago": str(fecha_pago_val),
-                        "referencia_pago": ref_pago_val,
-                        "observaciones": obs_pago_val
-                    }
+            df_merged["estado_pago"] = df_merged["estado_pago"].fillna("Pendiente")
+            df_merged["monto"] = df_merged["monto"].fillna(0.0)
 
-                    try:
-                        supabase.table("control_pagos").upsert(registro_pago).execute()
-                        st.success("✅ Pago y estatus administrativo actualizados correctamente.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al registrar pago en base de datos: {e}")
+            # Filtro de estatus
+            if estado_sel != "Todos":
+                df_merged = df_merged[df_merged["estado_pago"] == estado_sel]
 
-# =========================================================================
+            # Filtro por búsqueda de texto
+            if busqueda_texto:
+                df_merged = df_merged[
+                    df_merged["nombre"].str.contains(busqueda_texto, case=False, na=False) |
+                    df_merged["usuario"].str.contains(busqueda_texto, case=False, na=False)
+                ]
+
+            # --- TARJETAS MÉTRICAS (KPIs) ---
+            m1, m2, m3, m4 = st.columns(4)
+            
+            total_recaudado = df_merged["monto"].sum()
+            cant_solventes = len(df_merged[df_merged["estado_pago"] == "Solvente"])
+            cant_pendientes = len(df_merged[df_merged["estado_pago"] == "Pendiente"])
+            cant_exonerados = len(df_merged[df_merged["estado_pago"] == "Exonerado"])
+
+            m1.metric("Total Recaudado ($)", f"${total_recaudado:,.2f}")
+            m2.metric("🟢 Solventes", cant_solventes)
+            m3.metric("🔴 Pendientes", cant_pendientes)
+            m4.metric("⚪ Exonerados", cant_exonerados)
+
+            st.markdown("---")
+
+            # --- TABLA PRINCIPAL DE PAGOS ---
+            df_display = df_merged[cols_mostrar].copy()
+            df_display.columns = ["Atleta", "Usuario", "Estado", "Monto ($)", "Fecha Pago", "N° Referencia", "Observaciones"]
+
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+            # --- FORMULARIO DE REGISTRO / ACTUALIZACIÓN DE PAGO ---
+            st.markdown("---")
+            with st.expander("📝 **Registrar / Actualizar Pago de Atleta**", expanded=False):
+                with st.form("form_registrar_pago"):
+                    c1, c2, c3 = st.columns([2, 1, 1])
+                    
+                    with c1:
+                        atleta_id_sel = st.selectbox(
+                            "Seleccionar Atleta:", 
+                            options=df_nadadores["id"].tolist(),
+                            format_func=lambda x: df_nadadores[df_nadadores["id"] == x]["nombre"].values[0]
+                        )
+                    with c2:
+                        mes_pago = st.selectbox("Mes Afectado:", list(range(1, 13)), index=mes_actual - 1)
+                    with c3:
+                        monto_pago = st.number_input("Monto Recibido ($):", min_value=0.0, step=5.0)
+
+                    c4, c5, c6 = st.columns([1, 1, 2])
+                    with c4:
+                        nuevo_estado = st.selectbox("Estatus de Pago:", ["Solvente", "Pendiente", "Exonerado"])
+                    with c5:
+                        fecha_pago_val = st.date_input("Fecha del Pago:", value=datetime.date.today())
+                    with c6:
+                        ref_pago_val = st.text_input("N° Referencia / Comprobante:", placeholder="Ej: Transf-998231")
+
+                    obs_pago_val = st.text_input("Observaciones / Notas de pago:")
+
+                    btn_guardar_pago = st.form_submit_button("💾 Registrar Estatus Administrativo", use_container_width=True)
+
+                    if btn_guardar_pago:
+                        registro_pago = {
+                            "usuario_id": atleta_id_sel,
+                            "temporada": temporada_sel,
+                            "mes": mes_pago,
+                            "monto": monto_pago,
+                            "estado_pago": nuevo_estado,
+                            "fecha_pago": str(fecha_pago_val),
+                            "referencia_pago": ref_pago_val,
+                            "observaciones": obs_pago_val
+                        }
+
+                        try:
+                            supabase.table("control_pagos").upsert(registro_pago).execute()
+                            st.success("✅ Pago y estatus administrativo actualizados correctamente.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al registrar pago en base de datos: {e}")
+
+    # =========================================================================
     # SUB-PESTAÑA 2: ESTADO DE PLANTILLA Y ATLETAS
     # =========================================================================
     with subtab_atletas:
         st.markdown("### 👥 Gestión de Plantilla y Atletas")
         st.caption("Control de atletas activos, inactivos y actualización de datos de la plantilla institucional.")
         st.info("💡 **Nota pendiente:** Próximamente se incluirá el campo de cédula de identidad en la actualización de registros.")
+
+        # --- MÓDULO NUEVO DE PRE-ALTA / INVITACIONES OTP ---
+        id_usuario_club = st.session_state.get("usuario_id")
+        with st.expander("➕ **Registrar Nuevo Atleta (Pre-Alta / Invitación OTP)**", expanded=False):
+            if id_usuario_club and supabase:
+                render_pre_alta_atleta(supabase, id_usuario_club)
+            else:
+                st.warning("Error de sesión: No se identificó el usuario emisor o la conexión a la base de datos.")
+
+        st.markdown("---")
 
         # Cargar todos los nadadores con sus datos de perfil requeridos
         try:
@@ -352,7 +300,6 @@ def renderizar_tab_club():
                 )
 
             with col_f2:
-                # Extracción robusta de categorías sin fallos por valores nulos
                 cats_unicas = sorted([str(c) for c in df_plantilla["categoria"].dropna().unique() if c])
                 categoria_filtro = st.selectbox(
                     "Categoría:", 
@@ -403,7 +350,6 @@ def renderizar_tab_club():
             
             df_p_display = df_p_filtrado[cols_disponibles].copy()
             
-            # Renombrado estético de encabezados
             nombres_columnas = {
                 "nombre": "Atleta",
                 "email": "Correo Electrónico",
@@ -443,22 +389,20 @@ def renderizar_tab_club():
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al actualizar el estatus en la base de datos: {e}")
-    # =========================================================================
-    # SUB-PESTAÑAS PENDIENTES (PASO 3)
-    # =========================================================================
 
+    # =========================================================================
+    # SUB-PESTAÑA 3: COMUNICADOS Y CORRESPONDENCIA
+    # =========================================================================
     with subtab_comunicacion:
         st.markdown("## 📜 Emisión de Documentos y Comunicación Oficial")
         st.caption("Preparación de memorandums, avisos y comunicados en papel membrete con exportación a PDF y envío directo.")
     
-        # Sub-pestañas internas dentro de la subtab
         tab_editor, tab_export_envio = st.tabs(["✍️ Editor y Maquetación", "📤 Exportación y Despacho"])
     
         # ---------------------------------------------------------------------
         # TAB 1: EDITOR Y PLANTILLAS
         # ---------------------------------------------------------------------
         with tab_editor:
-            # Selección de Plantilla Predefinida
             plantillas = {
                 "Memorandum Interno": {
                     "tipo": "Memorandum",
@@ -508,7 +452,6 @@ def renderizar_tab_club():
                     st.success("Plantilla cargada correctamente.")
                     st.rerun()
     
-            # Inicialización de estado de sesión
             if "meta_memo" not in st.session_state:
                 st.session_state.meta_memo = {
                     "codigo": "MEMO-2026-001",
@@ -525,7 +468,6 @@ def renderizar_tab_club():
             if "clausulas_memo" not in st.session_state:
                 st.session_state.clausulas_memo = ""
     
-            # Formulario de Cabecera
             meta = st.session_state.meta_memo
             
             with st.container(border=True):
@@ -578,7 +520,6 @@ def renderizar_tab_club():
         with tab_export_envio:
             st.markdown("### 📤 Generación, Exportación y Despacho Directo")
             
-            # Generar los Bytes del PDF actual en memoria desde la utilidad
             pdf_bytes = generar_pdf_memorandum_nativo()
             nombre_pdf = f"{meta.get('codigo', 'documento')}.pdf"
     
@@ -614,7 +555,6 @@ def renderizar_tab_club():
             st.markdown("---")
             st.markdown("#### 🎯 Destinatarios y Canales de Envíos")
     
-            # Cargar directorio desde Supabase
             try:
                 res_user = supabase.table("usuarios").select("nombre, email, telefono, rol").execute()
                 df_destinatarios = pd.DataFrame(res_user.data) if res_user.data else pd.DataFrame()
