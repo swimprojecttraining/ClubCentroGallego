@@ -116,6 +116,7 @@ def renderizar_sidebar_completo():
     if st.sidebar.button("🚪 Salir del Sistema"):
         st.session_state.clear()
         st.rerun()
+        st.stop()
 
     # Determinar el rol activo efectivo
     rol_activo = st.session_state.get("rol", rol_real)
