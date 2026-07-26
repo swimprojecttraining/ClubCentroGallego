@@ -114,10 +114,8 @@ def renderizar_sidebar_completo():
 
     # SALIDA DEL SISTEMA CON PURGA COMPLETA DE LA SESIÓN
     if st.sidebar.button("🚪 Salir del Sistema"):
-        st.session_state.clear()
-        st.session_state["logout_voluntario"] = True
+        st.session_state["logout_solicitado"] = True
         st.rerun()
-        st.stop()
 
     # Determinar el rol activo efectivo
     rol_activo = st.session_state.get("rol", rol_real)
