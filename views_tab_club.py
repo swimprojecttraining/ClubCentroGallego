@@ -417,7 +417,7 @@ def renderizar_tab_club():
 
         # NÓMINA TÉCNICA (ENTRENADORES Y HEAD COACH)
         with tab_nomina_tecnica:
-            roles_tecnicos = ["Entrenador", "Head Coach", "Administrador Club"]
+            roles_tecnicos = ["Entrenador", "Head Coach", "Club"]
             df_tecnica = df_todos_usuarios[df_todos_usuarios["rol"].isin(roles_tecnicos)].copy() if not df_todos_usuarios.empty else pd.DataFrame()
 
             if df_tecnica.empty:
