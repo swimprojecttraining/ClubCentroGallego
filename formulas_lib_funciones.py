@@ -9,7 +9,6 @@ import pandas as pd
 import smtplib
 import string
 import secrets
-from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
