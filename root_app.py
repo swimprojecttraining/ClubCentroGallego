@@ -13,73 +13,31 @@ st.set_page_config(
     page_title="Swimming Club Training Control and Performance Forecasting System", 
     layout="wide"
 )
-# --- INYECCIÓN DE CSS GLOBAL OPTIMIZADO ---
-st.markdown(
-    """
+st.markdown("""
     <style>
-        /* 1. Ajuste del lienzo superior */
+        /* 1. Reducir el espacio superior del contenedor principal */
         .block-container {
-            padding-top: 3.8rem !important; 
-            padding-bottom: 2rem !important;
-            max-width: 98% !important;     
+            padding-top: 1rem !important;
+            padding-bottom: 0rem !important;
         }
         
-        /* 2. Compactar espacio muerto */
-        div[data-testid="stVerticalBlock"] {
-            gap: 0.8rem !important; 
-        }
-        .element-container {
-            margin-bottom: 4px !important;
+        /* 2. Reducir el margen vertical entre widgets consecutivas */
+        div[data-testid="stVerticalBlock"] > div {
+            gap: 0.3rem !important;
         }
         
-        /* 3. Control de tipografías y márgenes para cabecera responsiva */
-        h1 { 
-            font-size: 18px !important; 
-            font-weight: 700 !important; 
-            margin-top: 2px !important;     
-            margin-bottom: 4px !important;    
-            padding-bottom: 0px !important; 
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        /* 3. Ajustar el espacio interno de las tarjetas/formularios */
+        div[data-testid="stForm"] {
+            padding: 10px 15px !important;
         }
-        h2 { font-size: 16px !important; font-weight: 700 !important; margin-top: 2px !important; }
-        h3 { font-size: 14px !important; font-weight: 600 !important; margin-bottom: 2px !important; }
         
-        /* SegmentedControl */
-        div[data-testid="stSegmentedControl"] {
-            margin-top: 2px !important;    
-            margin-bottom: 4px !important;
-        }
-
-        /* 4. Subpestañas */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 4px;
-            background-color: #f8f9fa;
-            padding: 4px 6px 0px 6px;
-            border-radius: 8px 8px 0px 0px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .stTabs [data-baseweb="tab"] {
-            height: 32px !important;
-            background-color: transparent;
-            border-radius: 6px 6px 0px 0px;
-            padding: 2px 10px !important;
-            font-size: 12px !important;
-            font-weight: 500 !important;
-            color: #6b7280 !important;
-            border: none !important;
-        }
-        .stTabs [aria-selected="true"] {
-            background-color: #ffffff !important;
-            color: #1f2937 !important;
-            font-weight: 600 !important;
-            border-bottom: 3px solid #3b82f6 !important;
+        /* 4. Compactar etiquetas de texto en los inputs */
+        .stTextInput label, .stSelectbox label, .stDateInput label {
+            font-size: 0.85rem !important;
+            margin-bottom: -5px !important;
         }
     </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 def validar_token_handshake(token_b64, secret_key_local):
     """
