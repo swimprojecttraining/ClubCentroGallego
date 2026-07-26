@@ -5,6 +5,7 @@ import hashlib
 import base64
 import os
 import sys
+import streamlit.components.v1 as components
 
 # **********************************************************************************
 # 1. CONFIGURACIÓN ÚNICA DE LA PÁGINA
@@ -115,11 +116,15 @@ params = st.query_params
 token_url = params.get("auth")
 
 if not st.session_state["puente_validado"]:
-    # 1. Si no viene ningún token por URL
-    if token_url is None or token_url == "":
-        st.query_params.clear()
-        st.markdown(
-            """
+
+  # 1. Si entran sin token por la URL
+  if token_url is None or token_url == "":
+    st.query_params.clear()
+
+    # Redirección garantizada con Meta Refresh + JS + Botón
+    st.markdown(
+        """
+            <meta http-equiv="refresh" content="4;url=https://swimming-pro.streamlit.app">
             <div style="
                 background-color: #ffebe9;
                 border: 1px solid #ffc1c0;
@@ -140,7 +145,7 @@ if not st.session_state["puente_validado"]:
                     No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.
                 </div>
                 <div style="font-size: 13px; color: #8c232c; margin-bottom: 20px;">
-                    Redirigiendo automáticamente al Hub Central en <span id="contador_directo">4</span> segundos...
+                    Redirigiendo automáticamente al Hub Central en 4 segundos...
                 </div>
                 <a href="https://swimming-pro.streamlit.app" target="_self" style="
                     background-color: #cf222e;
@@ -154,35 +159,36 @@ if not st.session_state["puente_validado"]:
                     🏠 Volver al Hub Central
                 </a>
             </div>
-
-            <script>
-                var segs = 4;
-                var el_dir = document.getElementById('contador_directo');
-                var timer_dir = setInterval(function() {
-                    segs--;
-                    if (el_dir) el_dir.innerText = segs;
-                    if (segs <= 0) {
-                        clearInterval(timer_dir);
-                        window.location.href = "https://swimming-pro.streamlit.app";
-                    }
-                }, 1000);
-            </script>
             """,
-            unsafe_allow_html=True,
-        )
-        st.stop()
-
-    # 2. Validar token si viene en la URL
-    es_valido, resultado_o_error = validar_token_handshake(
-        token_url, SECRET_EXCLUSIVO_LOCAL
+        unsafe_allow_html=True,
     )
 
-    # 3. Si el token expiró (30s) o la firma HMAC es inválida
-    if not es_valido:
-        st.query_params.clear()
+    # Respaldo por componentes de Streamlit para forzar la navegación por JS
+    components.html(
+        """
+        <script>
+            setTimeout(function() {
+                window.parent.location.href = "https://swimming-pro.streamlit.app";
+            }, 4000);
+        </script>
+        """,
+        height=0,
+    )
 
-        st.markdown(
-            f"""
+    st.stop()
+
+  # 2. Validar el token si viene en la URL
+  es_valido, resultado_o_error = validar_token_handshake(
+      token_url, SECRET_EXCLUSIVO_LOCAL
+  )
+
+  # 3. Si el token expiró o la firma es inválida
+  if not es_valido:
+    st.query_params.clear()
+
+    st.markdown(
+        f"""
+            <meta http-equiv="refresh" content="4;url=https://swimming-pro.streamlit.app">
             <div style="
                 background-color: #ffebe9;
                 border: 1px solid #ffc1c0;
@@ -203,7 +209,7 @@ if not st.session_state["puente_validado"]:
                     {resultado_o_error}
                 </div>
                 <div style="font-size: 13px; color: #8c232c; margin-bottom: 20px;">
-                    Redirigiendo automáticamente al Hub Central en <span id="contador">4</span> segundos...
+                    Redirigiendo automáticamente al Hub Central en 4 segundos...
                 </div>
                 <a href="https://swimming-pro.streamlit.app" target="_self" style="
                     background-color: #cf222e;
@@ -217,29 +223,26 @@ if not st.session_state["puente_validado"]:
                     🏠 Volver al Hub Central
                 </a>
             </div>
-
-            <script>
-                var segundos = 4;
-                var el = document.getElementById('contador');
-                var timer = setInterval(function() {{
-                    segundos--;
-                    if (el) el.innerText = segundos;
-                    if (segundos <= 0) {{
-                        clearInterval(timer);
-                        window.location.href = "https://swimming-pro.streamlit.app";
-                    }}
-                }}, 1000);
-            </script>
             """,
-            unsafe_allow_html=True,
-        )
-        st.stop()
+        unsafe_allow_html=True,
+    )
 
-    # Si la validación es correcta, marcamos el puente como válido
-    st.session_state["puente_validado"] = True
-        
-    # Si todo coincide perfectamente:
-    st.session_state["puente_validado"] = True
+    # Respaldo de navegación nativa
+    components.html(
+        """
+        <script>
+            setTimeout(function() {
+                window.parent.location.href = "https://swimming-pro.streamlit.app";
+            }, 4000);
+        </script>
+        """,
+        height=0,
+    )
+
+    st.stop()
+
+  # Si la validación pasa correctamente
+  st.session_state["puente_validado"] = True
 
 # =============================================================================
 # 🔑 ENTORNO OPERATIVO DEL CLUB (EJECUCIÓN DIRECTA POST-HANDSHAKE)
