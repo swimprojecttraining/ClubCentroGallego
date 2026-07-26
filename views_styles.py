@@ -96,6 +96,12 @@ def aplicar_estilos_globales():
             width: 100% !important;
             padding: 4px 0px !important;
         }
+        /* Asegura que los mensajes de alerta de Streamlit no se solapen con el título */
+        div[data-testid="stAlert"] {
+            margin-top: 15px !important;
+            position: relative;
+            z-index: 99;
+        }
     }
 /* =================================================================
    🔥 BOTONES CSS FLUIDOS (ADAPTATIVOS)
