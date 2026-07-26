@@ -26,7 +26,11 @@ def render_pre_alta_atleta(supabase, id_usuario_club):
     # 💡 Usamos campos directos sin 'with st.form()' para evitar anidamiento
     pa_nombre = st.text_input("Nombre Completo:", key="pa_nombre")
     pa_email = st.text_input("Correo Electrónico:", key="pa_email")
-    pa_rol = st.selectbox("Rol Asignado:", options=["Nadador", "Entrenador", "Head Coach", "Club", "Administrador"], key="pa_rol")
+    ROLES_DISPONIBLES_ALTA = ("Nadador", "Entrenador", "Head Coach", "Club")
+    pa_rol = st.selectbox("Rol Asignado:", options=ROLES_DISPONIBLES_ALTA, key="pa_rol")
+    if pa_rol not in ROLES_DISPONIBLES_ALTA:
+        st.error("❌ El rol seleccionado no es válido. Solo se permiten usuarios institucionales.")
+        st.stop()
     pa_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino", key="pa_genero")
     pa_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today(), key="pa_fecha_nac")
     
@@ -558,10 +562,14 @@ def renderizar_tab_club():
                         edit_email = st.text_input("Correo Electrónico:", value=str(row_user.get("email", "")))
                         edit_cedula = st.text_input("Cédula / Documento:", value=str(row_user.get("cedula", "") if pd.notna(row_user.get("cedula")) else ""))
                         
-                        roles_disp = ["Nadador", "Entrenador", "Head Coach", "Administrador Club"]
+                        roles_disp = ["Nadador", "Entrenador", "Head Coach", "Club"]
                         rol_act = row_user.get("rol", "Nadador")
                         idx_rol = roles_disp.index(rol_act) if rol_act in roles_disp else 0
                         edit_rol = st.selectbox("Rol Institucional:", roles_disp, index=idx_rol)
+                        
+                        if edit_rol not in roles_disp:
+                            st.error("❌ El rol seleccionado no es válido.")
+                            st.stop()
 
                     with c_e2:
                         edit_telefono = st.text_input("Teléfono:", value=str(row_user.get("telefono", "") if pd.notna(row_user.get("telefono")) else ""))
