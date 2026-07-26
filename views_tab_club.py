@@ -23,65 +23,57 @@ def render_pre_alta_atleta(supabase, id_usuario_club):
     Captura todos los datos institucionales excepto usuario y clave (elegidos por el integrante).
     """
     with st.form("form_pre_alta_completa", clear_on_submit=True):
-        st.markdown("##### ➕ Pre-Alta de Integrante e Invitación OTP")
-        st.caption("Ingrese todos los datos de la ficha. El usuario y la contraseña serán creados por el integrante al momento del auto-registro.")
+        st.markdown("### 📩 Pre-Alta de Usuarios")
+        st.caption("Registre los datos institucionales obligatorios para generar el código OTP de activación.")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            nuevo_nombre = st.text_input("Nombre Completo *", placeholder="Ej: Ximena Pérez")
-            nuevo_email = st.text_input("Correo Electrónico *", placeholder="ejemplo@correo.com")
-            nueva_cedula = st.text_input("Cédula / Documento de Identidad", placeholder="Ej: V-12345678")
-            nuevo_rol = st.selectbox("Rol Asignado *", ["Nadador", "Entrenador", "Head Coach", "Administrador Club"])
-
-        with col2:
-            nuevo_telefono = st.text_input("Teléfono de Contacto", placeholder="Ej: +58 414 1234567")
-            nueva_fecha_nac = st.date_input("Fecha de Nacimiento", value=datetime.date(2010, 1, 1))
-            nuevo_sexo = st.selectbox("Género / Sexo FINA", ["Femenino", "Masculino"])
-            st.caption("Se generará un código OTP válido por 24 horas para completar el alta.")
+        with st.form("form_generar_prealta"):
+            pa_nombre = st.text_input("Nombre Completo:")
+            pa_email = st.text_input("Correo Electrónico:")
+            pa_rol = st.selectbox("Rol Asignado:", options=["Nadador", "Entrenador", "Head Coach", "Club", "Administrador"])
+            pa_genero = st.selectbox("Género:", options=["F", "M"], format_func=lambda x: "Femenino" if x == "F" else "Masculino")
+            pa_fecha_nac = st.date_input("Fecha de Nacimiento:", min_value=datetime.date(1950, 1, 1), max_value=datetime.date.today())
             
-        btn_pre_alta = st.form_submit_button("🔑 Generar Ficha Pre-Alta y Token OTP", use_container_width=True)
-
-        if btn_pre_alta:
-            if not nuevo_nombre or not nuevo_email:
-                st.error("⚠️ Por favor complete los campos obligatorios (Nombre y Correo).")
-                return
-            
-            # Generar datos del Token OTP usando utilidades centralizadas
-            token_otp = generar_codigo_invitacion(longitud=6)
-            expiracion = calcular_expiracion_token(horas_validez=24)
-            
-            # Empaquetado completo de pre-alta en la tabla public.invitaciones
-            datos_invitacion = {
-                "email": nuevo_email,
-                "nombre": nuevo_nombre,
-                "rol": nuevo_rol,
-                "token": token_otp,
-                "expira_en": expiracion.isoformat(),
-                "usado": False,
-                "creado_por": id_usuario_club,
-                "datos_perfil": {
-                    "cedula": nueva_cedula,
-                    "telefono": nuevo_telefono,
-                    "fecha_nacimiento": str(nueva_fecha_nac),
-                    "sexo": nuevo_sexo
-                }
-            }
-            
-            try:
-                res = supabase.table("invitaciones").insert(datos_invitacion).execute()
-                if res.data:
-                    st.success(f"✅ Pre-Alta registrada exitosamente para **{nuevo_nombre}** ({nuevo_rol}).")
-                    st.info(f"🔑 **Código OTP de Activación:** `{token_otp}` (Válido 24 horas)")
-                    
-                    mensaje_wa = (
-                        f"Hola {nuevo_nombre}, has sido pre-registrado en el Club como {nuevo_rol}. "
-                        f"Tu código de activación es: {token_otp}. "
-                        f"Ingresa a la aplicación, valida este código y define tu Usuario y Contraseña para darte de alta."
-                    )
-                    url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(mensaje_wa)}"
-                    st.markdown(f"[📲 Enviar Código por WhatsApp]({url_wa})")
-            except Exception as e:
-                st.error(f"Error al registrar la pre-alta en la base de datos: {e}")
+            # Campos opcionales adicionales
+            pa_cedula = st.text_input("Cédula / Documento (Opcional):")
+            pa_telefono = st.text_input("Teléfono (Opcional):")
+        
+            if st.form_submit_button("🚀 Generar Código OTP de Pre-Alta", use_container_width=True):
+                if not pa_nombre or not pa_email or not pa_rol or not pa_genero or not pa_fecha_nac:
+                    st.error("⚠️ Los 5 campos básicos (Nombre, Email, Rol, Género y Fecha de Nacimiento) son estrictamente obligatorios.")
+                else:
+                    try:
+                        # Generación del token OTP de 6 dígitos con expiración a 24 horas
+                        token_otp = str(random.randint(100000, 999999))
+                        expiracion = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)).isoformat()
+                        
+                        payload_invitacion = {
+                            "token": token_otp,
+                            "nombre": pa_nombre.strip(),
+                            "email": pa_email.strip().lower(),
+                            "rol": pa_rol,
+                            "expira_en": expiracion,
+                            "usado": False,
+                            "datos_perfil": {
+                                "genero": pa_genero,
+                                "fecha_nacimiento": pa_fecha_nac.isoformat(),
+                                "cedula": pa_cedula.strip(),
+                                "telefono": pa_telefono.strip()
+                            }
+                        }
+                        
+                        # Insertar en la base de datos local del club
+                        st.session_state.supabase.table("invitaciones").insert(payload_invitacion).execute()
+                        
+                        # Envío de correo con el código OTP
+                        asunto = f"Código OTP de Activación - {st.session_state.club_seleccionado}"
+                        cuerpo = f"Hola {pa_nombre},\n\nSe ha generado tu pre-alta en {st.session_state.club_seleccionado} con el rol de {pa_rol}.\n\nTu código OTP de activación es: {token_otp}\n\nEste código es válido por 24 horas. Ingresa al sistema en la pestaña 'Registro (Pre-Alta OTP)' con este código y tu correo ({pa_email}) para activar tu cuenta."
+                        
+                        if enviar_email(asunto, cuerpo, pa_email.strip()):
+                            st.success(f"✅ Pre-Alta creada exitosamente. Código OTP **{token_otp}** enviado a **{pa_email}**.")
+                        else:
+                            st.warning(f"⚠️ Pre-Alta creada con OTP **{token_otp}**, pero no se pudo enviar el correo automático.")
+                    except Exception as e:
+                        st.error(f"Error al registrar la pre-alta: {e}")
 
 
 def generar_zip_bd_completa(supabase):
