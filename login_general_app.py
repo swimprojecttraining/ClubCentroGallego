@@ -142,7 +142,7 @@ def mostrar_pantalla_login():
     # ------------------------------------------------------------
     if not st.session_state.autenticado:
         st.markdown(f"<h2 style='text-align: center;'>🏊‍♂️ {st.session_state.club_seleccionado}</h2>", unsafe_allow_html=True)
-        st.markdown("<h4 style='text-align: center; color: gray;'>Sistema de Control de Entrenamientos y Rendimiento</h4>", unsafe_allow_html=True)
+        st.markdown("<h4 style='text-align: center; color: gray;'>Sistema de Gestión de Entrenamientos y Proyección de Rendimiento</h4>", unsafe_allow_html=True)
         
         instancia_supabase_club = st.session_state.supabase
 
