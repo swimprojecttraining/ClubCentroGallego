@@ -26,7 +26,7 @@ st.markdown(
         
         /* 2. Compactar espacio muerto */
         div[data-testid="stVerticalBlock"] {
-            gap: 0.3rem !important; 
+            gap: 0.1rem !important; 
         }
         .element-container {
             margin-bottom: 4px !important;
