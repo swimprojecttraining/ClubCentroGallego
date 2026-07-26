@@ -28,12 +28,12 @@ st.markdown("""
         
         /* 3. Ajustar el espacio interno de las tarjetas/formularios */
         div[data-testid="stForm"] {
-            padding: 10px 15px !important;
+            padding: 5px 10px !important;
         }
         
         /* 4. Compactar etiquetas de texto en los inputs */
         .stTextInput label, .stSelectbox label, .stDateInput label {
-            font-size: 0.85rem !important;
+            font-size: 0.75rem !important;
             margin-bottom: -5px !important;
         }
     </style>
