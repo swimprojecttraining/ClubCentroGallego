@@ -115,6 +115,7 @@ def renderizar_sidebar_completo():
     # SALIDA DEL SISTEMA CON PURGA COMPLETA DE LA SESIÓN
     if st.sidebar.button("🚪 Salir del Sistema"):
         st.session_state.clear()
+        st.session_state["logout_voluntario"] = True
         st.rerun()
         st.stop()
 
