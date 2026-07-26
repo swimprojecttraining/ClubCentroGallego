@@ -87,34 +87,54 @@ def login_usuario(user, password, client_db):
 
 
 def mostrar_pantalla_login():
-    """
-    Función principal que renderiza el Login, Certificación por Pre-Alta (OTP) y Recuperación.
+    """Función principal que renderiza el Login, Certificación por Pre-Alta (OTP) y Recuperación.
+
     Llamada directamente desde root_app.py tras validar el handshake.
     """
+    # ------------------------------------------------------------
+    # 0. LIMPIEZA INTELIGENTE DE SESIÓN AL ENTRAR AL LOGIN
+    # ------------------------------------------------------------
+    # Capturamos si el usuario viene de un logout voluntario desded el sidebar
+    logout_voluntario = st.session_state.get("logout_solicitado", False)
+
+    # Preservamos conexiones globales o tokens si venían en la sesión antes de barrer
+    supabase_previo = st.session_state.get("supabase")
+    club_previo = st.session_state.get("club_seleccionado")
+
+    # Si fue un logout intencional o entrada limpia, purgamos variables de usuario
+    if logout_voluntario or not st.session_state.get("autenticado", False):
+        st.session_state.clear()
+
+        # Restauramos conexiones/infraestructura de Supabase para no reconectar de cero
+        if supabase_previo:
+            st.session_state.supabase = supabase_previo
+        if club_previo:
+            st.session_state.club_seleccionado = club_previo
+
+    # ------------------------------------------------------------
+    # 1. INICIALIZACIÓN DE VARIABLES DE ESTADO LOCALES
+    # ------------------------------------------------------------
     if "rec_codigo_verificacion" not in st.session_state:
         st.session_state.rec_codigo_verificacion = None
     if "rec_datos_temporales" not in st.session_state:
         st.session_state.rec_datos_temporales = None
-
-    # ------------------------------------------------------------
-    # 1. RECEPTOR Y VALIDADOR CRIPTOGRÁFICO INTERCLUBES (HANDSHAKE)
-    # ------------------------------------------------------------
-    if "supabase" not in st.session_state:
-        st.session_state.supabase = None
-    if "club_seleccionado" not in st.session_state:
-        st.session_state.club_seleccionado = None
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
 
-    if not st.session_state.supabase:
+    # ------------------------------------------------------------
+    # 2. RECEPTOR Y VALIDADOR CRIPTOGRÁFICO INTERCLUBES (HANDSHAKE)
+    # ------------------------------------------------------------
+    if not st.session_state.get("supabase"):
         try:
-            st.session_state.supabase = create_client(
-                st.secrets["SUPABASE_URL"], 
-                st.secrets["SUPABASE_KEY"]
+            st.session_state.supabase = obtener_cliente_supabase()
+            st.session_state.club_seleccionado = st.secrets.get(
+                "NOMBRE_CLUB_LOCAL", "Centro Gallego"
             )
-            st.session_state.club_seleccionado = st.secrets.get("NOMBRE_CLUB_LOCAL", "Centro Gallego")
         except Exception as e:
-            st.error(f"❌ Error de infraestructura al conectar base de datos local: {e}")
+            st.error(
+                "❌ Error de infraestructura al conectar base de datos local:"
+                f" {e}"
+            )
             st.stop()
 
     # ------------------------------------------------------------
