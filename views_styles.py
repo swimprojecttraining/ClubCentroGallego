@@ -96,30 +96,6 @@ def aplicar_estilos_globales():
             width: 100% !important;
             padding: 4px 0px !important;
         }
-        /* 1. Evitar que el wrapper dinámico de Streamlit colapse la alerta tras el renderizado */
-        div[data-testid="stElementContainer"]:has(div[data-testid="stAlert"]) {
-            height: auto !important;
-            min-height: 50px !important;
-            overflow: visible !important;
-            margin-top: 15px !important;
-            margin-bottom: 15px !important;
-        }
-        
-        /* 2. Forzar a la alerta interna a mantenerse visible y desplegada */
-        div[data-testid="stAlert"] {
-            position: relative !important;
-            display: flex !important;
-            height: auto !important;
-            min-height: 48px !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 9999 !important;
-        }
-        
-        /* 3. Dar espacio global en la parte superior del cuerpo principal */
-        div[data-testid="stMainBlockContainer"] {
-            padding-top: 3.5rem !important;
-        }
     }
 /* =================================================================
    🔥 BOTONES CSS FLUIDOS (ADAPTATIVOS)
