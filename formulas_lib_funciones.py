@@ -228,18 +228,41 @@ def calcular_categoria_competencia(fecha_nac_str):
 
     return cat, edad_competencia
 
-def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
-    if not fecha_nacimiento_str or not fecha_marca: return None
+def calcular_edad_decimal(fecha_nacimiento, fecha_referencia=None):
+    """
+    Calcula la edad exacta en formato decimal (años con fracciones) 
+    a partir de una fecha de nacimiento y una fecha de referencia.
+    """
+    if pd.isna(fecha_nacimiento) or not fecha_nacimiento:
+        return 0.0
+    
     try:
-        if isinstance(fecha_nacimiento_str, str):
-            fecha_nac_obj = datetime.date.fromisoformat(fecha_nacimiento_str)
+        if isinstance(fecha_nacimiento, (datetime.date, datetime.datetime)):
+            nac = fecha_nacimiento
+        elif isinstance(fecha_nacimiento, pd.Timestamp):
+            nac = fecha_nacimiento.date()
         else:
-            fecha_nac_obj = fecha_nacimiento_str
-        diferencia_dias = (fecha_marca - fecha_nac_obj).days
-        edad_decimal = diferencia_dias / 365.25
-        return round(edad_decimal, 2)
+            nac = datetime.date.fromisoformat(str(fecha_nacimiento).split("T")[0])
     except Exception:
-        return None
+        try:
+            nac = pd.to_datetime(str(fecha_nacimiento)).date()
+        except Exception:
+            return 0.0
+
+    if fecha_referencia is None:
+        ref = datetime.date.today()
+    elif isinstance(fecha_referencia, (datetime.date, datetime.datetime)):
+        ref = fecha_referencia
+    elif isinstance(fecha_referencia, pd.Timestamp):
+        ref = fecha_referencia.date()
+    else:
+        try:
+            ref = datetime.date.fromisoformat(str(fecha_referencia).split("T")[0])
+        except Exception:
+            ref = datetime.date.today()
+
+    delta_dias = (ref - nac).days
+    return round(delta_dias / 365.25, 4)
 # -------------------------------------------------------------
 # FUNCIÓN CALCULAR PUNTOS WA
 # -------------------------------------------------------------
