@@ -7,22 +7,6 @@ import os
 import sys
 import streamlit.components.v1 as components
 
-# **********************************************************************************
-# 1. CONFIGURACIÓN ÚNICA DE LA PÁGINA
-# **********************************************************************************
-st.set_page_config(
-    page_title="Swimming Club Training Control and Performance Forecasting System", 
-    layout="wide"
-)
-import base64
-import os
-import streamlit as st
-
-
-import base64
-import os
-import streamlit as st
-
 # -----------------------------------------------------------------------------
 # 1. PAGE CONFIG & BACKGROUND
 # -----------------------------------------------------------------------------
