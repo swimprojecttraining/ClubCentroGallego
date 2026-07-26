@@ -115,8 +115,8 @@ params = st.query_params
 token_url = params.get("auth")
 
 if not st.session_state["puente_validado"]:
+    # 1. Si no viene ningún token por URL
     if token_url is None or token_url == "":
-        # Limpieza de URL y mensaje de bloqueo directo
         st.query_params.clear()
         st.markdown(
             """
@@ -124,53 +124,119 @@ if not st.session_state["puente_validado"]:
                 background-color: #ffebe9;
                 border: 1px solid #ffc1c0;
                 color: #cf222e;
-                padding: 20px;
-                border-radius: 8px;
-                font-weight: 600;
+                padding: 24px;
+                border-radius: 12px;
+                font-weight: 500;
                 font-size: 15px;
                 margin: 40px auto;
-                max-width: 600px;
+                max-width: 550px;
                 text-align: center;
                 box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
             ">
-                🔒 <b>Acceso Denegado:</b> No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
+                    🔒 Acceso Denegado
+                </div>
+                <div style="margin-bottom: 16px;">
+                    No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.
+                </div>
+                <div style="font-size: 13px; color: #8c232c; margin-bottom: 20px;">
+                    Redirigiendo automáticamente al Hub Central en <span id="contador_directo">4</span> segundos...
+                </div>
+                <a href="https://swimming-pro.streamlit.app" target="_self" style="
+                    background-color: #cf222e;
+                    color: white;
+                    text-decoration: none;
+                    padding: 10px 20px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    display: inline-block;
+                ">
+                    🏠 Volver al Hub Central
+                </a>
             </div>
+
+            <script>
+                var segs = 4;
+                var el_dir = document.getElementById('contador_directo');
+                var timer_dir = setInterval(function() {
+                    segs--;
+                    if (el_dir) el_dir.innerText = segs;
+                    if (segs <= 0) {
+                        clearInterval(timer_dir);
+                        window.location.href = "https://swimming-pro.streamlit.app";
+                    }
+                }, 1000);
+            </script>
             """,
             unsafe_allow_html=True,
         )
         st.stop()
 
+    # 2. Validar token si viene en la URL
     es_valido, resultado_o_error = validar_token_handshake(
         token_url, SECRET_EXCLUSIVO_LOCAL
     )
 
+    # 3. Si el token expiró (30s) o la firma HMAC es inválida
     if not es_valido:
-        # 1. Limpiamos la URL para evitar reejecuciones en bucle
         st.query_params.clear()
 
-        # 2. Renderizamos la tarjeta de bloqueo centralizada
         st.markdown(
             f"""
             <div style="
                 background-color: #ffebe9;
                 border: 1px solid #ffc1c0;
                 color: #cf222e;
-                padding: 20px;
-                border-radius: 8px;
-                font-weight: 600;
+                padding: 24px;
+                border-radius: 12px;
+                font-weight: 500;
                 font-size: 15px;
                 margin: 40px auto;
-                max-width: 600px;
+                max-width: 550px;
                 text-align: center;
                 box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
             ">
-                🔒 <b>Acceso Denegado:</b> {resultado_o_error}
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
+                    🔒 Acceso Denegado
+                </div>
+                <div style="margin-bottom: 16px;">
+                    {resultado_o_error}
+                </div>
+                <div style="font-size: 13px; color: #8c232c; margin-bottom: 20px;">
+                    Redirigiendo automáticamente al Hub Central en <span id="contador">4</span> segundos...
+                </div>
+                <a href="https://swimming-pro.streamlit.app" target="_self" style="
+                    background-color: #cf222e;
+                    color: white;
+                    text-decoration: none;
+                    padding: 10px 20px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    display: inline-block;
+                ">
+                    🏠 Volver al Hub Central
+                </a>
             </div>
+
+            <script>
+                var segundos = 4;
+                var el = document.getElementById('contador');
+                var timer = setInterval(function() {{
+                    segundos--;
+                    if (el) el.innerText = segundos;
+                    if (segundos <= 0) {{
+                        clearInterval(timer);
+                        window.location.href = "https://swimming-pro.streamlit.app";
+                    }}
+                }}, 1000);
+            </script>
             """,
             unsafe_allow_html=True,
         )
-        # 3. Bloqueamos la ejecución para que NO aparezca la pantalla de Login
         st.stop()
+
+    # Si la validación es correcta, marcamos el puente como válido
+    st.session_state["puente_validado"] = True
         
     # Si todo coincide perfectamente:
     st.session_state["puente_validado"] = True
