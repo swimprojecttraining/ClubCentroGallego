@@ -17,13 +17,13 @@ st.markdown("""
     <style>
         /* 1. Reducir el espacio superior del contenedor principal */
         .block-container {
-            padding-top: 0.5rem !important;
-            padding-bottom: 0.1rem !important;
+            padding-top: 0.3rem !important;
+            padding-bottom: 0rem !important;
         }
         
         /* 2. Reducir el margen vertical entre widgets consecutivas */
         div[data-testid="stVerticalBlock"] > div {
-            gap: 0.3rem !important;
+            gap: 0.1rem !important;
         }
         
         /* 3. Ajustar el espacio interno de las tarjetas/formularios */
