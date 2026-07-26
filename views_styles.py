@@ -104,7 +104,7 @@ def aplicar_estilos_globales():
         
         /* 2. Elevar la alerta y forzar que no pierda su espacio */
         div[data-testid="stAlert"] {
-            margin-top: 25px !important;
+            margin-top: 50px !important;
             position: relative !important;
             z-index: 9999 !important;
             clear: both !important;
