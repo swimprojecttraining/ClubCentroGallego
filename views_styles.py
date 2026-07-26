@@ -96,11 +96,18 @@ def aplicar_estilos_globales():
             width: 100% !important;
             padding: 4px 0px !important;
         }
-        /* Asegura que los mensajes de alerta de Streamlit no se solapen con el título */
+        /* 1. Permitir que los elementos en la parte superior no se corten por el overflow del contenedor principal */
+        section[data-testid="stMainServices"] > div,
+        div[data-testid="stMainBlockContainer"] {
+            overflow: visible !important;
+        }
+        
+        /* 2. Elevar la alerta y forzar que no pierda su espacio */
         div[data-testid="stAlert"] {
-            margin-top: 50px !important;
-            position: relative;
-            z-index: 80;
+            margin-top: 25px !important;
+            position: relative !important;
+            z-index: 9999 !important;
+            clear: both !important;
         }
     }
 /* =================================================================
