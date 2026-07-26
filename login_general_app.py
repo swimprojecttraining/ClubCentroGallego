@@ -27,6 +27,7 @@ def obtener_cliente_supabase():
         st.secrets["SUPABASE_URL"], 
         st.secrets["SUPABASE_KEY"]
     )
+
 def login_usuario(user, password, client_db):
     try:
         user_lower = user.strip().lower()
@@ -69,7 +70,7 @@ def login_usuario(user, password, client_db):
                 st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
                 st.session_state.nadador_seleccionado_categoria = cat
             else:
-                # Inicialización limpia para Club / Administrador / Entrenadores
+                # Inicialización limpia para Club / Administrador / Entrenadores / Head Coach
                 st.session_state.categoria_atleta = None
                 st.session_state.edad_comp_atleta = None
                 st.session_state.nadador_seleccionado_id = None
@@ -86,7 +87,7 @@ def login_usuario(user, password, client_db):
 
 def mostrar_pantalla_login():
     """
-    Función principal que renderiza el Login, Registro y Recuperación.
+    Función principal que renderiza el Login, Activación por Pre-Alta (OTP), Registro y Recuperación.
     Llamada directamente desde root_app.py tras validar el handshake.
     """
     # Inicialización de estados de registro si no existen
@@ -110,14 +111,12 @@ def mostrar_pantalla_login():
         st.session_state.autenticado = False
 
     # Si entramos aquí, asumimos que st.session_state.puente_validado ya es True gracias al root_app.py.
-    # Si por algún motivo se perdió la instancia de base de datos, la conectamos usando las credenciales locales
     if not st.session_state.supabase:
         try:
             st.session_state.supabase = create_client(
                 st.secrets["SUPABASE_URL"], 
                 st.secrets["SUPABASE_KEY"]
             )
-            # Extraemos el nombre del club desde los secrets o por defecto
             st.session_state.club_seleccionado = st.secrets.get("NOMBRE_CLUB_LOCAL", "Centro Gallego")
         except Exception as e:
             st.error(f"❌ Error de infraestructura al conectar base de datos local: {e}")
@@ -135,7 +134,12 @@ def mostrar_pantalla_login():
         c_login, _ = st.columns([1.5, 1.5])
         
         with c_login:
-            tab_login, tab_registro, tab_recuperar = st.tabs(["🔑 Iniciar Sesión", "📝 Registro de Usuarios", "🔄 Recuperar Contraseña"])
+            tab_login, tab_prealta, tab_registro, tab_recuperar = st.tabs([
+                "🔑 Iniciar Sesión", 
+                "⚡ Activar Pre-Alta (OTP)", 
+                "📝 Registro Libre", 
+                "🔄 Recuperar"
+            ])
             
             # --- TAB LOGIN ---
             with tab_login:
@@ -152,6 +156,69 @@ def mostrar_pantalla_login():
                         else:
                             st.error("Credenciales incorrectas o cuenta en revisión. Verifique sus datos.")
                             
+            # --- TAB ACTIVACIÓN DE PRE-ALTA (NUEVO CONTROLADOR DE NÓMINA / OTP) ---
+            with tab_prealta:
+                st.markdown("### ⚡ Activación por Pre-Alta Institucional")
+                st.caption("Si la administración del club te pre-registró, ingresa el código OTP recibido por correo y completa tus credenciales de acceso.")
+                
+                with st.form("form_activar_prealta"):
+                    otp_token_input = st.text_input("Código OTP de 6 dígitos:", max_chars=6, placeholder="Ej: 489123")
+                    email_prealta_input = st.text_input("Correo electrónico registrado en la pre-alta:")
+                    
+                    st.markdown("---")
+                    st.markdown("##### 🔐 Credenciales Definitivas")
+                    nuevo_alias_pa = st.text_input("Nombre de Usuario (Alias) deseado:", placeholder="ej: alberto_jordan")
+                    nueva_clave_pa = st.text_input("Contraseña definitiva:", type="password")
+                    confirmar_clave_pa = st.text_input("Confirmar contraseña definitiva:", type="password")
+                    
+                    if st.form_submit_button("🚀 Certificar y Activar Cuenta"):
+                        if not otp_token_input or not email_prealta_input or not nuevo_alias_pa or not nueva_clave_pa:
+                            st.error("⚠️ Todos los campos son obligatorios.")
+                        elif nueva_clave_pa != confirmar_clave_pa:
+                            st.error("❌ Las contraseñas no coinciden.")
+                        else:
+                            try:
+                                # Validar el token en la tabla de invitaciones/pre-altas del club
+                                res_inv = instancia_supabase_club.table("invitaciones")\
+                                    .select("*")\
+                                    .eq("token", otp_token_input.strip())\
+                                    .eq("email", email_prealta_input.strip().lower())\
+                                    .eq("usado", False)\
+                                    .execute()
+                                
+                                if not res_inv.data:
+                                    st.error("❌ Código OTP inválido, expirado o el correo no coincide con la pre-alta.")
+                                else:
+                                    invitacion = res_inv.data[0]
+                                    expira_en = datetime.datetime.fromisoformat(invitacion["expira_en"])
+                                    
+                                    if datetime.datetime.now(datetime.timezone.utc) > expira_en.replace(tzinfo=datetime.timezone.utc):
+                                        st.error("⌛ El código OTP ha expirado (vigencia de 24 horas). Solicite uno nuevo a la administración.")
+                                    else:
+                                        datos_perfil = invitacion.get("datos_perfil", {})
+                                        
+                                        # Construir el registro oficial tomando los valores precargados por el club en la pre-alta
+                                        usuario_oficial = {
+                                            "nombre": invitacion["nombre"],
+                                            "usuario": nuevo_alias_pa.strip().lower(),
+                                            "email": invitacion["email"],
+                                            "contrasena": hash_password(nueva_clave_pa),
+                                            "rol": invitacion["rol"],  # Rol asignado por el club (Nadador, Entrenador, Head Coach, etc.)
+                                            "estatus": "Activo",
+                                            "cedula": datos_perfil.get("cedula", ""),
+                                            "telefono": datos_perfil.get("telefono", ""),
+                                            "genero": "F" if datos_perfil.get("sexo", "Femenino") == "Femenino" else "M",
+                                            "fecha_nacimiento": datos_perfil.get("fecha_nacimiento", None)
+                                        }
+                                        
+                                        # Insertar en usuarios y marcar la invitación como usada
+                                        instancia_supabase_club.table("usuarios").insert(usuario_oficial).execute()
+                                        instancia_supabase_club.table("invitaciones").update({"usado": True}).eq("id", invitacion["id"]).execute()
+                                        
+                                        st.success(f"🎉 ¡Cuenta certificada y activada exitosamente como **{invitacion['rol']}**! Ya puedes iniciar sesión con tu usuario y contraseña.")
+                            except Exception as pa_err:
+                                st.error(f"Error al certificar la pre-alta: {pa_err}")
+
             # --- TAB REGISTRO ---
             with tab_registro:
                 st.markdown("### 📝 Registro de Nuevas Cuentas")
@@ -169,7 +236,6 @@ def mostrar_pantalla_login():
                                     nuevo_rol = st.session_state.reg_datos_temporales["rol"]
                                     nuevo_email = st.session_state.reg_datos_temporales["email"]
                                     
-                                    # ✨ SIN CORRUPCIÓN: Alineación corregida perfectamente
                                     if status_inicial == "Pendiente":
                                         enviar_email("Cuenta en Revisión", f"Hola {nuevo_nombre}, tu cuenta de {nuevo_rol} ha sido registrada. Está pendiente de revisión por el administrador.", nuevo_email)
                                         enviar_email("Nuevo Registro Pendiente", f"El usuario {nuevo_nombre} ({nuevo_rol}) se ha registrado. Email: {nuevo_email}. Favor revisar en consola admin.", st.secrets["EMAIL_ADMIN"])
