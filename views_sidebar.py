@@ -32,42 +32,41 @@ def renderizar_sidebar_completo():
     st.error("No hay una conexión activa a la base de datos.")
     st.stop()
 
+# -------------------------------------------------------------
+  # 1. IDENTIFICACIÓN Y EMULACIÓN DE ROL (ADMINISTRADOR)
   # -------------------------------------------------------------
-  # 1. IDENTIFICACIÓN Y EMULACIÓN DE ROL (SOPORTE / ADMIN)
-  # -------------------------------------------------------------
-  ROLES_OFICIALES = ["Nadador", "Entrenador", "Head Coach", "Club"]
+  # Roles a los que el Administrador puede mutar/simular
+  ROLES_OFICIALES = ["Nadador", "Entrenador", "Head Coach", "Club", "Administrador"]
 
   # Preservar el rol real del usuario
   if "rol_real" not in st.session_state:
     st.session_state["rol_real"] = st.session_state.get("rol", "Nadador")
 
   rol_real = st.session_state["rol_real"]
-  nombre_mostrar = st.session_state.get(
-      "nombre_usuario"
-  ) or st.session_state.get("nombre_nadador", "Usuario")
+  nombre_mostrar = st.session_state.get("nombre_usuario") or st.session_state.get("nombre_nadador", "Usuario")
 
   st.sidebar.markdown(
       f"**Usuario:** {nombre_mostrar}  \n**Nivel Real:** `{rol_real}`"
   )
 
-  # 🛠️ SI ES SOPORTE O ADMINISTRADOR, DESPLEGAR SELECTOR DE EMULACIÓN
-  if rol_real in ["Soporte", "Administrador"]:
+  # 🛠️ SI ES ADMINISTRADOR, DESPLEGAR SELECTOR DE EMULACIÓN
+  if rol_real == "Administrador":
     st.sidebar.markdown(
         "<hr style='margin: 8px 0; border-top: 1px solid #0055ff;'/>",
         unsafe_allow_html=True,
     )
-    st.sidebar.caption("🛠️ **Modo Emulación (Soporte)**")
+    st.sidebar.caption("🛠️ **Modo Emulación (Administrador)**")
 
-    rol_actual_simulado = st.session_state.get("rol", "Club")
+    rol_actual_simulado = st.session_state.get("rol", "Administrador")
     idx_defecto = (
         ROLES_OFICIALES.index(rol_actual_simulado)
         if rol_actual_simulado in ROLES_OFICIALES
-        else 3
+        else 4
     )
 
     rol_efectivo = st.sidebar.selectbox(
         "Simular vista como:",
-        options=ROLES_OFICIALES + ["Soporte"],
+        options=ROLES_OFICIALES,
         index=idx_defecto,
         key="selector_emulacion_rol",
     )
