@@ -17,8 +17,8 @@ st.markdown("""
     <style>
         /* 1. Reducir el espacio superior del contenedor principal */
         .block-container {
-            padding-top: 0.8rem !important;
-            padding-bottom: 0rem !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.1rem !important;
         }
         
         /* 2. Reducir el margen vertical entre widgets consecutivas */
