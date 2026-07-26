@@ -1,8 +1,11 @@
-# views_tab_club.py (Módulo de Gestión Administrativa y Gobernanza del Club)
+# views_tab_club.py (Módulo de Gestión Administrativa, Gobernanza y Respaldos)
 import streamlit as st
 import datetime
 import pandas as pd
 import urllib.parse
+import io
+import zipfile
+import json
 
 # Importaciones centralizadas desde la librería de utilidades de la app
 from formulas_lib_funciones import (
@@ -16,32 +19,38 @@ from pdf_memo_utility import generar_pdf_memorandum_nativo
 
 def render_pre_alta_atleta(supabase, id_usuario_club):
     """
-    Sub-interfaz para el registro de Pre-Alta de atletas e invitaciones con código OTP.
-    Permite al Club emitir credenciales de acceso temporal antes del autoregistro.
+    Sub-interfaz para el registro completo de Pre-Alta de integrantes.
+    Captura todos los datos institucionales excepto usuario y clave (elegidos por el integrante).
     """
-    with st.form("form_pre_alta_atleta", clear_on_submit=True):
-        st.markdown("##### ➕ Pre-Alta de Integrante e Invitación")
+    with st.form("form_pre_alta_completa", clear_on_submit=True):
+        st.markdown("##### ➕ Pre-Alta de Integrante e Invitación OTP")
+        st.caption("Ingrese todos los datos de la ficha. El usuario y la contraseña serán creados por el integrante al momento del auto-registro.")
         
         col1, col2 = st.columns(2)
         with col1:
-            nuevo_nombre = st.text_input("Nombre Completo", placeholder="Ej: Ximena Pérez")
-            nuevo_email = st.text_input("Correo Electrónico", placeholder="ejemplo@correo.com")
+            nuevo_nombre = st.text_input("Nombre Completo *", placeholder="Ej: Ximena Pérez")
+            nuevo_email = st.text_input("Correo Electrónico *", placeholder="ejemplo@correo.com")
+            nueva_cedula = st.text_input("Cédula / Documento de Identidad", placeholder="Ej: V-12345678")
+            nuevo_rol = st.selectbox("Rol Asignado *", ["Nadador", "Entrenador", "Head Coach", "Administrador Club"])
+
         with col2:
-            nuevo_rol = st.selectbox("Rol Asignado", ["Nadador", "Entrenador", "Administrador"])
-            st.caption("Se generará un código de validación OTP válido por 24 horas.")
+            nuevo_telefono = st.text_input("Teléfono de Contacto", placeholder="Ej: +58 414 1234567")
+            nueva_fecha_nac = st.date_input("Fecha de Nacimiento", value=datetime.date(2010, 1, 1))
+            nuevo_sexo = st.selectbox("Género / Sexo FINA", ["Femenino", "Masculino"])
+            st.caption("Se generará un código OTP válido por 24 horas para completar el alta.")
             
-        btn_pre_alta = st.form_submit_button("🔑 Generar Ficha e Invitación OTP", use_container_width=True)
+        btn_pre_alta = st.form_submit_button("🔑 Generar Ficha Pre-Alta y Token OTP", use_container_width=True)
 
         if btn_pre_alta:
             if not nuevo_nombre or not nuevo_email:
-                st.error("Por favor complete el nombre y el correo electrónico.")
+                st.error("⚠️ Por favor complete los campos obligatorios (Nombre y Correo).")
                 return
             
-            # Generar datos del Token OTP usando las utilidades centralizadas
+            # Generar datos del Token OTP usando utilidades centralizadas
             token_otp = generar_codigo_invitacion(longitud=6)
             expiracion = calcular_expiracion_token(horas_validez=24)
             
-            # Mapeo en tabla public.invitaciones
+            # Empaquetado completo de pre-alta en la tabla public.invitaciones
             datos_invitacion = {
                 "email": nuevo_email,
                 "nombre": nuevo_nombre,
@@ -49,34 +58,87 @@ def render_pre_alta_atleta(supabase, id_usuario_club):
                 "token": token_otp,
                 "expira_en": expiracion.isoformat(),
                 "usado": False,
-                "creado_por": id_usuario_club
+                "creado_por": id_usuario_club,
+                "datos_perfil": {
+                    "cedula": nueva_cedula,
+                    "telefono": nuevo_telefono,
+                    "fecha_nacimiento": str(nueva_fecha_nac),
+                    "sexo": nuevo_sexo
+                }
             }
             
             try:
                 res = supabase.table("invitaciones").insert(datos_invitacion).execute()
                 if res.data:
-                    st.success(f"✅ Pre-Alta registrada exitosamente para **{nuevo_nombre}**.")
-                    st.info(f"🔑 **Código OTP de Invitación:** `{token_otp}` (Expira en 24h)")
+                    st.success(f"✅ Pre-Alta registrada exitosamente para **{nuevo_nombre}** ({nuevo_rol}).")
+                    st.info(f"🔑 **Código OTP de Activación:** `{token_otp}` (Válido 24 horas)")
                     
-                    # Generación de enlace rápido para envío directo por WhatsApp
                     mensaje_wa = (
-                        f"Hola {nuevo_nombre}, has sido pre-registrado en el Club. "
+                        f"Hola {nuevo_nombre}, has sido pre-registrado en el Club como {nuevo_rol}. "
                         f"Tu código de activación es: {token_otp}. "
-                        f"Ingresa a la aplicación para completar el registro de tu ficha."
+                        f"Ingresa a la aplicación, valida este código y define tu Usuario y Contraseña para darte de alta."
                     )
                     url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(mensaje_wa)}"
-                    st.markdown(f"[📲 Enviar Invitación / Código por WhatsApp]({url_wa})")
+                    st.markdown(f"[📲 Enviar Código por WhatsApp]({url_wa})")
             except Exception as e:
-                st.error(f"Error al registrar la invitación en la base de datos: {e}")
+                st.error(f"Error al registrar la pre-alta en la base de datos: {e}")
+
+
+def generar_zip_bd_completa(supabase):
+    """
+    Exporta todas las tablas clave del club en archivos CSV dentro de un contenedor ZIP.
+    """
+    tablas = ["usuarios", "invitaciones", "control_pagos", "tiempos", "asistencias", "documentos_oficiales"]
+    buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for tabla in tablas:
+            try:
+                res = supabase.table(tabla).select("*").execute()
+                if res.data:
+                    df = pd.DataFrame(res.data)
+                    csv_bytes = df.to_csv(index=False).encode('utf-8-sig')
+                    zf.writestr(f"{tabla}.csv", csv_bytes)
+            except Exception:
+                continue
+                
+    buffer.seek(0)
+    return buffer
+
+
+def generar_expediente_atleta_zip(supabase, atleta_id, nombre_atleta):
+    """
+    Genera el paquete completo de datos de un atleta específico para traslado o archivo personal.
+    """
+    buffer = io.BytesIO()
+    tablas_atleta = [
+        ("perfil_usuario", "usuarios", "id"),
+        ("historial_pagos", "control_pagos", "usuario_id"),
+        ("historial_tiempos", "tiempos", "usuario_id"),
+        ("control_asistencias", "asistencias", "usuario_id")
+    ]
+    
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for prefijo, tabla, columna_id in tablas_atleta:
+            try:
+                res = supabase.table(tabla).select("*").eq(columna_id, atleta_id).execute()
+                if res.data:
+                    df = pd.DataFrame(res.data)
+                    csv_bytes = df.to_csv(index=False).encode('utf-8-sig')
+                    zf.writestr(f"{prefijo}_{atleta_id}.csv", csv_bytes)
+            except Exception:
+                continue
+                
+    buffer.seek(0)
+    return buffer
 
 
 def renderizar_tab_club():
     """
     Pestaña principal de administración y gobernanza del club.
-    Entorno autónomo para control financiero, estatus de atletas y correspondencia.
     """
     st.markdown("## 🏛️ Centro de Control Administrativo")
-    st.caption("Gestión financiera, estado de cuotas, gobernanza de fichas y herramientas institucionales.")
+    st.caption("Gestión financiera, gobernanza de nóminas, correspondencia y respaldos de base de datos.")
     st.markdown("---")
 
     supabase = st.session_state.get("supabase")
@@ -84,11 +146,11 @@ def renderizar_tab_club():
         st.error("❌ Error de conexión: No se encontró la instancia de Supabase en la sesión.")
         return
 
-    # Contenedor de sub-secciones en la pantalla principal
-    subtab_pagos, subtab_atletas, subtab_comunicacion = st.tabs([
+    subtab_pagos, subtab_atletas, subtab_comunicacion, subtab_respaldos = st.tabs([
         "💳 Control Financiero y Pagos", 
-        "👥 Estado de Plantilla y Atletas", 
-        "📄 Comunicados y Correspondencia"
+        "👥 Plantilla y Nóminas", 
+        "📄 Comunicados y Correspondencia",
+        "💾 Respaldos de BD"
     ])
 
     # =========================================================================
@@ -97,32 +159,24 @@ def renderizar_tab_club():
     with subtab_pagos:
         st.markdown("### 💰 Control de Cuotas y Solvencias")
         
-        # --- FILTROS SUPERIORES ---
         col_temp, col_mes, col_estado, col_buscar = st.columns([1, 1, 1, 2])
-        
         año_actual = datetime.date.today().year
         mes_actual = datetime.date.today().month
 
         with col_temp:
             temporada_sel = st.number_input("Temporada:", min_value=2020, max_value=2030, value=año_actual, key="club_temp")
-        
         with col_mes:
             mes_sel = st.selectbox("Mes:", ["Todos"] + list(range(1, 13)), index=mes_actual, key="club_mes")
-
         with col_estado:
             estado_sel = st.selectbox("Estatus:", ["Todos", "Solvente", "Pendiente", "Exonerado"], key="club_est")
-
         with col_buscar:
             busqueda_texto = st.text_input("🔍 Buscar Atleta:", placeholder="Nombre o usuario...", key="club_busq")
 
-        # --- CARGA DE DATOS ---
         try:
-            # 1. Cargar Nadadores activos
             res_usuarios = supabase.table("usuarios")\
                 .select("id, nombre, usuario, estatus, email")\
                 .eq("rol", "Nadador")\
                 .execute()
-            
             df_nadadores = pd.DataFrame(res_usuarios.data) if res_usuarios.data else pd.DataFrame()
         except Exception as e:
             st.error(f"Error al cargar lista de nadadores: {e}")
@@ -131,26 +185,19 @@ def renderizar_tab_club():
         if df_nadadores.empty:
             st.warning("No hay nadadores registrados en la base de datos.")
         else:
-            # 2. Cargar registros de pagos para la temporada
             try:
                 res_pagos = supabase.table("control_pagos")\
                     .select("*")\
                     .eq("temporada", temporada_sel)\
                     .execute()
-                
                 df_pagos = pd.DataFrame(res_pagos.data) if res_pagos.data else pd.DataFrame()
-            except Exception as e:
+            except Exception:
                 df_pagos = pd.DataFrame()
 
-            # --- CRUCE Y PROCESAMIENTO DE DATOS ---
             cols_mostrar = ["nombre", "usuario", "estado_pago", "monto", "fecha_pago", "referencia_pago", "observaciones"]
 
             if not df_pagos.empty:
-                if mes_sel != "Todos":
-                    df_pagos_filtrado = df_pagos[df_pagos["mes"] == int(mes_sel)]
-                else:
-                    df_pagos_filtrado = df_pagos
-                
+                df_pagos_filtrado = df_pagos[df_pagos["mes"] == int(mes_sel)] if mes_sel != "Todos" else df_pagos
                 df_merged = pd.merge(df_nadadores, df_pagos_filtrado, left_on="id", right_on="usuario_id", how="left")
             else:
                 df_merged = df_nadadores.copy()
@@ -160,7 +207,6 @@ def renderizar_tab_club():
                 df_merged["referencia_pago"] = ""
                 df_merged["observaciones"] = ""
 
-            # Normalización robusta de columnas por si faltan en el merge
             for col in cols_mostrar:
                 if col not in df_merged.columns:
                     df_merged[col] = "Pendiente" if col == "estado_pago" else (0.0 if col == "monto" else "")
@@ -168,44 +214,30 @@ def renderizar_tab_club():
             df_merged["estado_pago"] = df_merged["estado_pago"].fillna("Pendiente")
             df_merged["monto"] = df_merged["monto"].fillna(0.0)
 
-            # Filtro de estatus
             if estado_sel != "Todos":
                 df_merged = df_merged[df_merged["estado_pago"] == estado_sel]
 
-            # Filtro por búsqueda de texto
             if busqueda_texto:
                 df_merged = df_merged[
                     df_merged["nombre"].str.contains(busqueda_texto, case=False, na=False) |
                     df_merged["usuario"].str.contains(busqueda_texto, case=False, na=False)
                 ]
 
-            # --- TARJETAS MÉTRICAS (KPIs) ---
             m1, m2, m3, m4 = st.columns(4)
-            
-            total_recaudado = df_merged["monto"].sum()
-            cant_solventes = len(df_merged[df_merged["estado_pago"] == "Solvente"])
-            cant_pendientes = len(df_merged[df_merged["estado_pago"] == "Pendiente"])
-            cant_exonerados = len(df_merged[df_merged["estado_pago"] == "Exonerado"])
-
-            m1.metric("Total Recaudado ($)", f"${total_recaudado:,.2f}")
-            m2.metric("🟢 Solventes", cant_solventes)
-            m3.metric("🔴 Pendientes", cant_pendientes)
-            m4.metric("⚪ Exonerados", cant_exonerados)
+            m1.metric("Total Recaudado ($)", f"${df_merged['monto'].sum():,.2f}")
+            m2.metric("🟢 Solventes", len(df_merged[df_merged["estado_pago"] == "Solvente"]))
+            m3.metric("🔴 Pendientes", len(df_merged[df_merged["estado_pago"] == "Pendiente"]))
+            m4.metric("⚪ Exonerados", len(df_merged[df_merged["estado_pago"] == "Exonerado"]))
 
             st.markdown("---")
-
-            # --- TABLA PRINCIPAL DE PAGOS ---
             df_display = df_merged[cols_mostrar].copy()
             df_display.columns = ["Atleta", "Usuario", "Estado", "Monto ($)", "Fecha Pago", "N° Referencia", "Observaciones"]
-
             st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-            # --- FORMULARIO DE REGISTRO / ACTUALIZACIÓN DE PAGO ---
             st.markdown("---")
             with st.expander("📝 **Registrar / Actualizar Pago de Atleta**", expanded=False):
                 with st.form("form_registrar_pago"):
                     c1, c2, c3 = st.columns([2, 1, 1])
-                    
                     with c1:
                         atleta_id_sel = st.selectbox(
                             "Seleccionar Atleta:", 
@@ -226,7 +258,6 @@ def renderizar_tab_club():
                         ref_pago_val = st.text_input("N° Referencia / Comprobante:", placeholder="Ej: Transf-998231")
 
                     obs_pago_val = st.text_input("Observaciones / Notas de pago:")
-
                     btn_guardar_pago = st.form_submit_button("💾 Registrar Estatus Administrativo", use_container_width=True)
 
                     if btn_guardar_pago:
@@ -240,210 +271,172 @@ def renderizar_tab_club():
                             "referencia_pago": ref_pago_val,
                             "observaciones": obs_pago_val
                         }
-
                         try:
                             supabase.table("control_pagos").upsert(registro_pago).execute()
-                            st.success("✅ Pago y estatus administrativo actualizados correctamente.")
+                            st.success("✅ Pago registrado correctamente.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error al registrar pago en base de datos: {e}")
+                            st.error(f"Error al registrar pago: {e}")
 
     # =========================================================================
-    # SUB-PESTAÑA 2: ESTADO DE PLANTILLA Y ATLETAS
+    # SUB-PESTAÑA 2: PLANTILLA Y NÓMINAS
     # =========================================================================
     with subtab_atletas:
-        st.markdown("### 👥 Gestión de Plantilla y Fichas de Atletas")
-        st.caption("Control de atletas activos, pre-altas y edición integral de fichas institucionales.")
+        st.markdown("### 👥 Administración de Plantilla y Fichas de Usuarios")
+        st.caption("Control institucional de integrantes, edición de perfiles y consulta de nóminas.")
 
-        # --- MÓDULO DE PRE-ALTA / INVITACIONES OTP ---
         id_usuario_club = st.session_state.get("usuario_id")
-        with st.expander("➕ **Registrar Nuevo Atleta (Pre-Alta / Invitación OTP)**", expanded=False):
+
+        # --- 1. MÓDULO DE PRE-ALTA DE INTEGRANTES ---
+        with st.expander("➕ **1. Pre-Alta de Integrantes (Emisión OTP)**", expanded=False):
             if id_usuario_club and supabase:
                 render_pre_alta_atleta(supabase, id_usuario_club)
             else:
-                st.warning("Error de sesión: No se identificó el usuario emisor o la conexión a la base de datos.")
+                st.warning("Error de sesión: No se identificó el usuario emisor.")
 
-        st.markdown("---")
-
-        # Cargar plantilla completa de nadadores con campos de perfil extendidos
+        # Cargar todos los usuarios del club para el formulario de modificación
         try:
-            res_plantilla = supabase.table("usuarios")\
-                .select("id, nombre, email, estatus, fecha_nacimiento, cedula, telefono")\
-                .eq("rol", "Nadador")\
+            res_todos = supabase.table("usuarios")\
+                .select("id, nombre, email, usuario, rol, estatus, fecha_nacimiento, cedula, telefono")\
                 .execute()
-            
-            df_plantilla = pd.DataFrame(res_plantilla.data) if res_plantilla.data else pd.DataFrame()
+            df_todos_usuarios = pd.DataFrame(res_todos.data) if res_todos.data else pd.DataFrame()
         except Exception as e:
-            st.error(f"Error al cargar la plantilla de atletas: {e}")
-            df_plantilla = pd.DataFrame()
+            st.error(f"Error al cargar usuarios: {e}")
+            df_todos_usuarios = pd.DataFrame()
 
-        if df_plantilla.empty:
-            st.warning("No hay atletas registrados en el sistema.")
-        else:
-            # Asegurar existencia de columnas opcionales en el dataframe
-            for opcional in ["cedula", "telefono", "fecha_nacimiento", "email"]:
-                if opcional not in df_plantilla.columns:
-                    df_plantilla[opcional] = ""
-
-            # --- CÁLCULO DINÁMICO Y SEGURO DE CATEGORÍA ---
-            if "fecha_nacimiento" in df_plantilla.columns:
-                df_plantilla["categoria"] = df_plantilla["fecha_nacimiento"].apply(
-                    lambda fecha: calcular_categoria_competencia(fecha)[0] if pd.notna(fecha) and fecha else "Sin Fecha"
-                )
-            else:
-                df_plantilla["categoria"] = "Sin Fecha"
-
-            # --- FILTROS DE PLANTILLA (3 COLUMNAS VISIBLES) ---
-            col_f1, col_f2, col_f3 = st.columns([1, 1, 1])
-            
-            with col_f1:
-                estatus_filtro = st.selectbox(
-                    "Estatus:", 
-                    ["Todos", "Activo", "Inactivo", "Suspendido", "Retirado"], 
-                    key="filtro_estatus_plantilla"
-                )
-
-            with col_f2:
-                cats_unicas = sorted([str(c) for c in df_plantilla["categoria"].dropna().unique() if c])
-                categoria_filtro = st.selectbox(
-                    "Categoría:", 
-                    ["Todas"] + cats_unicas, 
-                    key="filtro_cat_plantilla"
-                )
-
-            with col_f3:
-                busqueda_plantilla = st.text_input(
-                    "🔍 Buscar:", 
-                    placeholder="Nombre, cédula o correo...", 
-                    key="busq_plantilla"
-                )
-
-            # --- APLICACIÓN DE FILTROS ---
-            df_p_filtrado = df_plantilla.copy()
-            
-            # 1. Filtro por Estatus
-            if estatus_filtro != "Todos" and "estatus" in df_p_filtrado.columns:
-                df_p_filtrado = df_p_filtrado[df_p_filtrado["estatus"] == estatus_filtro]
-
-            # 2. Filtro por Categoría
-            if categoria_filtro != "Todas":
-                df_p_filtrado = df_p_filtrado[df_p_filtrado["categoria"] == categoria_filtro]
-
-            # 3. Filtro por Búsqueda de Texto
-            if busqueda_plantilla:
-                df_p_filtrado = df_p_filtrado[
-                    df_p_filtrado["nombre"].astype(str).str.contains(busqueda_plantilla, case=False, na=False) |
-                    df_p_filtrado["email"].astype(str).str.contains(busqueda_plantilla, case=False, na=False) |
-                    df_p_filtrado["cedula"].astype(str).str.contains(busqueda_plantilla, case=False, na=False)
-                ]
-
-            # --- TARJETAS MÉTRICAS DE PLANTILLA ---
-            k1, k2, k3 = st.columns(3)
-            total_atletas = len(df_plantilla)
-            activos_cnt = len(df_plantilla[df_plantilla["estatus"] == "Activo"]) if "estatus" in df_plantilla.columns else 0
-            otros_cnt = total_atletas - activos_cnt
-
-            k1.metric("Total Atletas Registrados", total_atletas)
-            k2.metric("🟢 Atletas Activos", activos_cnt)
-            k3.metric("⚪ Inactivos / Otros", otros_cnt)
-
-            st.markdown("---")
-
-            # --- TABLA DE PLANTILLA ---
-            cols_p_mostrar = ["nombre", "cedula", "email", "telefono", "fecha_nacimiento", "categoria", "estatus"]
-            cols_disponibles = [c for c in cols_p_mostrar if c in df_p_filtrado.columns]
-            
-            df_p_display = df_p_filtrado[cols_disponibles].copy()
-            
-            nombres_columnas = {
-                "nombre": "Atleta",
-                "cedula": "Cédula / Doc",
-                "email": "Correo Electrónico",
-                "telefono": "Teléfono",
-                "fecha_nacimiento": "Fecha Nacimiento",
-                "categoria": "Categoría",
-                "estatus": "Estatus"
-            }
-            df_p_display.columns = [nombres_columnas.get(c, c) for c in cols_disponibles]
-
-            st.dataframe(df_p_display, use_container_width=True, hide_index=True)
-
-            # --- FORMULARIO INTERACTIVO DE EDICIÓN INTEGRAL DE FICHA (ROL CLUB) ---
-            st.markdown("---")
-            with st.expander("⚙️ **Editar Ficha y Perfil del Atleta (Gobernanza del Club)**", expanded=False):
-                st.write("Seleccione un atleta para modificar sus datos institucionales y ficha personal.")
+        # --- 2. FORMULARIO DE EDICIÓN DE FICHA / ESTATUS (UBICADO ARRIBA) ---
+        if not df_todos_usuarios.empty:
+            with st.expander("⚙️ **2. Actualizar Estatus y Ficha de Usuario (Cualquier Rol)**", expanded=False):
+                st.write("Seleccione un usuario registrado para modificar sus datos personales, rol o estatus.")
                 
-                # Selección del atleta a editar
-                atleta_mod_id = st.selectbox(
-                    "Seleccionar Atleta a Modificar:",
-                    options=df_plantilla["id"].tolist(),
-                    format_func=lambda x: f"{df_plantilla[df_plantilla['id'] == x]['nombre'].values[0]} ({df_plantilla[df_plantilla['id'] == x]['email'].values[0]})",
-                    key="select_atleta_ficha_edit"
+                usuario_mod_id = st.selectbox(
+                    "Seleccionar Usuario a Modificar:",
+                    options=df_todos_usuarios["id"].tolist(),
+                    format_func=lambda x: f"{df_todos_usuarios[df_todos_usuarios['id'] == x]['nombre'].values[0]} | Rol: {df_todos_usuarios[df_todos_usuarios['id'] == x]['rol'].values[0]} | Estatus: {df_todos_usuarios[df_todos_usuarios['id'] == x]['estatus'].values[0]}",
+                    key="select_user_global_edit"
                 )
 
-                # Carga de datos actuales del atleta seleccionado
-                row_atleta = df_plantilla[df_plantilla["id"] == atleta_mod_id].iloc[0]
+                row_user = df_todos_usuarios[df_todos_usuarios["id"] == usuario_mod_id].iloc[0]
 
-                # Parseo seguro de fecha de nacimiento
                 fecha_nac_val = datetime.date(2010, 1, 1)
-                if pd.notna(row_atleta.get("fecha_nacimiento")) and row_atleta.get("fecha_nacimiento"):
+                if pd.notna(row_user.get("fecha_nacimiento")) and row_user.get("fecha_nacimiento"):
                     try:
-                        fecha_nac_val = pd.to_datetime(row_atleta["fecha_nacimiento"]).date()
+                        fecha_nac_val = pd.to_datetime(row_user["fecha_nacimiento"]).date()
                     except Exception:
                         pass
 
-                with st.form("form_editar_ficha_atleta"):
+                with st.form("form_editar_ficha_usuario_global"):
                     c_e1, c_e2 = st.columns(2)
                     with c_e1:
-                        edit_nombre = st.text_input("Nombre Completo:", value=str(row_atleta.get("nombre", "")))
-                        edit_email = st.text_input("Correo Electrónico:", value=str(row_atleta.get("email", "")))
-                        edit_cedula = st.text_input("Cédula / Documento de Identidad:", value=str(row_atleta.get("cedula", "") if pd.notna(row_atleta.get("cedula")) else ""))
-                    
+                        edit_nombre = st.text_input("Nombre Completo:", value=str(row_user.get("nombre", "")))
+                        edit_email = st.text_input("Correo Electrónico:", value=str(row_user.get("email", "")))
+                        edit_cedula = st.text_input("Cédula / Documento:", value=str(row_user.get("cedula", "") if pd.notna(row_user.get("cedula")) else ""))
+                        
+                        roles_disp = ["Nadador", "Entrenador", "Head Coach", "Administrador Club"]
+                        rol_act = row_user.get("rol", "Nadador")
+                        idx_rol = roles_disp.index(rol_act) if rol_act in roles_disp else 0
+                        edit_rol = st.selectbox("Rol Institucional:", roles_disp, index=idx_rol)
+
                     with c_e2:
-                        edit_telefono = st.text_input("Teléfono de Contacto:", value=str(row_atleta.get("telefono", "") if pd.notna(row_atleta.get("telefono")) else ""))
+                        edit_telefono = st.text_input("Teléfono:", value=str(row_user.get("telefono", "") if pd.notna(row_user.get("telefono")) else ""))
                         edit_fecha_nac = st.date_input("Fecha de Nacimiento:", value=fecha_nac_val)
                         
                         estatus_opciones = ["Activo", "Inactivo", "Suspendido", "Retirado"]
-                        estatus_actual = row_atleta.get("estatus", "Activo")
+                        estatus_actual = row_user.get("estatus", "Activo")
                         idx_estatus = estatus_opciones.index(estatus_actual) if estatus_actual in estatus_opciones else 0
-                        
-                        edit_estatus = st.selectbox("Estatus Institucional:", estatus_opciones, index=idx_estatus)
+                        edit_estatus = st.selectbox("Estatus del Usuario:", estatus_opciones, index=idx_estatus)
 
-                    btn_guardar_ficha = st.form_submit_button("💾 Guardar Cambios en la Ficha", use_container_width=True)
+                    btn_guardar_ficha = st.form_submit_button("💾 Guardar Cambios en Ficha de Usuario", use_container_width=True)
 
                     if btn_guardar_ficha:
-                        payload_actualizacion = {
+                        payload = {
                             "nombre": edit_nombre,
                             "email": edit_email,
                             "cedula": edit_cedula,
+                            "rol": edit_rol,
                             "telefono": edit_telefono,
                             "fecha_nacimiento": str(edit_fecha_nac),
                             "estatus": edit_estatus
                         }
-
                         try:
-                            supabase.table("usuarios")\
-                                .update(payload_actualizacion)\
-                                .eq("id", atleta_mod_id)\
-                                .execute()
-                            
-                            st.success(f"✅ Ficha de **{edit_nombre}** actualizada exitosamente.")
+                            supabase.table("usuarios").update(payload).eq("id", usuario_mod_id).execute()
+                            st.success(f"✅ Usuario **{edit_nombre}** actualizado correctamente.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error al actualizar la ficha en la base de datos: {e}")
+                            st.error(f"Error al actualizar usuario: {e}")
+
+        st.markdown("---")
+
+        # --- 3. SECCIÓN DE NÓMINAS DIVIDIDAS ---
+        tab_nomina_nadadores, tab_nomina_tecnica = st.tabs(["🏊 NÓMINA NADADORES", "📋 NÓMINA TÉCNICA"])
+
+        # NÓMINA NADADORES
+        with tab_nomina_nadadores:
+            df_nadadores_nom = df_todos_usuarios[df_todos_usuarios["rol"] == "Nadador"].copy() if not df_todos_usuarios.empty else pd.DataFrame()
+            
+            if df_nadadores_nom.empty:
+                st.info("No hay atletas registrados en la Nómina de Nadadores.")
+            else:
+                for col_opt in ["cedula", "telefono", "fecha_nacimiento", "email"]:
+                    if col_opt not in df_nadadores_nom.columns:
+                        df_nadadores_nom[col_opt] = ""
+
+                df_nadadores_nom["categoria"] = df_nadadores_nom["fecha_nacimiento"].apply(
+                    lambda f: calcular_categoria_competencia(f)[0] if pd.notna(f) and f else "Sin Fecha"
+                )
+
+                f1, f2, f3 = st.columns(3)
+                with f1:
+                    est_f = st.selectbox("Estatus:", ["Todos", "Activo", "Inactivo", "Suspendido"], key="f_est_nad")
+                with f2:
+                    cats_unicas = sorted([str(c) for c in df_nadadores_nom["categoria"].dropna().unique() if c])
+                    cat_f = st.selectbox("Categoría:", ["Todas"] + cats_unicas, key="f_cat_nad")
+                with f3:
+                    busq_f = st.text_input("🔍 Buscar Atleta:", placeholder="Nombre, cédula...", key="f_busq_nad")
+
+                df_nad_filtrado = df_nadadores_nom.copy()
+                if est_f != "Todos":
+                    df_nad_filtrado = df_nad_filtrado[df_nad_filtrado["estatus"] == est_f]
+                if cat_f != "Todas":
+                    df_nad_filtrado = df_nad_filtrado[df_nad_filtrado["categoria"] == cat_f]
+                if busq_f:
+                    df_nad_filtrado = df_nad_filtrado[
+                        df_nad_filtrado["nombre"].astype(str).str.contains(busq_f, case=False, na=False) |
+                        df_nad_filtrado["cedula"].astype(str).str.contains(busq_f, case=False, na=False)
+                    ]
+
+                k1, k2, k3 = st.columns(3)
+                k1.metric("Total Nadadores", len(df_nadadores_nom))
+                k2.metric("🟢 Activos", len(df_nadadores_nom[df_nadadores_nom["estatus"] == "Activo"]))
+                k3.metric("⚪ Inactivos / Otros", len(df_nadadores_nom[df_nadadores_nom["estatus"] != "Activo"]))
+
+                cols_disp_nad = ["nombre", "cedula", "email", "telefono", "fecha_nacimiento", "categoria", "estatus"]
+                df_nad_disp = df_nad_filtrado[[c for c in cols_disp_nad if c in df_nad_filtrado.columns]].copy()
+                df_nad_disp.columns = ["Atleta", "Cédula", "Correo Electrónico", "Teléfono", "Fecha Nac.", "Categoría", "Estatus"]
+                st.dataframe(df_nad_disp, use_container_width=True, hide_index=True)
+
+        # NÓMINA TÉCNICA (ENTRENADORES Y HEAD COACH)
+        with tab_nomina_tecnica:
+            roles_tecnicos = ["Entrenador", "Head Coach", "Administrador Club"]
+            df_tecnica = df_todos_usuarios[df_todos_usuarios["rol"].isin(roles_tecnicos)].copy() if not df_todos_usuarios.empty else pd.DataFrame()
+
+            if df_tecnica.empty:
+                st.info("No hay personal técnico registrado.")
+            else:
+                cols_tec = ["nombre", "rol", "cedula", "email", "telefono", "estatus"]
+                df_tec_disp = df_tecnica[[c for c in cols_tec if c in df_tecnica.columns]].copy()
+                df_tec_disp.columns = ["Nombre y Apellido", "Rol Técnico", "Cédula", "Correo Electrónico", "Teléfono", "Estatus"]
+                st.dataframe(df_tec_disp, use_container_width=True, hide_index=True)
 
     # =========================================================================
     # SUB-PESTAÑA 3: COMUNICADOS Y CORRESPONDENCIA
     # =========================================================================
     with subtab_comunicacion:
         st.markdown("## 📜 Emisión de Documentos y Comunicación Oficial")
-        st.caption("Preparación de memorandums, avisos y comunicados en papel membrete con exportación a PDF y envío directo.")
+        st.caption("Preparación de memorandums, avisos y comunicados con exportación a PDF.")
     
         tab_editor, tab_export_envio = st.tabs(["✍️ Editor y Maquetación", "📤 Exportación y Despacho"])
     
-        # ---------------------------------------------------------------------
-        # TAB 1: EDITOR Y PLANTILLAS
-        # ---------------------------------------------------------------------
         with tab_editor:
             plantillas = {
                 "Memorandum Interno": {
@@ -452,31 +445,16 @@ def renderizar_tab_club():
                     "para": "Entrenadores y Personal Técnico",
                     "asunto": "Ajuste de Horarios de Entrenamiento en Piscina Olímpica",
                     "secciones": [
-                        {"subtitulo": "1. Modificación de Horarios", "texto": "Se informa que a partir del próximo lunes los entrenamientos matutinos iniciarán a las 5:30 AM."},
-                        {"subtitulo": "2. Control de Asistencia", "texto": "Es obligatorio registrar la toma de asistencia en la aplicación al finalizar cada bloque."}
+                        {"subtitulo": "1. Modificación de Horarios", "texto": "Se informa que los entrenamientos iniciarán a las 5:30 AM."},
+                        {"subtitulo": "2. Control de Asistencia", "texto": "Es obligatorio registrar la asistencia en la app."}
                     ],
-                    "clausulas": "* El incumplimiento reiterado afectará la asignación de materiales."
-                },
-                "Comunicado Oficial / Convocatoria": {
-                    "tipo": "Comunicado Oficial",
-                    "de": "Junta Directiva / Subcomisión de Natación",
-                    "para": "Atletas y Representantes",
-                    "asunto": "Convocatoria Chequeo Nacional de Marcas Mínimas",
-                    "secciones": [
-                        {"subtitulo": "1. Convocatoria", "texto": "Se convoca formalmente a todos los atletas clasificados a presentarse al chequeo técnico."},
-                        {"subtitulo": "2. Requisitos de Inscripción", "texto": "Tener la solvencia administrativa al día y entregar copia de la cédula de identidad."}
-                    ],
-                    "clausulas": "* Atletas sin chequeo formal no podrán optar a avales para campeonatos nacionales."
+                    "clausulas": "* Cumplimiento obligatorio."
                 }
             }
     
             col_p1, col_p2 = st.columns([3, 1])
             with col_p1:
-                plantilla_sel = st.selectbox(
-                    "📂 Cargar Plantilla Base:", 
-                    list(plantillas.keys()), 
-                    key="select_plantilla_comunicaciones"
-                )
+                plantilla_sel = st.selectbox("📂 Cargar Plantilla Base:", list(plantillas.keys()), key="select_plantilla_comunicaciones")
             with col_p2:
                 st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                 if st.button("🔄 Cargar Plantilla", use_container_width=True, key="btn_cargar_plantilla_com"):
@@ -491,51 +469,37 @@ def renderizar_tab_club():
                     }
                     st.session_state.cuerpo_memo_secciones = p_data["secciones"]
                     st.session_state.clausulas_memo = p_data["clausulas"]
-                    st.success("Plantilla cargada correctamente.")
                     st.rerun()
     
             if "meta_memo" not in st.session_state:
-                st.session_state.meta_memo = {
-                    "codigo": "MEMO-2026-001",
-                    "tipo": "Memorandum",
-                    "para": "",
-                    "de": "",
-                    "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
-                    "asunto": ""
-                }
-    
+                st.session_state.meta_memo = {"codigo": "MEMO-2026-001", "tipo": "Memorandum", "para": "", "de": "", "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"), "asunto": ""}
             if "cuerpo_memo_secciones" not in st.session_state:
                 st.session_state.cuerpo_memo_secciones = [{"subtitulo": "1. Asunto Principal", "texto": ""}]
-    
             if "clausulas_memo" not in st.session_state:
                 st.session_state.clausulas_memo = ""
     
             meta = st.session_state.meta_memo
-            
             with st.container(border=True):
                 st.markdown("#### 🏛️ Datos de Cabecera")
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     meta["codigo"] = st.text_input("N° Documento:", value=meta.get("codigo", "MEMO-2026-001"), key="input_memo_codigo")
-                    meta["tipo"] = st.selectbox("Tipo:", ["Memorandum", "Comunicado Oficial", "Resolución", "Aviso"], index=0, key="select_memo_tipo")
+                    meta["tipo"] = st.selectbox("Tipo:", ["Memorandum", "Comunicado Oficial", "Resolución"], index=0, key="select_memo_tipo")
                 with c2:
                     meta["para"] = st.text_input("Para:", value=meta.get("para", ""), key="input_memo_para")
                     meta["de"] = st.text_input("De:", value=meta.get("de", ""), key="input_memo_de")
                 with c3:
                     meta["fecha"] = st.text_input("Fecha:", value=meta.get("fecha", ""), key="input_memo_fecha")
                     meta["asunto"] = st.text_input("Asunto:", value=meta.get("asunto", ""), key="input_memo_asunto")
-                
                 st.session_state.meta_memo = meta
     
-            st.markdown("#### 📝 Cuerpo del Documento (Secciones Dinámicas)")
             secciones = st.session_state.cuerpo_memo_secciones
-            
             for idx, sec in enumerate(secciones):
                 with st.container(border=True):
                     col_s1, col_s2 = st.columns([5, 1])
                     with col_s1:
                         sec["subtitulo"] = st.text_input(f"Subtítulo {idx+1}:", value=sec.get("subtitulo", ""), key=f"sub_com_{idx}")
-                        sec["texto"] = st.text_area(f"Texto {idx+1}:", value=sec.get("texto", ""), height=90, key=f"txt_com_{idx}")
+                        sec["texto"] = st.text_area(f"Texto {idx+1}:", value=sec.get("texto", ""), height=80, key=f"txt_com_{idx}")
                     with col_s2:
                         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
                         if st.button("🗑️", key=f"del_sec_com_{idx}") and len(secciones) > 1:
@@ -548,105 +512,102 @@ def renderizar_tab_club():
                 st.session_state.cuerpo_memo_secciones = secciones
                 st.rerun()
     
-            st.markdown("#### 📜 Cláusulas y Disposiciones Finales")
-            st.session_state.clausulas_memo = st.text_area(
-                "Disposiciones reglamentarias o notas al pie:", 
-                value=st.session_state.clausulas_memo, 
-                height=80, 
-                key="area_clausulas_com"
-            )
+            st.session_state.clausulas_memo = st.text_area("Cláusulas / Disposiciones:", value=st.session_state.clausulas_memo, height=70, key="area_clausulas_com")
     
-        # ---------------------------------------------------------------------
-        # TAB 2: EXPORTACIÓN Y DESPACHO (WHATSAPP / EMAIL CON PDF)
-        # ---------------------------------------------------------------------
         with tab_export_envio:
-            st.markdown("### 📤 Generación, Exportación y Despacho Directo")
-            
             pdf_bytes = generar_pdf_memorandum_nativo()
             nombre_pdf = f"{meta.get('codigo', 'documento')}.pdf"
-    
-            col_d1, col_d2 = st.columns([2, 2])
-            with col_d1:
-                st.download_button(
-                    label="📥 Descargar Documento PDF (8.5 x 11 in)",
-                    data=pdf_bytes,
-                    file_name=nombre_pdf,
-                    mime="application/pdf",
-                    type="primary",
-                    use_container_width=True,
-                    key="btn_download_pdf_com"
-                )
-            with col_d2:
-                if st.button("💾 Guardar Historial en Supabase", use_container_width=True, key="btn_guardar_db_com"):
-                    try:
-                        payload = {
-                            "codigo_correlativo": meta.get("codigo"),
-                            "tipo_documento": meta.get("tipo"),
-                            "titulo": meta.get("asunto"),
-                            "para_destinatario": meta.get("para"),
-                            "de_emisor": meta.get("de"),
-                            "asunto": meta.get("asunto"),
-                            "contenido_json": st.session_state.cuerpo_memo_secciones,
-                            "clausulas_texto": st.session_state.clausulas_memo
-                        }
-                        supabase.table("documentos_oficiales").upsert(payload, on_conflict="codigo_correlativo").execute()
-                        st.success("✅ Guardado en base de datos correctamente.")
-                    except Exception as e:
-                        st.error(f"Error al guardar en BD: {e}")
-    
-            st.markdown("---")
-            st.markdown("#### 🎯 Destinatarios y Canales de Envíos")
-    
-            try:
-                res_user = supabase.table("usuarios").select("nombre, email, telefono, rol").execute()
-                df_destinatarios = pd.DataFrame(res_user.data) if res_user.data else pd.DataFrame()
-            except Exception:
-                df_destinatarios = pd.DataFrame([
-                    {"nombre": "Atletas Categoría Juvenil", "email": "juveniles@centrogallego.com", "telefono": "+584141234567", "rol": "Atletas"},
-                    {"nombre": "Junta Directiva", "email": "directiva@centrogallego.com", "telefono": "+584129876543", "rol": "Directiva"}
-                ])
-    
-            txt_resumen_wa = f"🏛️ *{meta.get('tipo', 'DOCUMENTO').upper()} N° {meta.get('codigo')}*\n\n" \
-                             f"*ASUNTO:* {meta.get('asunto')}\n" \
-                             f"*PARA:* {meta.get('para')}\n\n" \
-                             f"Estimados miembros, adjunto remitimos la información oficial emitida."
-    
-            asunto_mail = f"[{meta.get('tipo')}] {meta.get('asunto')} - N° {meta.get('codigo')}"
-    
-            st.text_area("Mensaje de acompañamiento (WhatsApp / Email):", value=txt_resumen_wa, height=100, key="txt_area_wa_msg_com")
-    
-            st.markdown("##### 👥 Directorio de Despacho")
             
-            for idx, row in df_destinatarios.iterrows():
-                with st.container(border=True):
-                    col_u1, col_u2, col_u3, col_u4 = st.columns([2.5, 2, 1.5, 1.5])
+            st.download_button("📥 Descargar Documento PDF", data=pdf_bytes, file_name=nombre_pdf, mime="application/pdf", type="primary", use_container_width=True)
+
+    # =========================================================================
+    # SUB-PESTAÑA 4: RESPALDOS DE BASE DE DATOS (MÓDULO DE SEGURIDAD)
+    # =========================================================================
+    with subtab_respaldos:
+        st.markdown("### 💾 Respaldo y Portabilidad de Datos del Club")
+        st.caption("Herramientas autónomas de backup por tabla individual, archivo ZIP global y expedientes individuales de traslado.")
+
+        col_r1, col_r2, col_r3 = st.columns(3)
+
+        # MODALIDAD 1: TABLA INDIVIDUAL DE SUPABASE
+        with col_r1:
+            with st.container(border=True):
+                st.markdown("##### 📄 1. Exportar Tabla Individual")
+                st.caption("Descarga una tabla específica de Supabase en formato CSV.")
+                
+                tabla_sel_resp = st.selectbox(
+                    "Seleccionar Tabla:",
+                    ["usuarios", "invitaciones", "control_pagos", "tiempos", "asistencias", "documentos_oficiales"],
+                    key="select_tabla_individual_resp"
+                )
+                
+                if st.button("🔍 Cargar Datos de Tabla", use_container_width=True, key="btn_cargar_tabla_resp"):
+                    try:
+                        res_t = supabase.table(tabla_sel_resp).select("*").execute()
+                        if res_t.data:
+                            df_res_t = pd.DataFrame(res_t.data)
+                            st.download_button(
+                                label=f"📥 Descargar `{tabla_sel_resp}.csv`",
+                                data=df_res_t.to_csv(index=False).encode('utf-8-sig'),
+                                file_name=f"{tabla_sel_resp}_{datetime.date.today()}.csv",
+                                mime="text/csv",
+                                use_container_width=True
+                            )
+                        else:
+                            st.warning("La tabla seleccionada no contiene registros.")
+                    except Exception as e:
+                        st.error(f"Error al consultar tabla: {e}")
+
+        # MODALIDAD 2: ARCHIVO ZIP COMPLETO DE LA BASE DE DATOS
+        with col_r2:
+            with st.container(border=True):
+                st.markdown("##### 📦 2. Backup Completo (ZIP)")
+                st.caption("Genera un archivo comprimido ZIP con todas las tablas del sistema.")
+                
+                if st.button("⚙️ Generar Backup Completo", use_container_width=True, key="btn_generar_zip_bd"):
+                    with st.spinner("Generando archivo ZIP de la BD..."):
+                        zip_buffer = generar_zip_bd_completa(supabase)
+                        st.download_button(
+                            label="📥 Descargar Backup General (.zip)",
+                            data=zip_buffer,
+                            file_name=f"Backup_BD_Club_{datetime.date.today()}.zip",
+                            mime="application/zip",
+                            type="primary",
+                            use_container_width=True
+                        )
+
+        # MODALIDAD 3: EXPEDIENTE DE TRASLADO INDIVIDUAL DEL ATLETA
+        with col_r3:
+            with st.container(border=True):
+                st.markdown("##### 🏊 3. Expediente del Atleta")
+                st.caption("Paquete de datos de un atleta para archivo personal o traslado a otro club.")
+                
+                try:
+                    res_at_resp = supabase.table("usuarios").select("id, nombre, cedula").eq("rol", "Nadador").execute()
+                    list_atl_resp = res_at_resp.data if res_at_resp.data else []
+                except Exception:
+                    list_atl_resp = []
+
+                if list_atl_resp:
+                    atleta_exp_id = st.selectbox(
+                        "Seleccionar Atleta:",
+                        options=[a["id"] for a in list_atl_resp],
+                        format_func=lambda x: next(f"{a['nombre']} ({a.get('cedula', 'Sin Doc')})" for a in list_atl_resp if a["id"] == x),
+                        key="select_atleta_expediente"
+                    )
                     
-                    nom = row.get("nombre", "Sin Nombre")
-                    email = row.get("email", "")
-                    telf = str(row.get("telefono", "")).replace("+", "").replace(" ", "").replace("-", "")
+                    nom_atl_exp = next((a["nombre"] for a in list_atl_resp if a["id"] == atleta_exp_id), "Atleta")
                     
-                    col_u1.write(f"**{nom}**")
-                    col_u2.caption(f"✉️ {email}\n📞 {telf}")
-                    
-                    if telf:
-                        wa_url = f"https://api.whatsapp.com/send?phone={telf}&text={urllib.parse.quote(txt_resumen_wa)}"
-                        col_u3.link_button("🟢 WhatsApp", wa_url, use_container_width=True, key=f"btn_wa_com_{idx}")
-                    else:
-                        col_u3.caption("Sin teléfono")
-    
-                    if email:
-                        if col_u4.button("📩 Enviar PDF Mail", key=f"btn_mail_com_{idx}", use_container_width=True):
-                            with st.spinner(f"Enviando PDF a {email}..."):
-                                ok, msg_err = enviar_correo_con_pdf(
-                                    destinatario=email,
-                                    asunto=asunto_mail,
-                                    cuerpo=txt_resumen_wa,
-                                    pdf_bytes=pdf_bytes,
-                                    nombre_archivo_pdf=nombre_pdf
-                                )
-                                if ok:
-                                    st.success(f"¡Enviado a {nom}!")
-                                else:
-                                    st.error(msg_err)
-                    else:
-                        col_u4.caption("Sin correo")
+                    if st.button("📄 Empaquetar Expediente", use_container_width=True, key="btn_emp_exp_atleta"):
+                        with st.spinner(f"Empaquetando expediente de {nom_atl_exp}..."):
+                            zip_atleta = generar_expediente_atleta_zip(supabase, atleta_exp_id, nom_atl_exp)
+                            st.download_button(
+                                label="📥 Descargar Expediente Atleta (.zip)",
+                                data=zip_atleta,
+                                file_name=f"Expediente_{nom_atl_exp.replace(' ', '_')}_{datetime.date.today()}.zip",
+                                mime="application/zip",
+                                type="primary",
+                                use_container_width=True
+                            )
+                else:
+                    st.caption("No hay atletas disponibles para empaquetar.")
