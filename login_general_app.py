@@ -131,7 +131,7 @@ def mostrar_pantalla_login():
         with c_login:
             tab_login, tab_registro_otp, tab_recuperar = st.tabs([
                 "🔑 Iniciar Sesión", 
-                "📝 Registro (Preinscrito por el club)", 
+                "📝 Registro (Pre-Alta OTP)", 
                 "🔄 Recuperar Contraseña"
             ])
             
@@ -153,7 +153,7 @@ def mostrar_pantalla_login():
             # --- TAB ÚNICO DE REGISTRO: CERTIFICACIÓN DE PRE-ALTA VIA OTP ---
             with tab_registro_otp:
                 st.markdown("### 📝 Registro de Usuarios (Pre-Alta)")
-                st.caption("Introduce el código OTP enviado por el club y verifica tus datos para activar tu cuenta.")
+                st.caption("Introduce el código OTP enviado por el club para verificar tus datos institucionales y activar tu cuenta.")
                 
                 with st.form("form_activar_prealta"):
                     otp_token_input = st.text_input("Código OTP (6 dígitos):", max_chars=6, placeholder="Ej: 489123")
@@ -167,12 +167,12 @@ def mostrar_pantalla_login():
                     
                     if st.form_submit_button("🚀 Certificar y Crear Cuenta", use_container_width=True):
                         if not otp_token_input or not email_prealta_input or not nuevo_alias_pa or not nueva_clave_pa:
-                            st.error("⚠️ Todos los campos son obligatorios.")
+                            st.error("⚠️ Todos los campos de acceso son obligatorios.")
                         elif nueva_clave_pa != confirmar_clave_pa:
                             st.error("❌ Las contraseñas no coinciden.")
                         else:
                             try:
-                                # Consulta a la tabla 'invitaciones'
+                                # 1. Validar el token en la tabla 'invitaciones'
                                 res_inv = instancia_supabase_club.table("invitaciones")\
                                     .select("*")\
                                     .eq("token", otp_token_input.strip())\
@@ -191,23 +191,48 @@ def mostrar_pantalla_login():
                                     else:
                                         datos_perfil = invitacion.get("datos_perfil", {})
                                         
-                                        usuario_oficial = {
-                                            "nombre": invitacion["nombre"],
-                                            "usuario": nuevo_alias_pa.strip().lower(),
-                                            "email": invitacion["email"],
-                                            "contrasena": hash_password(nueva_clave_pa),
-                                            "rol": invitacion["rol"],
-                                            "estatus": "Activo",
-                                            "cedula": datos_perfil.get("cedula", ""),
-                                            "telefono": datos_perfil.get("telefono", ""),
-                                            "genero": "F" if datos_perfil.get("sexo", "Femenino") == "Femenino" else "M",
-                                            "fecha_nacimiento": datos_perfil.get("fecha_nacimiento", None)
-                                        }
+                                        # --- EXTRACCIÓN DE CAMPOS MÍNIMOS OBLIGATORIOS ---
+                                        nombre_val = invitacion.get("nombre")
+                                        email_val = invitacion.get("email")
+                                        rol_val = invitacion.get("rol")
                                         
-                                        instancia_supabase_club.table("usuarios").insert(usuario_oficial).execute()
-                                        instancia_supabase_club.table("invitaciones").update({"usado": True}).eq("id", invitacion["id"]).execute()
+                                        # Extracción de género desde datos_perfil
+                                        raw_genero = datos_perfil.get("genero") or datos_perfil.get("sexo")
+                                        genero_val = "F" if raw_genero in ["F", "Femenino"] else ("M" if raw_genero in ["M", "Masculino"] else None)
                                         
-                                        st.success(f"🎉 ¡Registro completado exitosamente como **{invitacion['rol']}**! Ya puedes iniciar sesión.")
+                                        # Extracción de fecha de nacimiento
+                                        fecha_nac_val = datos_perfil.get("fecha_nacimiento")
+                                        
+                                        # --- AUDITORÍA Y VALIDACIÓN DE INTEGRIDAD DE DATOS ---
+                                        faltantes = []
+                                        if not nombre_val: faltantes.append("Nombre")
+                                        if not email_val: faltantes.append("Email")
+                                        if not rol_val: faltantes.append("Rol")
+                                        if not genero_val: faltantes.append("Género")
+                                        if not fecha_nac_val: faltantes.append("Fecha de Nacimiento")
+                                        
+                                        if faltantes:
+                                            st.error(f"❌ Error de Pre-Alta: La invitación carece de los siguientes datos obligatorios: **{', '.join(faltantes)}**. Contacte al administrador.")
+                                        else:
+                                            # Construcción del registro de usuario completo
+                                            usuario_oficial = {
+                                                "nombre": nombre_val,
+                                                "usuario": nuevo_alias_pa.strip().lower(),
+                                                "email": email_val.strip().lower(),
+                                                "contrasena": hash_password(nueva_clave_pa),
+                                                "rol": rol_val,
+                                                "estatus": "Activo",
+                                                "cedula": datos_perfil.get("cedula", ""),
+                                                "telefono": datos_perfil.get("telefono", ""),
+                                                "genero": genero_val,
+                                                "fecha_nacimiento": fecha_nac_val
+                                            }
+                                            
+                                            # Insertar en tabla de usuarios y quemar token OTP
+                                            instancia_supabase_club.table("usuarios").insert(usuario_oficial).execute()
+                                            instancia_supabase_club.table("invitaciones").update({"usado": True}).eq("id", invitacion["id"]).execute()
+                                            
+                                            st.success(f"🎉 ¡Registro completado exitosamente para **{nombre_val}** como **{rol_val}**! Ya puedes iniciar sesión.")
                             except Exception as pa_err:
                                 st.error(f"Error al procesar el registro: {pa_err}")
 
