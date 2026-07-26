@@ -27,87 +27,64 @@ from conections_supabase_cache import (
 
 
 def renderizar_sidebar_completo():
-  """Renderiza el centro de mandos interactivo (SIDEBAR) con código depurado,
-
-  soporte completo para emulación de roles de Soporte y manejo seguro de
-  valores nulos.
-  """
-  # 🔐 Garantizar el aislamiento usando la conexión dinámica del club seleccionado
+  """Renderiza el sidebar con selector de emulación para Soporte/Administrador."""
   if "supabase" not in st.session_state or st.session_state.supabase is None:
-    st.error("No hay una conexión activa a la base de datos de ningún club.")
+    st.error("No hay una conexión activa a la base de datos.")
     st.stop()
 
   # -------------------------------------------------------------
-  # 🎭 ROLES OFICIALES Y CONTROL DE EMULACIÓN DE SESIÓN
+  # 1. IDENTIFICACIÓN Y EMULACIÓN DE ROL (SOPORTE / ADMIN)
   # -------------------------------------------------------------
   ROLES_OFICIALES = ["Nadador", "Entrenador", "Head Coach", "Club"]
 
-  rol_real = st.session_state.get("rol_real") or st.session_state.get(
-      "rol", "Nadador"
-  )
-  st.session_state["rol_real"] = rol_real
+  # Preservar el rol real del usuario
+  if "rol_real" not in st.session_state:
+    st.session_state["rol_real"] = st.session_state.get("rol", "Nadador")
 
+  rol_real = st.session_state["rol_real"]
   nombre_mostrar = st.session_state.get(
       "nombre_usuario"
   ) or st.session_state.get("nombre_nadador", "Usuario")
 
-  # Muestreo inicial de sesión
   st.sidebar.markdown(
       f"**Usuario:** {nombre_mostrar}  \n**Nivel Real:** `{rol_real}`"
   )
 
-  # 🛠️ MODO EMULACIÓN / CLONACIÓN DE ROL PARA SOPORTE
+  # 🛠️ SI ES SOPORTE O ADMINISTRADOR, DESPLEGAR SELECTOR DE EMULACIÓN
   if rol_real in ["Soporte", "Administrador"]:
     st.sidebar.markdown(
         "<hr style='margin: 8px 0; border-top: 1px solid #0055ff;'/>",
         unsafe_allow_html=True,
     )
-    st.sidebar.caption("🛠️ **Consola de Soporte / Emulación**")
+    st.sidebar.caption("🛠️ **Modo Emulación (Soporte)**")
 
-    # Selección de rol efectivo para pruebas e interacción
+    rol_actual_simulado = st.session_state.get("rol", "Club")
+    idx_defecto = (
+        ROLES_OFICIALES.index(rol_actual_simulado)
+        if rol_actual_simulado in ROLES_OFICIALES
+        else 3
+    )
+
     rol_efectivo = st.sidebar.selectbox(
-        "Probar app como:",
+        "Simular vista como:",
         options=ROLES_OFICIALES + ["Soporte"],
-        index=(
-            ROLES_OFICIALES.index(st.session_state.get("rol", "Head Coach"))
-            if st.session_state.get("rol") in ROLES_OFICIALES
-            else 0
-        ),
+        index=idx_defecto,
         key="selector_emulacion_rol",
     )
-    st.session_state.rol = rol_efectivo
-  else:
-    # Para el resto de usuarios, el rol efectivo es estrictamente su rol asignado
-    st.session_state.rol = rol_real
+
+    # Si cambió la selección en el dropdown, actualizamos el rol activo
+    if rol_efectivo != st.session_state.get("rol"):
+      st.session_state["rol"] = rol_efectivo
+      st.rerun()
 
   if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
 
-  # 🔄 BOTÓN DE ACTUALIZACIÓN CON RESGUARDO DE CONEXIÓN
-  with st.sidebar:
-    st.markdown(
-        "<hr style='width: 30%; margin: 8px auto; border-top: 1px solid"
-        " #ccc;'/>",
-        unsafe_allow_html=True,
-    )
-    if st.sidebar.button("🔄 Actualizar datos"):
-      conexion_segura = st.session_state.supabase
-      autenticado_seguro = st.session_state.autenticado
-
-      st.cache_data.clear()
-
-      st.session_state.supabase = conexion_segura
-      st.session_state.autenticado = autenticado_seguro
-      st.toast("⚡ Datos del club y marcas actualizados.", icon="ℹ️")
-      st.rerun()
-
   # -------------------------------------------------------------
-  # 🏛️ SALIDA LIMPIA EXCLUSIVA PARA EL ROL / TAB DEL CLUB
+  # 2. SALIDA DE DATOS SI EL ROL EMULADO ES "CLUB"
   # -------------------------------------------------------------
-  pestana_activa = st.session_state.get("active_tab", "")
-
-  if st.session_state.rol == "Club" or pestana_activa == "tab_club":
+  if st.session_state.get("rol") == "Club":
     st.sidebar.markdown(
         "<hr style='margin: 12px 0; border-top: 1px solid #ccc;'/>",
         unsafe_allow_html=True,
@@ -149,7 +126,6 @@ def renderizar_sidebar_completo():
         "m_wr": 25.0,
     }
 
-  # --- CONTINÚA LA NAVEGACIÓN Y FILTROS DE ATLETAS CON st.session_state.rol ---
 
   # -------------------------------------------------------------
   # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Administración / Club / Entrenadores)
