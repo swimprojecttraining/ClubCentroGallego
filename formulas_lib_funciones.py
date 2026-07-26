@@ -227,6 +227,19 @@ def calcular_categoria_competencia(fecha_nac_str):
         cat = "Semillero / Menor"
 
     return cat, edad_competencia
+
+def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
+    if not fecha_nacimiento_str or not fecha_marca: return None
+    try:
+        if isinstance(fecha_nacimiento_str, str):
+            fecha_nac_obj = datetime.date.fromisoformat(fecha_nacimiento_str)
+        else:
+            fecha_nac_obj = fecha_nacimiento_str
+        diferencia_dias = (fecha_marca - fecha_nac_obj).days
+        edad_decimal = diferencia_dias / 365.25
+        return round(edad_decimal, 2)
+    except Exception:
+        return None
 # -------------------------------------------------------------
 # FUNCIÓN CALCULAR PUNTOS WA
 # -------------------------------------------------------------
