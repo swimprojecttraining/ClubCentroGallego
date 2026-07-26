@@ -124,7 +124,7 @@ def renderizar_tab_club():
     """
     Pestaña principal de administración y gobernanza del club.
     """
-    st.markdown("#### 🏛️ Centro de Control Administrativo")
+    st.markdown("### 🏛️ Centro de Control Administrativo")
     st.caption("Gestión financiera, gobernanza de nóminas, correspondencia y respaldos de base de datos.")
     st.markdown("---")
 
@@ -269,7 +269,7 @@ def renderizar_tab_club():
     # SUB-PESTAÑA 2: PLANTILLA Y NÓMINAS
     # =========================================================================
     with subtab_atletas:
-        st.markdown("### 👥 Administración de Plantilla y Fichas de Usuarios")
+        st.markdown("### 👥 Administración de Nómina de Usuarios")
         st.caption("Control institucional de integrantes, edición de perfiles y consulta de nóminas.")
 
         id_usuario_club = st.session_state.get("usuario_id")
@@ -419,7 +419,7 @@ def renderizar_tab_club():
     # SUB-PESTAÑA 3: COMUNICADOS Y CORRESPONDENCIA
     # =========================================================================
     with subtab_comunicacion:
-        st.markdown("## 📜 Emisión de Documentos y Comunicación Oficial")
+        st.markdown("### 📜 Emisión de Documentos y Comunicación Oficial")
         st.caption("Preparación de memorandums, avisos y comunicados con exportación a PDF.")
     
         tab_editor, tab_export_envio = st.tabs(["✍️ Editor y Maquetación", "📤 Exportación y Despacho"])
