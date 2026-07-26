@@ -743,7 +743,7 @@ def renderizar_sidebar_completo():
     st.sidebar.caption(
         "📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar"
         " marcas, asistir a campeonatos y optar por becas universitarias"
-        " nacionales e internacionales.*"[cite: 1]
+        " nacionales e internacionales.*
     )
 
   # -------------------------------------------------------------
