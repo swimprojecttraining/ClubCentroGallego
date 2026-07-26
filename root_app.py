@@ -81,7 +81,7 @@ def validar_token_handshake(token_b64, secret_key_local):
         # 2. Comprobar expiración estricta (Máximo 30 segundos)
         tiempo_transcurrido = time.time() - int(timestamp_str)
         if tiempo_transcurrido > 30 or tiempo_transcurrido < -5:
-            return False, f"El ticket digital de acceso ha expirado. (Transcurrido: {int(tiempo_transcurrido)}s)"
+            return False, f"El ticket digital de acceso ha expirado. (Transcurrido: {int(tiempo_transcurrido)}s) Debe ingresar por la puerta principal de la aplicación"
             
         # 3. Re-calcular firma con la clave local exacta
         # Forzamos un strip() para eliminar espacios invisibles que puedan venir de la BD o los Secrets
