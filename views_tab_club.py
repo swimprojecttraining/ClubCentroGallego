@@ -124,7 +124,7 @@ def generar_expediente_atleta_zip(supabase, atleta_id, nombre_atleta):
 def obtener_logo_base64(supabase):
     """Obtiene el logo institucional en Base64 desde Supabase Storage."""
     try:
-        data = supabase.storage.from_("archivos").download("logo_club.png")
+        data = supabase.storage.from_("Archivos").download("logo_club.png")
         return f"data:image/png;base64,{base64.b64encode(data).decode()}"
     except Exception:
         # Logo de respaldo transparente en base64
