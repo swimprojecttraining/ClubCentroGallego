@@ -121,10 +121,9 @@ if not st.session_state["puente_validado"]:
   if token_url is None or token_url == "":
     st.query_params.clear()
 
-    # Redirección garantizada con Meta Refresh + JS + Botón
+    # Tarjeta estática de aviso
     st.markdown(
         """
-            <meta http-equiv="refresh" content="4;url=https://swimming-pro.streamlit.app">
             <div style="
                 background-color: #ffebe9;
                 border: 1px solid #ffc1c0;
@@ -133,7 +132,7 @@ if not st.session_state["puente_validado"]:
                 border-radius: 12px;
                 font-weight: 500;
                 font-size: 15px;
-                margin: 40px auto;
+                margin: 30px auto 15px auto;
                 max-width: 550px;
                 text-align: center;
                 box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
@@ -141,39 +140,22 @@ if not st.session_state["puente_validado"]:
                 <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
                     🔒 Acceso Denegado
                 </div>
-                <div style="margin-bottom: 16px;">
+                <div>
                     No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.
                 </div>
-                <div style="font-size: 13px; color: #8c232c; margin-bottom: 20px;">
-                    Redirigiendo automáticamente al Hub Central en 4 segundos...
-                </div>
-                <a href="https://swimming-pro.streamlit.app" target="_self" style="
-                    background-color: #cf222e;
-                    color: white;
-                    text-decoration: none;
-                    padding: 10px 20px;
-                    border-radius: 6px;
-                    font-weight: 600;
-                    display: inline-block;
-                ">
-                    🏠 Volver al Hub Central
-                </a>
             </div>
             """,
         unsafe_allow_html=True,
     )
 
-    # Respaldo por componentes de Streamlit para forzar la navegación por JS
-    components.html(
-        """
-        <script>
-            setTimeout(function() {
-                window.parent.location.href = "https://swimming-pro.streamlit.app";
-            }, 4000);
-        </script>
-        """,
-        height=0,
-    )
+    # Botón nativo de Streamlit alineado al centro
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+      st.link_button(
+          "🏠 Volver al Hub Central",
+          "https://swimming-pro.streamlit.app",
+          use_container_width=True,
+      )
 
     st.stop()
 
@@ -188,7 +170,6 @@ if not st.session_state["puente_validado"]:
 
     st.markdown(
         f"""
-            <meta http-equiv="refresh" content="4;url=https://swimming-pro.streamlit.app">
             <div style="
                 background-color: #ffebe9;
                 border: 1px solid #ffc1c0;
@@ -197,7 +178,7 @@ if not st.session_state["puente_validado"]:
                 border-radius: 12px;
                 font-weight: 500;
                 font-size: 15px;
-                margin: 40px auto;
+                margin: 30px auto 15px auto;
                 max-width: 550px;
                 text-align: center;
                 box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
@@ -205,39 +186,22 @@ if not st.session_state["puente_validado"]:
                 <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
                     🔒 Acceso Denegado
                 </div>
-                <div style="margin-bottom: 16px;">
+                <div>
                     {resultado_o_error}
                 </div>
-                <div style="font-size: 13px; color: #8c232c; margin-bottom: 20px;">
-                    Redirigiendo automáticamente al Hub Central en 4 segundos...
-                </div>
-                <a href="https://swimming-pro.streamlit.app" target="_self" style="
-                    background-color: #cf222e;
-                    color: white;
-                    text-decoration: none;
-                    padding: 10px 20px;
-                    border-radius: 6px;
-                    font-weight: 600;
-                    display: inline-block;
-                ">
-                    🏠 Volver al Hub Central
-                </a>
             </div>
             """,
         unsafe_allow_html=True,
     )
 
-    # Respaldo de navegación nativa
-    components.html(
-        """
-        <script>
-            setTimeout(function() {
-                window.parent.location.href = "https://swimming-pro.streamlit.app";
-            }, 4000);
-        </script>
-        """,
-        height=0,
-    )
+    # Botón nativo de Streamlit alineado al centro
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+      st.link_button(
+          "🏠 Volver al Hub Central",
+          "https://swimming-pro.streamlit.app",
+          use_container_width=True,
+      )
 
     st.stop()
 
