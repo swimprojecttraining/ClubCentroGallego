@@ -6,6 +6,8 @@ import urllib.parse
 import io
 import zipfile
 import json
+import base64
+import random
 
 # Importaciones centralizadas desde la librería de utilidades de la app
 from formulas_lib_funciones import (
@@ -119,6 +121,243 @@ def generar_expediente_atleta_zip(supabase, atleta_id, nombre_atleta):
     buffer.seek(0)
     return buffer
 
+def obtener_logo_base64(supabase):
+    """Obtiene el logo institucional en Base64 desde Supabase Storage."""
+    try:
+        data = supabase.storage.from_("configuracion").download("logo_club.png")
+        return f"data:image/png;base64,{base64.b64encode(data).decode()}"
+    except Exception:
+        # Logo de respaldo transparente en base64
+        return "data:image/png;base64,iVBORw0KGgoAAAANSU2EUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+
+def obtener_siguiente_correlativo(supabase, tipo_documento):
+    """Genera la numeración consecutiva automáticamente según el tipo (MEM-2026-001, CIR-2026-001, etc.)."""
+    anio_actual = datetime.datetime.now().year
+    prefix_map = {
+        "Memorándum": "MEM",
+        "Circular": "CIR",
+        "Correspondencia": "COR"
+    }
+    prefix = prefix_map.get(tipo_documento, "DOC")
+    
+    try:
+        res = supabase.table("comunicaciones")\
+            .select("correlativo")\
+            .eq("tipo_documento", tipo_documento)\
+            .ilike("correlativo", f"{prefix}-{anio_actual}-%")\
+            .order("id", desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if res.data:
+            ultimo_correlativo = res.data[0]["correlativo"]
+            num_secuencia = int(ultimo_correlativo.split("-")[-1]) + 1
+        else:
+            num_secuencia = 1
+            
+        return f"{prefix}-{anio_actual}-{num_secuencia:03d}"
+    except Exception:
+        return f"{prefix}-{anio_actual}-001"
+
+
+def generar_html_comunicado(logo_b64, nombre_club, tipo_doc, correlativo, fecha, destinatario, remitente, asunto, cuerpo):
+    """Genera el HTML maquetado con dimensiones y estilo para la hoja del PDF/Vista Previa."""
+    cuerpo_formateado = cuerpo.replace("\n", "<br>")
+    
+    html = f"""
+    <div style="
+        width: 100%;
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 25px;
+        border: 1px solid #ddd;
+        background-color: #ffffff;
+        font-family: Arial, sans-serif;
+        color: #2c3e50;
+        box-sizing: border-box;
+    ">
+        <!-- ENCABEZADO CON LOGO INSTITUCIONAL -->
+        <table style="width: 100%; border-bottom: 2px solid #003366; padding-bottom: 10px; margin-bottom: 15px;">
+            <tr>
+                <td style="width: 20%; vertical-align: middle;">
+                    <img src="{logo_b64}" style="max-height: 65px; width: auto;" alt="Logo Club">
+                </td>
+                <td style="width: 80%; text-align: right; vertical-align: middle;">
+                    <h2 style="margin: 0; color: #003366; font-size: 18px; text-transform: uppercase;">{nombre_club}</h2>
+                    <p style="margin: 2px 0 0 0; font-size: 11px; color: #666;">Sistema Oficial de Control y Gestión Deportivo</p>
+                </td>
+            </tr>
+        </table>
+
+        <!-- METADATOS Y TÍTULO -->
+        <div style="text-align: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: #111;">{tipo_doc}</h3>
+            <span style="font-size: 12px; font-weight: bold; color: #d9534f;">N° {correlativo}</span>
+        </div>
+
+        <table style="width: 100%; font-size: 12px; margin-bottom: 15px; line-height: 1.4;">
+            <tr>
+                <td style="width: 15%; font-weight: bold;">FECHA:</td>
+                <td>{fecha}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">PARA:</td>
+                <td>{destinatario}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">DE:</td>
+                <td>{remitente}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">ASUNTO:</td>
+                <td style="font-weight: bold; color: #003366;">{asunto}</td>
+            </tr>
+        </table>
+
+        <hr style="border: None; border-top: 1px solid #eee; margin: 10px 0;">
+
+        <!-- CUERPO -->
+        <div style="font-size: 12px; line-height: 1.6; text-align: justify; min-height: 180px; margin-bottom: 30px;">
+            {cuerpo_formateado}
+        </div>
+
+        <!-- FIRMA -->
+        <table style="width: 100%; margin-top: 40px; text-align: center; font-size: 11px;">
+            <tr>
+                <td style="width: 30%;"></td>
+                <td style="width: 40%; border-top: 1px solid #333; padding-top: 5px;">
+                    <strong>{remitente}</strong><br>
+                    <span>Firma / Sello Oficial</span>
+                </td>
+                <td style="width: 30%;"></td>
+            </tr>
+        </table>
+    </div>
+    """
+    return html
+
+
+def render_comunicados_y_correspondencia(supabase, id_usuario_club):
+    st.markdown("""
+        <style>
+            div[data-testid="stVerticalBlock"] > div { gap: 0.3rem !important; }
+            .stTextInput label, .stSelectbox label, .stTextArea label, .stDateInput label {
+                font-size: 0.85rem !important;
+                margin-bottom: -4px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<h4 style='margin:0; padding:0;'>📨 Emisión y Despacho con PDF Adjunto</h4>", unsafe_allow_html=True)
+    st.caption("Genere comunicados con correlativo automático, vista previa y despacho en PDF al correo del destinatario.")
+
+    # 1. PLANTILLA Y CORRELATIVO CONSECUTIVO
+    col_sel1, col_sel2 = st.columns([1.5, 1])
+    with col_sel1:
+        tipo_plantilla = st.selectbox(
+            "Tipo de Documento Oficial:",
+            options=["Memorándum", "Circular", "Correspondencia"],
+            key="com_tipo_plantilla"
+        )
+    with col_sel2:
+        correlativo_auto = obtener_siguiente_correlativo(supabase, tipo_plantilla)
+        correlativo = st.text_input("N° Correlativo (Autogenerado):", value=correlativo_auto, key="com_correlativo")
+
+    st.markdown("---")
+
+    col_izq, col_der = st.columns([1.1, 0.9])
+
+    with col_izq:
+        st.markdown("##### 📝 Datos del Documento")
+        fecha_emision = st.date_input("Fecha de Emisión:", value=datetime.date.today(), key="com_fecha")
+        
+        if tipo_plantilla == "Memorándum":
+            destinatario = st.text_input("Para (Destinatario):", placeholder="Ej: Cuerpo Técnico y Entrenadores", key="com_dest")
+            remitente = st.text_input("De (Remitente):", placeholder="Ej: Junta Directiva", key="com_rem")
+        elif tipo_plantilla == "Circular":
+            destinatario = st.text_input("Dirigido a:", value="A Toda la Comunidad de Atletas y Representantes", key="com_dest")
+            remitente = st.text_input("Emisor:", placeholder="Ej: Coordinación de Deportes", key="com_rem")
+        else: # Correspondencia
+            destinatario = st.text_input("Institución / Destinatario Ext.:", placeholder="Ej: FEVEDA / Asociación de Deportes", key="com_dest")
+            remitente = st.text_input("Remitente Oficial:", placeholder="Ej: Presidencia del Club", key="com_rem")
+
+        asunto = st.text_input("Asunto / Título:", placeholder="Ej: Convocatoria a Chequeo Técnico", key="com_asunto")
+        email_destino = st.text_input("Correo Electrónico de Destino (para envío del PDF):", placeholder="ejemplo@correo.com", key="com_email_destino")
+
+        plantillas_defecto = {
+            "Memorándum": "Por medio de la presente, se les instruye lo siguiente:\n\n1. Fecha de inicio: \n2. Indicaciones generales:\n\nSin otro particular.",
+            "Circular": "Estimados Nadadores, Representantes y Personal Técnico,\n\nNos dirigimos a ustedes para informarles que...\n\nAgradecemos de antemano su receptividad y apoyo.",
+            "Correspondencia": "Nos dirigimos a su respetable institución con el motivo de solicitar/comunicar lo siguiente:\n\nEn espera de su pronta y favorable respuesta, quedamos de ustedes."
+        }
+
+        cuerpo = st.text_area(
+            "Cuerpo del Documento:",
+            value=plantillas_defecto[tipo_plantilla],
+            height=160,
+            key=f"com_cuerpo_{tipo_plantilla.lower()}"
+        )
+
+    # 2. VISTA PREVIA HTML
+    nombre_club = st.session_state.get("club_seleccionado", "Centro Gallego")
+    logo_b64 = obtener_logo_base64(supabase)
+    html_documento = generar_html_comunicado(
+        logo_b64, nombre_club, tipo_plantilla, correlativo, 
+        fecha_emision.strftime("%d/%m/%Y"), destinatario, remitente, asunto, cuerpo
+    )
+
+    with col_der:
+        st.markdown("##### 👁️ Vista Previa del Documento")
+        st.components.v1.html(html_documento, height=430, scrolling=True)
+
+    # 3. REGISTRO EN BD Y DESPACHO VÍA PDF
+    st.markdown("---")
+    if st.button(f"📄 Registrar en BD y Enviar PDF de {tipo_plantilla}", type="primary", use_container_width=True):
+        if not correlativo or not destinatario or not asunto or not cuerpo:
+            st.error("⚠️ Debe completar los campos obligatorios del documento antes de despachar.")
+        else:
+            try:
+                # A. Guardar en Supabase para mantener el histórico inmutable
+                payload = {
+                    "tipo_documento": tipo_plantilla,
+                    "correlativo": correlativo.strip(),
+                    "fecha": fecha_emision.isoformat(),
+                    "destinatario": destinatario.strip(),
+                    "remitente": remitente.strip(),
+                    "asunto": asunto.strip(),
+                    "cuerpo": cuerpo.strip(),
+                    "email_destino": email_destino.strip() if email_destino else None,
+                    "html_renderizado": html_documento,
+                    "creado_por": id_usuario_club
+                }
+                
+                supabase.table("comunicaciones").insert(payload).execute()
+                st.success(f"💾 Documento **{correlativo}** registrado con éxito en la Base de Datos.")
+
+                # B. Envío por correo adjuntando el PDF generado desde el HTML
+                if email_destino.strip():
+                    asunto_correo = f"[{tipo_plantilla}] {correlativo} - {asunto}"
+                    nombre_archivo_pdf = f"{correlativo}.pdf"
+                    cuerpo_mensaje = f"Estimado(a),\n\nAdjunto a este correo encontrará el documento oficial {tipo_plantilla} N° {correlativo} emitido por {nombre_club}.\n\nSaludos cordiales."
+                    
+                    # Llamada a la función importada
+                    exito_envio = enviar_correo_con_PDF(
+                        destinatario=email_destino.strip(),
+                        asunto=asunto_correo,
+                        cuerpo_texto=cuerpo_mensaje,
+                        contenido_html=html_documento,
+                        nombre_pdf=nombre_archivo_pdf
+                    )
+
+                    if exito_envio:
+                        st.success(f"📩 Documento enviado exitosamente en PDF a **{email_destino}**.")
+                    else:
+                        st.warning("⚠️ El documento fue registrado en la BD, pero ocurrió un detalle al generar o despachar el PDF adjunto.")
+                else:
+                    st.info("ℹ️ No se especificó correo electrónico de destino; el documento quedó registrado exclusivamente en el histórico de la BD.")
+                
+            except Exception as e:
+                st.error(f"Error al procesar la comunicación: {e}")
 
 def renderizar_tab_club():
     """
@@ -415,97 +654,11 @@ def renderizar_tab_club():
                 df_tec_disp.columns = ["Nombre y Apellido", "Rol Técnico", "Cédula", "Correo Electrónico", "Teléfono", "Estatus"]
                 st.dataframe(df_tec_disp, use_container_width=True, hide_index=True)
 
-    # =========================================================================
+# =========================================================================
     # SUB-PESTAÑA 3: COMUNICADOS Y CORRESPONDENCIA
     # =========================================================================
     with subtab_comunicacion:
-        st.markdown("### 📜 Emisión de Documentos y Comunicación Oficial")
-        st.caption("Preparación de memorandums, avisos y comunicados con exportación a PDF.")
-    
-        tab_editor, tab_export_envio = st.tabs(["✍️ Editor y Maquetación", "📤 Exportación y Despacho"])
-    
-        with tab_editor:
-            plantillas = {
-                "Memorandum Interno": {
-                    "tipo": "Memorandum",
-                    "de": "Comisión Técnica de Natación",
-                    "para": "Entrenadores y Personal Técnico",
-                    "asunto": "Ajuste de Horarios de Entrenamiento en Piscina Olímpica",
-                    "secciones": [
-                        {"subtitulo": "1. Modificación de Horarios", "texto": "Se informa que los entrenamientos iniciarán a las 5:30 AM."},
-                        {"subtitulo": "2. Control de Asistencia", "texto": "Es obligatorio registrar la asistencia en la app."}
-                    ],
-                    "clausulas": "* Cumplimiento obligatorio."
-                }
-            }
-    
-            col_p1, col_p2 = st.columns([3, 1])
-            with col_p1:
-                plantilla_sel = st.selectbox("📂 Cargar Plantilla Base:", list(plantillas.keys()), key="select_plantilla_comunicaciones")
-            with col_p2:
-                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("🔄 Cargar Plantilla", use_container_width=True, key="btn_cargar_plantilla_com"):
-                    p_data = plantillas[plantilla_sel]
-                    st.session_state.meta_memo = {
-                        "codigo": f"DOC-2026-{pd.Timestamp.now().strftime('%m%d%H%M')}",
-                        "tipo": p_data["tipo"],
-                        "para": p_data["para"],
-                        "de": p_data["de"],
-                        "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"),
-                        "asunto": p_data["asunto"]
-                    }
-                    st.session_state.cuerpo_memo_secciones = p_data["secciones"]
-                    st.session_state.clausulas_memo = p_data["clausulas"]
-                    st.rerun()
-    
-            if "meta_memo" not in st.session_state:
-                st.session_state.meta_memo = {"codigo": "MEMO-2026-001", "tipo": "Memorandum", "para": "", "de": "", "fecha": pd.Timestamp.now().strftime("%d/%m/%Y"), "asunto": ""}
-            if "cuerpo_memo_secciones" not in st.session_state:
-                st.session_state.cuerpo_memo_secciones = [{"subtitulo": "1. Asunto Principal", "texto": ""}]
-            if "clausulas_memo" not in st.session_state:
-                st.session_state.clausulas_memo = ""
-    
-            meta = st.session_state.meta_memo
-            with st.container(border=True):
-                st.markdown("#### 🏛️ Datos de Cabecera")
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    meta["codigo"] = st.text_input("N° Documento:", value=meta.get("codigo", "MEMO-2026-001"), key="input_memo_codigo")
-                    meta["tipo"] = st.selectbox("Tipo:", ["Memorandum", "Comunicado Oficial", "Resolución"], index=0, key="select_memo_tipo")
-                with c2:
-                    meta["para"] = st.text_input("Para:", value=meta.get("para", ""), key="input_memo_para")
-                    meta["de"] = st.text_input("De:", value=meta.get("de", ""), key="input_memo_de")
-                with c3:
-                    meta["fecha"] = st.text_input("Fecha:", value=meta.get("fecha", ""), key="input_memo_fecha")
-                    meta["asunto"] = st.text_input("Asunto:", value=meta.get("asunto", ""), key="input_memo_asunto")
-                st.session_state.meta_memo = meta
-    
-            secciones = st.session_state.cuerpo_memo_secciones
-            for idx, sec in enumerate(secciones):
-                with st.container(border=True):
-                    col_s1, col_s2 = st.columns([5, 1])
-                    with col_s1:
-                        sec["subtitulo"] = st.text_input(f"Subtítulo {idx+1}:", value=sec.get("subtitulo", ""), key=f"sub_com_{idx}")
-                        sec["texto"] = st.text_area(f"Texto {idx+1}:", value=sec.get("texto", ""), height=80, key=f"txt_com_{idx}")
-                    with col_s2:
-                        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                        if st.button("🗑️", key=f"del_sec_com_{idx}") and len(secciones) > 1:
-                            secciones.pop(idx)
-                            st.session_state.cuerpo_memo_secciones = secciones
-                            st.rerun()
-    
-            if st.button("➕ Agregar Nueva Sección", key="btn_add_sec_com"):
-                secciones.append({"subtitulo": f"{len(secciones)+1}. Nueva Sección", "texto": ""})
-                st.session_state.cuerpo_memo_secciones = secciones
-                st.rerun()
-    
-            st.session_state.clausulas_memo = st.text_area("Cláusulas / Disposiciones:", value=st.session_state.clausulas_memo, height=70, key="area_clausulas_com")
-    
-        with tab_export_envio:
-            pdf_bytes = generar_pdf_memorandum_nativo()
-            nombre_pdf = f"{meta.get('codigo', 'documento')}.pdf"
-            
-            st.download_button("📥 Descargar Documento PDF", data=pdf_bytes, file_name=nombre_pdf, mime="application/pdf", type="primary", use_container_width=True)
+        render_comunicados_y_correspondencia(supabase, id_usuario_club)
 
     # =========================================================================
     # SUB-PESTAÑA 4: RESPALDOS DE BASE DE DATOS (MÓDULO DE SEGURIDAD)
