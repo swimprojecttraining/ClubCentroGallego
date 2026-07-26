@@ -178,91 +178,37 @@ def obtener_datos_hitos_atleta(nadador_id):
 # CATEGORÍAS Y EDADES
 # -------------------------------------------------------------
 def calcular_categoria_competencia(fecha_nac_str):
-    """
-    Calcula la categoría de competencia FEVEDA/FINA según el año de nacimiento
-    respecto al año en curso. Acepta str ISO, datetime.date, pd.Timestamp o nulos.
-    
-    Retorna: (categoria: str, edad_competencia: int)
-    """
-    if pd.isna(fecha_nac_str) or not fecha_nac_str or str(fecha_nac_str).strip().lower() in ["none", "nan", "nat", ""]:
-        return "Desconocida", 0
-
-    # Parseo tolerante de fecha
+    if not fecha_nac_str: return "Desconocida", 0
     try:
-        if isinstance(fecha_nac_str, (datetime.date, datetime.datetime)):
-            fecha_nac = fecha_nac_str
-        elif isinstance(fecha_nac_str, pd.Timestamp):
-            fecha_nac = fecha_nac_str.date()
-        else:
-            fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str).split("T")[0])
+        fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str))
     except Exception:
-        try:
-            fecha_nac = pd.to_datetime(str(fecha_nac_str)).date()
-        except Exception:
-            return "Error Formato", 0
-
+        return "Error Formato", 0
     ano_actual = datetime.date.today().year 
     edad_competencia = ano_actual - fecha_nac.year
-
-    # Rangos y denominaciones oficiales reglamentarias
-    if 5 <= edad_competencia <= 6:
-        cat = "Preinfantil A"
-    elif 7 <= edad_competencia <= 8:
-        cat = "Preinfantil B"
-    elif edad_competencia == 9:
-        cat = "Preinfantil C"
-    elif 10 <= edad_competencia < 12:  # 10 - 11 años
-        cat = "Infantil A"
-    elif 12 <= edad_competencia < 14:  # 12 - 13 años
-        cat = "Infantil B"
-    elif 14 <= edad_competencia < 16:  # 14 - 15 años
-        cat = "Juvenil A"
-    elif 16 <= edad_competencia < 18:  # 16 - 17 años
-        cat = "Juvenil B"
-    elif 18 <= edad_competencia < 25:  # 18 - 24 años
-        cat = "Máxima"
-    elif edad_competencia >= 25:
-        cat = "Máster"
-    else:
-        cat = "Semillero / Menor"
-
+    if 5 <= edad_competencia <= 6: cat = "Preinfantil A"
+    elif 7 <= edad_competencia <= 8: cat = "Preinfantil B"
+    elif edad_competencia == 9: cat = "Preinfantil C"
+    elif 10 <= edad_competencia < 12: cat = "Infantil A"
+    elif 12 <= edad_competencia < 14: cat = "Infantil B"
+    elif 14 <= edad_competencia < 16: cat = "Juvenil A"
+    elif 16 <= edad_competencia < 18: cat = "Juvenil B"
+    elif 18 <= edad_competencia < 25: cat = "Máxima"
+    elif edad_competencia >= 25: cat = "Máster"
+    else: cat = "Semillero / Menor"
     return cat, edad_competencia
 
-def calcular_edad_decimal(fecha_nacimiento, fecha_referencia=None):
-    """
-    Calcula la edad exacta en formato decimal (años con fracciones) 
-    a partir de una fecha de nacimiento y una fecha de referencia.
-    """
-    if pd.isna(fecha_nacimiento) or not fecha_nacimiento:
-        return 0.0
-    
+def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
+    if not fecha_nacimiento_str or not fecha_marca: return None
     try:
-        if isinstance(fecha_nacimiento, (datetime.date, datetime.datetime)):
-            nac = fecha_nacimiento
-        elif isinstance(fecha_nacimiento, pd.Timestamp):
-            nac = fecha_nacimiento.date()
+        if isinstance(fecha_nacimiento_str, str):
+            fecha_nac_obj = datetime.date.fromisoformat(fecha_nacimiento_str)
         else:
-            nac = datetime.date.fromisoformat(str(fecha_nacimiento).split("T")[0])
+            fecha_nac_obj = fecha_nacimiento_str
+        diferencia_dias = (fecha_marca - fecha_nac_obj).days
+        edad_decimal = diferencia_dias / 365.25
+        return round(edad_decimal, 2)
     except Exception:
-        try:
-            nac = pd.to_datetime(str(fecha_nacimiento)).date()
-        except Exception:
-            return 0.0
-
-    if fecha_referencia is None:
-        ref = datetime.date.today()
-    elif isinstance(fecha_referencia, (datetime.date, datetime.datetime)):
-        ref = fecha_referencia
-    elif isinstance(fecha_referencia, pd.Timestamp):
-        ref = fecha_referencia.date()
-    else:
-        try:
-            ref = datetime.date.fromisoformat(str(fecha_referencia).split("T")[0])
-        except Exception:
-            ref = datetime.date.today()
-
-    delta_dias = (ref - nac).days
-    return round(delta_dias / 365.25, 4)
+        return None
 # -------------------------------------------------------------
 # FUNCIÓN CALCULAR PUNTOS WA
 # -------------------------------------------------------------
