@@ -27,23 +27,30 @@ from conections_supabase_cache import (
 
 
 def renderizar_sidebar_completo():
-  """Renderiza el sidebar con selector de emulación para Soporte/Administrador."""
+  """Renderiza el sidebar completo con soporte de emulación para el Administrador."""
   if "supabase" not in st.session_state or st.session_state.supabase is None:
     st.error("No hay una conexión activa a la base de datos.")
     st.stop()
 
-# -------------------------------------------------------------
+  # -------------------------------------------------------------
   # 1. IDENTIFICACIÓN Y EMULACIÓN DE ROL (ADMINISTRADOR)
   # -------------------------------------------------------------
-  # Roles a los que el Administrador puede mutar/simular
-  ROLES_OFICIALES = ["Nadador", "Entrenador", "Head Coach", "Club", "Administrador"]
+  ROLES_OFICIALES = [
+      "Nadador",
+      "Entrenador",
+      "Head Coach",
+      "Club",
+      "Administrador",
+  ]
 
   # Preservar el rol real del usuario
   if "rol_real" not in st.session_state:
     st.session_state["rol_real"] = st.session_state.get("rol", "Nadador")
 
   rol_real = st.session_state["rol_real"]
-  nombre_mostrar = st.session_state.get("nombre_usuario") or st.session_state.get("nombre_nadador", "Usuario")
+  nombre_mostrar = st.session_state.get(
+      "nombre_usuario"
+  ) or st.session_state.get("nombre_nadador", "Usuario")
 
   st.sidebar.markdown(
       f"**Usuario:** {nombre_mostrar}  \n**Nivel Real:** `{rol_real}`"
@@ -80,10 +87,13 @@ def renderizar_sidebar_completo():
     st.session_state.autenticado = False
     st.rerun()
 
+  # Rol activo efectivo
+  rol_activo = st.session_state.get("rol", "Nadador")
+
   # -------------------------------------------------------------
   # 2. SALIDA DE DATOS SI EL ROL EMULADO ES "CLUB"
   # -------------------------------------------------------------
-  if st.session_state.get("rol") == "Club":
+  if rol_activo == "Club":
     st.sidebar.markdown(
         "<hr style='margin: 12px 0; border-top: 1px solid #ccc;'/>",
         unsafe_allow_html=True,
@@ -125,21 +135,21 @@ def renderizar_sidebar_completo():
         "m_wr": 25.0,
     }
 
-
   # -------------------------------------------------------------
-  # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Administración / Club / Entrenadores)
+  # 3. PANEL DE NAVEGACIÓN DE ATLETAS
   # -------------------------------------------------------------
-  roles_administrativos = ["Head Coach", "Entrenador", "Administrador", "Club"]
+  roles_con_panel = ["Head Coach", "Entrenador", "Administrador"]
 
-  if st.session_state.rol in roles_administrativos:
+  if rol_activo in roles_con_panel:
     spc()
     st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
     try:
       atletas_disponibles = obtener_nadadores_activos_cache() or []
 
-      if st.session_state.rol == "Entrenador":
+      # Si es entrenador REAL, filtramos solo sus atletas
+      if rol_activo == "Entrenador" and rol_real != "Administrador":
         ids_asignados = obtener_atletas_asignados_cache(
-            st.session_state.usuario_id
+            st.session_state.get("usuario_id")
         )
         if ids_asignados:
           atletas_disponibles = [
@@ -156,12 +166,13 @@ def renderizar_sidebar_completo():
             "Monitorear Nadador:",
             options=list(dict_atletas.keys()),
             format_func=lambda x: dict_atletas[x],
+            key="sb_atleta_selector",
         )
         atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
 
-        st.session_state.nadador_seleccionado_id = int(atleta_row["id"])
-        st.session_state.nadador_seleccionado_nombre = atleta_row["nombre"]
-        st.session_state.nadador_seleccionado_genero = atleta_row.get(
+        st.session_state["nadador_seleccionado_id"] = int(atleta_row["id"])
+        st.session_state["nadador_seleccionado_nombre"] = atleta_row["nombre"]
+        st.session_state["nadador_seleccionado_genero"] = atleta_row.get(
             "genero", "M"
         )
 
@@ -170,28 +181,67 @@ def renderizar_sidebar_completo():
             if atleta_row.get("fecha_nacimiento")
             else ("Sin Categoría", 0)
         )
-        st.session_state.nadador_seleccionado_categoria = cat_calc
+        st.session_state["nadador_seleccionado_categoria"] = cat_calc
       else:
         st.sidebar.warning("⚠️ No hay nadadores disponibles en este momento.")
-        st.session_state.nadador_seleccionado_id = None
-        st.session_state.nadador_seleccionado_nombre = None
-        st.session_state.nadador_seleccionado_genero = "M"
-        st.session_state.nadador_seleccionado_categoria = ""
+        st.session_state["nadador_seleccionado_id"] = None
+        st.session_state["nadador_seleccionado_nombre"] = None
+        st.session_state["nadador_seleccionado_genero"] = "M"
+        st.session_state["nadador_seleccionado_categoria"] = ""
     except Exception as e:
-      st.error(f"Error cargando nómina de atletas filtrada: {e}")
+      st.error(f"Error cargando nómina de atletas: {e}")
+
   else:
-    # Rol Nadador
-    st.session_state.nadador_seleccionado_id = st.session_state.usuario_id
-    st.session_state.nadador_seleccionado_nombre = (
-        st.session_state.nombre_nadador
-    )
-    st.session_state.nadador_seleccionado_genero = st.session_state.genero
-    st.session_state.nadador_seleccionado_categoria = (
-        st.session_state.categoria_atleta
-    )
+    # 🏊‍♂️ ROL EMULADO O REAL: NADADOR
+    if rol_real == "Administrador":
+      # Admin emulando a Nadador -> Se le permite elegir a cuál atleta emular
+      spc()
+      st.sidebar.subheader("🏊‍♂️ Selección de Nadador a Simular")
+      atletas_disponibles = obtener_nadadores_activos_cache() or []
+
+      if atletas_disponibles:
+        df_atl = pd.DataFrame(atletas_disponibles)
+        dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
+
+        sel_id = st.sidebar.selectbox(
+            "Simular sesión de:",
+            options=list(dict_atletas.keys()),
+            format_func=lambda x: dict_atletas[x],
+            key="sb_atleta_simular_nadador",
+        )
+        atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
+
+        st.session_state["nadador_seleccionado_id"] = int(atleta_row["id"])
+        st.session_state["nadador_seleccionado_nombre"] = atleta_row["nombre"]
+        st.session_state["nadador_seleccionado_genero"] = atleta_row.get(
+            "genero", "M"
+        )
+
+        cat_calc, _ = (
+            calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+            if atleta_row.get("fecha_nacimiento")
+            else ("Sin Categoría", 0)
+        )
+        st.session_state["nadador_seleccionado_categoria"] = cat_calc
+      else:
+        st.sidebar.warning("⚠️ No hay atletas disponibles en la base de datos.")
+    else:
+      # Nadador Auténtico
+      st.session_state["nadador_seleccionado_id"] = st.session_state.get(
+          "usuario_id"
+      )
+      st.session_state["nadador_seleccionado_nombre"] = st.session_state.get(
+          "nombre_nadador"
+      )
+      st.session_state["nadador_seleccionado_genero"] = st.session_state.get(
+          "genero", "M"
+      )
+      st.session_state["nadador_seleccionado_categoria"] = st.session_state.get(
+          "categoria_atleta", ""
+      )
 
   # -------------------------------------------------------------
-  # 📊 SELECCIÓN DE PRUEBA
+  # 4. SELECCIÓN DE PRUEBA
   # -------------------------------------------------------------
   spc()
   st.sidebar.subheader("📊 Ajustes por prueba")
@@ -201,7 +251,6 @@ def renderizar_sidebar_completo():
       cat_atleta.startswith("Preinfantil") if cat_atleta else False
   )
 
-  # Lista segura de pruebas
   lista_pruebas = (
       obtener_pruebas_por_categoria(cat_atleta)
       if cat_atleta
@@ -222,7 +271,7 @@ def renderizar_sidebar_completo():
   st.session_state["prueba_seleccionada"] = titulo_grafico
 
   # -------------------------------------------------------------
-  # 👥 ANÁLISIS COLECTIVO (MODO EQUIPO)
+  # 5. ANÁLISIS COLECTIVO (MODO EQUIPO)
   # -------------------------------------------------------------
   modo_equipo = False
   tipo_filtro = "Todos los Atletas"
@@ -232,7 +281,7 @@ def renderizar_sidebar_completo():
   lista_atletas = []
   df_global = pd.DataFrame()
 
-  if st.session_state.rol in roles_administrativos:
+  if rol_activo in roles_con_panel:
     spc()
     st.sidebar.subheader("👥 Análisis Colectivo")
     modo_equipo = st.sidebar.checkbox(
@@ -258,9 +307,9 @@ def renderizar_sidebar_completo():
       try:
         atletas_preload = obtener_nadadores_activos_cache() or []
 
-        if st.session_state.rol == "Entrenador":
+        if rol_activo == "Entrenador" and rol_real != "Administrador":
           ids_asignados = obtener_atletas_asignados_cache(
-              st.session_state.usuario_id
+              st.session_state.get("usuario_id")
           )
           atletas_preload = (
               [a for a in atletas_preload if a.get("id") in ids_asignados]
@@ -328,7 +377,7 @@ def renderizar_sidebar_completo():
         st.sidebar.error(f"Error cargando los filtros secundarios: {e}")
 
   # -------------------------------------------------------------
-  # 🏁 EXTRACCIÓN ALINEADA CON 'marcas_referencia'
+  # 6. EXTRACCIÓN ALINEADA CON 'marcas_referencia'
   # -------------------------------------------------------------
   contenedor_sliders = st.sidebar.container()
   m_ano, m_panam_b, m_panam_a, m_wa_b, m_wa_a, m_wr = (
@@ -421,7 +470,7 @@ def renderizar_sidebar_completo():
       st.error(f"Error extrayendo marcas de la categoría: {e}")
 
   # -------------------------------------------------------------
-  # 🚨 MODO SIMULACIÓN Y EXTRACCIÓN HISTÓRICA DE PB
+  # 7. MODO SIMULACIÓN Y EXTRACCIÓN HISTÓRICA DE PB
   # -------------------------------------------------------------
   spc()
   st.sidebar.subheader("🚨 Simulación de Escenarios")
@@ -482,7 +531,7 @@ def renderizar_sidebar_completo():
     )
 
   # -------------------------------------------------------------
-  # 📐 PARÁMETROS DE LÍMITES Y PB
+  # 8. PARÁMETROS DE LÍMITES Y PB
   # -------------------------------------------------------------
   spc()
   st.sidebar.subheader(
@@ -553,7 +602,7 @@ def renderizar_sidebar_completo():
   st.session_state["tpb_segundos"] = T_pb
 
   # -------------------------------------------------------------
-  # 🔎 CONTROLES DE VISTA
+  # 9. CONTROLES DE VISTA
   # -------------------------------------------------------------
   tipo_vista = st.sidebar.selectbox(
       "Enfoque del Gráfico",
@@ -610,7 +659,7 @@ def renderizar_sidebar_completo():
     edad_max_zoom = 100.0
 
   # -------------------------------------------------------------
-  # 📦 CONTENEDOR DE SLIDERS
+  # 10. CONTENEDOR DE SLIDERS Y NOTA
   # -------------------------------------------------------------
   with contenedor_sliders:
     spc()
@@ -631,7 +680,7 @@ def renderizar_sidebar_completo():
         step=0.1,
     )
 
-  if not modo_equipo and st.session_state.rol == "Nadador":
+  if not modo_equipo and rol_activo == "Nadador":
     st.sidebar.markdown("---")
     st.sidebar.caption(
         "📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar"
@@ -640,7 +689,7 @@ def renderizar_sidebar_completo():
     )
 
   # -------------------------------------------------------------
-  # 📦 RETORNO DE DATOS EMPAQUETADOS
+  # 11. RETORNO DE DATOS EMPAQUETADOS
   # -------------------------------------------------------------
   return {
       "usuario_id": st.session_state.get("nadador_seleccionado_id"),
