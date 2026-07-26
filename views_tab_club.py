@@ -124,7 +124,7 @@ def renderizar_tab_club():
     """
     Pestaña principal de administración y gobernanza del club.
     """
-    st.markdown("### 🏛️ Centro de Control Administrativo")
+    st.markdown("#### 🏛️ Centro de Control Administrativo")
     st.caption("Gestión financiera, gobernanza de nóminas, correspondencia y respaldos de base de datos.")
     st.markdown("---")
 
