@@ -21,16 +21,15 @@ from views_tab_reportes import renderizar_tab_reportes
 
 def mostrar_vista_enrutador():
   """Función maestra de inicialización que actúa como 'Director de Orquesta'."""
-  # Ejecutamos la barra lateral (aquí Soporte puede cambiar su rol simulado)
+  # 1. Ejecutamos la barra lateral (aquí Soporte/Admin puede cambiar de rol en el selectbox)
   datos_sidebar = renderizar_sidebar_completo()
   st.session_state.update(datos_sidebar)
 
-  # Leemos el rol efectivo resultante de la barra lateral
+  # 2. Obtenemos el rol resultante (sea el real o el simulado desde el sidebar)
   rol_usuario = st.session_state.get("rol", "Nadador")
 
-  # --- ENRUTAMIENTO EXCLUSIVO PARA ROL CLUB ---
+  # 3. SI EL ROL ES "CLUB", RENDERIZAMOS ÚNICAMENTE LA PESTAÑA DEL CLUB
   if rol_usuario == "Club":
-    st.session_state["active_tab"] = "tab_club"
     tab_club, = st.tabs(["🏛️ Gestión Administrativa"])
     with tab_club:
       renderizar_tab_club()
@@ -45,17 +44,13 @@ def mostrar_vista_enrutador():
         unsafe_allow_html=True,
     )
     return
-  else:
-    # Si cambió de Club a otro rol en el emulador, liberamos la pestaña activa
-    if st.session_state.get("active_tab") == "tab_club":
-      st.session_state["active_tab"] = "tab_grafico"
 
-  # --- CONTINÚA EL DIBUJO REGULAR DE PESTAÑAS Y GRÁFICOS ---
+  # 4. SI EL ROL CAMBIÓ A NADADOR, ENTRENADOR O HEAD COACH, DIBUJAMOS EL ENTORNO COMPLETO
   titulo_grafico = st.session_state.get("titulo_grafico")
   simulacion_externa = st.session_state.get("simulacion_externa", False)
   modo_equipo = st.session_state.get("modo_equipo", False)
 
-  # Encabezado dinámico según rol y simulación
+  # Encabezado dinámico de atletas
   if modo_equipo:
     st.markdown(
         "### 🏊‍♂️ Planificación y control de resultados de competencia:"
@@ -71,6 +66,8 @@ def mostrar_vista_enrutador():
         "### 🏊‍♂️ Planificación y control de resultados de competencia:"
         f" {nombre_nadador}"
     )
+
+  # --- CONTINÚA EL RENDERIZADO REGULAR DE LAS 9 PESTAÑAS (Gráficos, Pizarra, etc.) ---
 
   genero_str = (
       "Masculino (M)"
