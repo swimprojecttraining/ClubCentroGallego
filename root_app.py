@@ -14,6 +14,39 @@ st.set_page_config(
     page_title="Swimming Club Training Control and Performance Forecasting System", 
     layout="wide"
 )
+def aplicar_fondo():
+  ruta_fondo = "Fondo_de_pantalla_Swimprojecttraining.png"
+
+  if os.path.exists(ruta_fondo):
+    with open(ruta_fondo, "rb") as image_file:
+      encoded_string = base64.b64encode(image_file.read()).decode()
+
+    st.markdown(
+        f"""
+            <style>
+            /* Fondo global para toda la aplicación */
+            .stApp {{
+                background-image: url("data:image/png;base64,{encoded_string}");
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+            }}
+            
+            /* Tarjeta de protección translúcida para que los textos sigan siendo 100% legibles */
+            div[data-testid="stMainBlockContainer"] {{
+                background-color: rgba(255, 255, 255, 0.88) !important;
+                border-radius: 12px;
+                padding: 2.5rem !important;
+                margin-top: 1.5rem;
+                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.08);
+            }}
+            </style>
+            """,
+        unsafe_allow_html=True,
+    )
+# Ejecutamos la función de fondo
+aplicar_fondo()
 # --- INYECCIÓN DE CSS GLOBAL OPTIMIZADO ---
 st.markdown(
     """
