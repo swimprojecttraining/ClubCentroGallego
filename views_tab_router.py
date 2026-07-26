@@ -7,7 +7,6 @@ import streamlit as st
 from views_sidebar import renderizar_sidebar_completo
 
 # 2. IMPORTACIÓN DE CADA PESTAÑA DE MANERA DIRECTA
-from views_tab_admin import renderizar_tab_admin
 from views_tab_asignaciones import renderizar_tab_asignaciones
 from views_tab_calendario import renderizar_tab_calendario
 from views_tab_club import renderizar_tab_club
@@ -99,7 +98,6 @@ def mostrar_vista_enrutador():
         tab_entrenador,
         tab_asignaciones,
         tab_calendario,
-        tab_admin,
     ) = st.tabs([
         "📉 Gráfico de Proyecciones",
         "📝 Pizarra Diaria",
@@ -109,7 +107,6 @@ def mostrar_vista_enrutador():
         "⏱️ Configurar Marcas Mínimas",
         "🎯 Asignaciones de Nadadores",
         "📅 Calendario Anual de Competencias",
-        "🛡️ Consola Global (Admin)",
     ])
 
   # Enrutamiento directo a los archivos de la misma carpeta
@@ -131,8 +128,6 @@ def mostrar_vista_enrutador():
       renderizar_tab_asignaciones()
     with tab_calendario:
       renderizar_tab_calendario()
-    with tab_admin:
-      renderizar_tab_admin()
 
   # 🎨 Espaciado global para evitar el efecto de "contenido apretado"
   st.markdown(
