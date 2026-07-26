@@ -178,13 +178,17 @@ def obtener_datos_hitos_atleta(nadador_id):
 # CATEGORÍAS Y EDADES
 # -------------------------------------------------------------
 def calcular_categoria_competencia(fecha_nac_str):
-    if not fecha_nac_str: return "Desconocida", 0
+    if not fecha_nac_str: 
+        return "Desconocida", 0
     try:
-        fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str))
+        # Soporta el formato estándar DATE de la base de datos (YYYY-MM-DD o ISO)
+        fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str).split("T")[0])
     except Exception:
         return "Error Formato", 0
+        
     ano_actual = datetime.date.today().year 
     edad_competencia = ano_actual - fecha_nac.year
+    
     if 5 <= edad_competencia <= 6: cat = "Preinfantil A"
     elif 7 <= edad_competencia <= 8: cat = "Preinfantil B"
     elif edad_competencia == 9: cat = "Preinfantil C"
@@ -195,6 +199,7 @@ def calcular_categoria_competencia(fecha_nac_str):
     elif 18 <= edad_competencia < 25: cat = "Máxima"
     elif edad_competencia >= 25: cat = "Máster"
     else: cat = "Semillero / Menor"
+    
     return cat, edad_competencia
 
 def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
