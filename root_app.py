@@ -116,9 +116,27 @@ token_url = params.get("auth")
 
 if not st.session_state["puente_validado"]:
     if token_url is None or token_url == "":
-        st.error(
-            "🔒 **Acceso Denegado:** No está autorizado a entrar directamente a"
-            " este nodo. Debe iniciar sesión a través del Hub Central."
+        # Limpieza de URL y mensaje de bloqueo directo
+        st.query_params.clear()
+        st.markdown(
+            """
+            <div style="
+                background-color: #ffebe9;
+                border: 1px solid #ffc1c0;
+                color: #cf222e;
+                padding: 20px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 15px;
+                margin: 40px auto;
+                max-width: 600px;
+                text-align: center;
+                box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
+            ">
+                🔒 <b>Acceso Denegado:</b> No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
         st.stop()
 
@@ -127,33 +145,32 @@ if not st.session_state["puente_validado"]:
     )
 
     if not es_valido:
-        # 1. Borramos el token de la URL para cortar el bucle
+        # 1. Limpiamos la URL para evitar reejecuciones en bucle
         st.query_params.clear()
 
-        # 2. Renderizamos la alerta con HTML estable (no colapsa ni requiere CSS)
+        # 2. Renderizamos la tarjeta de bloqueo centralizada
         st.markdown(
             f"""
             <div style="
                 background-color: #ffebe9;
                 border: 1px solid #ffc1c0;
                 color: #cf222e;
-                padding: 14px 18px;
+                padding: 20px;
                 border-radius: 8px;
                 font-weight: 600;
-                font-size: 14px;
-                margin-top: 25px;
-                margin-bottom: 20px;
-                width: 100%;
-                box-shadow: 0px 2px 5px rgba(0,0,0,0.05);
+                font-size: 15px;
+                margin: 40px auto;
+                max-width: 600px;
+                text-align: center;
+                box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
             ">
                 🔒 <b>Acceso Denegado:</b> {resultado_o_error}
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-        # 3. Quitamos el st.stop() para permitir que el script continue
-        # y renderice el login o el layout completo de forma normal.
+        # 3. Bloqueamos la ejecución para que NO aparezca la pantalla de Login
+        st.stop()
         
     # Si todo coincide perfectamente:
     st.session_state["puente_validado"] = True
