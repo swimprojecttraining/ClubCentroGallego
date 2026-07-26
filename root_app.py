@@ -31,21 +31,7 @@ st.markdown(
         .element-container {
             margin-bottom: 4px !important;
         }
-        
-        /* 3. Control de tipografías y márgenes para cabecera responsiva */
-        h1 { 
-            font-size: 18px !important; 
-            font-weight: 700 !important; 
-            margin-top: 2px !important;     
-            margin-bottom: 4px !important;    
-            padding-bottom: 0px !important; 
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        h2 { font-size: 16px !important; font-weight: 700 !important; margin-top: 2px !important; }
-        h3 { font-size: 14px !important; font-weight: 600 !important; margin-bottom: 2px !important; }
-        
+      
         /* SegmentedControl */
         div[data-testid="stSegmentedControl"] {
             margin-top: 2px !important;    
