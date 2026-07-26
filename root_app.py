@@ -116,14 +116,44 @@ token_url = params.get("auth")
 
 if not st.session_state["puente_validado"]:
     if token_url is None or token_url == "":
-        st.error("🔒 **Acceso Denegado:** No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.")
+        st.error(
+            "🔒 **Acceso Denegado:** No está autorizado a entrar directamente a"
+            " este nodo. Debe iniciar sesión a través del Hub Central."
+        )
         st.stop()
-        
-    es_valido, resultado_o_error = validar_token_handshake(token_url, SECRET_EXCLUSIVO_LOCAL)
-    
+
+    es_valido, resultado_o_error = validar_token_handshake(
+        token_url, SECRET_EXCLUSIVO_LOCAL
+    )
+
     if not es_valido:
-        st.error(f"🔒 **Acceso Denegado:** {resultado_o_error}")
-        st.stop()
+        # 1. Borramos el token de la URL para cortar el bucle
+        st.query_params.clear()
+
+        # 2. Renderizamos la alerta con HTML estable (no colapsa ni requiere CSS)
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #ffebe9;
+                border: 1px solid #ffc1c0;
+                color: #cf222e;
+                padding: 14px 18px;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 14px;
+                margin-top: 25px;
+                margin-bottom: 20px;
+                width: 100%;
+                box-shadow: 0px 2px 5px rgba(0,0,0,0.05);
+            ">
+                🔒 <b>Acceso Denegado:</b> {resultado_o_error}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # 3. Quitamos el st.stop() para permitir que el script continue
+        # y renderice el login o el layout completo de forma normal.
         
     # Si todo coincide perfectamente:
     st.session_state["puente_validado"] = True
