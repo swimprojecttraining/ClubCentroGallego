@@ -100,7 +100,7 @@ def aplicar_estilos_globales():
         div[data-testid="stAlert"] {
             margin-top: 50px !important;
             position: relative;
-            z-index: 99;
+            z-index: 80;
         }
     }
 /* =================================================================
