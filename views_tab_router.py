@@ -20,46 +20,37 @@ from views_tab_reportes import renderizar_tab_reportes
 
 
 def mostrar_vista_enrutador():
-  """Función maestra de inicialización que actúa como 'Director de Orquesta'.
-
-  Captura los parámetros de la barra lateral y distribuye de forma aislada
-  el flujo hacia archivos independientes dentro de la carpeta views.
-  """
-  rol_usuario = st.session_state.get("rol", "Nadador")
-
-  # --- SI ES ROL CLUB, ACTIVAMOS EL MODO CLUB ANTES DE DIBUJAR EL SIDEBAR ---
-  if rol_usuario == "Club":
-    st.session_state["active_tab"] = "tab_club"
-
-  # Ejecutamos la barra lateral y extraemos su diccionario
+  """Función maestra de inicialización que actúa como 'Director de Orquesta'."""
+  # Ejecutamos la barra lateral (aquí Soporte puede cambiar su rol simulado)
   datos_sidebar = renderizar_sidebar_completo()
-
-  # --- Actualizar session_state globalmente ---
   st.session_state.update(datos_sidebar)
+
+  # Leemos el rol efectivo resultante de la barra lateral
+  rol_usuario = st.session_state.get("rol", "Nadador")
 
   # --- ENRUTAMIENTO EXCLUSIVO PARA ROL CLUB ---
   if rol_usuario == "Club":
+    st.session_state["active_tab"] = "tab_club"
     tab_club, = st.tabs(["🏛️ Gestión Administrativa"])
     with tab_club:
       renderizar_tab_club()
 
-    # Espaciado global
     st.markdown(
         """
         <style>
-            .block-container.block-container {
-                padding-top: 0.1rem;
-            }
-            .main > div {
-                padding-bottom: 5rem;
-            }
+            .block-container.block-container { padding-top: 0.1rem; }
+            .main > div { padding-bottom: 5rem; }
         </style>
     """,
         unsafe_allow_html=True,
     )
     return
+  else:
+    # Si cambió de Club a otro rol en el emulador, liberamos la pestaña activa
+    if st.session_state.get("active_tab") == "tab_club":
+      st.session_state["active_tab"] = "tab_grafico"
 
-  # --- ENRUTAMIENTO PARA EL RESTO DE ROLES (Nadadores, Entrenadores, Admin) ---
+  # --- CONTINÚA EL DIBUJO REGULAR DE PESTAÑAS Y GRÁFICOS ---
   titulo_grafico = st.session_state.get("titulo_grafico")
   simulacion_externa = st.session_state.get("simulacion_externa", False)
   modo_equipo = st.session_state.get("modo_equipo", False)
