@@ -20,7 +20,7 @@ st.markdown(
         /* 1. Ajuste del lienzo superior */
         .block-container {
             padding-top: 1rem !important; 
-            padding-bottom: 20rem !important;
+            padding-bottom: 0rem !important;
             max-width: 98% !important;     
         }
         
