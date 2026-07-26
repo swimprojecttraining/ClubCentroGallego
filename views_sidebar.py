@@ -29,23 +29,56 @@ from conections_supabase_cache import (
 def renderizar_sidebar_completo():
   """Renderiza el centro de mandos interactivo (SIDEBAR) con código depurado,
 
-  soporte completo para rol Club y manejo seguro de valores nulos.
+  soporte completo para emulación de roles de Soporte y manejo seguro de
+  valores nulos.
   """
-  # 🔐 Garantizar el aislamiento usando la conexión dinámica del club
-  # seleccionado
+  # 🔐 Garantizar el aislamiento usando la conexión dinámica del club seleccionado
   if "supabase" not in st.session_state or st.session_state.supabase is None:
     st.error("No hay una conexión activa a la base de datos de ningún club.")
     st.stop()
 
   # -------------------------------------------------------------
-  # CONTROL DE SESIÓN GENERAL
+  # 🎭 ROLES OFICIALES Y CONTROL DE EMULACIÓN DE SESIÓN
   # -------------------------------------------------------------
+  ROLES_OFICIALES = ["Nadador", "Entrenador", "Head Coach", "Club"]
+
+  rol_real = st.session_state.get("rol_real") or st.session_state.get(
+      "rol", "Nadador"
+  )
+  st.session_state["rol_real"] = rol_real
+
   nombre_mostrar = st.session_state.get(
       "nombre_usuario"
   ) or st.session_state.get("nombre_nadador", "Usuario")
+
+  # Muestreo inicial de sesión
   st.sidebar.markdown(
-      f"**Usuario:** {nombre_mostrar}  \n**Nivel:** `{st.session_state.rol}`"
+      f"**Usuario:** {nombre_mostrar}  \n**Nivel Real:** `{rol_real}`"
   )
+
+  # 🛠️ MODO EMULACIÓN / CLONACIÓN DE ROL PARA SOPORTE
+  if rol_real in ["Soporte", "Administrador"]:
+    st.sidebar.markdown(
+        "<hr style='margin: 8px 0; border-top: 1px solid #0055ff;'/>",
+        unsafe_allow_html=True,
+    )
+    st.sidebar.caption("🛠️ **Consola de Soporte / Emulación**")
+
+    # Selección de rol efectivo para pruebas e interacción
+    rol_efectivo = st.sidebar.selectbox(
+        "Probar app como:",
+        options=ROLES_OFICIALES + ["Soporte"],
+        index=(
+            ROLES_OFICIALES.index(st.session_state.get("rol", "Head Coach"))
+            if st.session_state.get("rol") in ROLES_OFICIALES
+            else 0
+        ),
+        key="selector_emulacion_rol",
+    )
+    st.session_state.rol = rol_efectivo
+  else:
+    # Para el resto de usuarios, el rol efectivo es estrictamente su rol asignado
+    st.session_state.rol = rol_real
 
   if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
@@ -70,21 +103,18 @@ def renderizar_sidebar_completo():
       st.rerun()
 
   # -------------------------------------------------------------
-  # 🧹 FILTRADO SEGURO PARA LA SESIÓN / TAB DEL CLUB
+  # 🏛️ SALIDA LIMPIA EXCLUSIVA PARA EL ROL / TAB DEL CLUB
   # -------------------------------------------------------------
-  # Detecta si el usuario está actualmente posicionado en la gestión del club
-  # (Soporta estado en session_state o rol exclusivo de gestión)
-  pestana_activa = st.session_state.get("active_tab", "") or st.session_state.get("tab_activa", "")
+  pestana_activa = st.session_state.get("active_tab", "")
 
-  if pestana_activa == "tab_club" or pestana_activa == "Club":
+  if st.session_state.rol == "Club" or pestana_activa == "tab_club":
     st.sidebar.markdown(
         "<hr style='margin: 12px 0; border-top: 1px solid #ccc;'/>",
         unsafe_allow_html=True,
     )
-    st.sidebar.subheader("🏢 Sesión del Club")
-    st.sidebar.info("Panel de gestión institucional activo.")
+    st.sidebar.subheader("🏛️ Sesión del Club")
+    st.sidebar.info("Panel de gestión administrativa activo.")
 
-    # Retorno limpio con valores neutros y seguros para evitar 'KeyError' o fallos de renderizado
     return {
         "usuario_id": st.session_state.get("usuario_id"),
         "genero": "M",
@@ -118,6 +148,8 @@ def renderizar_sidebar_completo():
         "m_wa_a": 0.0,
         "m_wr": 25.0,
     }
+
+  # --- CONTINÚA LA NAVEGACIÓN Y FILTROS DE ATLETAS CON st.session_state.rol ---
 
   # -------------------------------------------------------------
   # 🎯 PANEL DE NAVEGACIÓN DE ATLETAS (Administración / Club / Entrenadores)
