@@ -131,7 +131,7 @@ def mostrar_pantalla_login():
         with c_login:
             tab_login, tab_registro_otp, tab_recuperar = st.tabs([
                 "🔑 Iniciar Sesión", 
-                "📝 Registro (Pre-Alta OTP)", 
+                "📝 Registro (Preinscrito por el club)", 
                 "🔄 Recuperar Contraseña"
             ])
             
