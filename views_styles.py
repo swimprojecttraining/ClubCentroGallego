@@ -96,18 +96,25 @@ def aplicar_estilos_globales():
             width: 100% !important;
             padding: 4px 0px !important;
         }
-        /* 1. Permitir que los elementos en la parte superior no se corten por el overflow del contenedor principal */
-        section[data-testid="stMainServices"] > div,
+        /* 1. Dar espacio suficiente en la parte superior del contenedor principal para que NADA se solape */
         div[data-testid="stMainBlockContainer"] {
+            padding-top: 4rem !important;
             overflow: visible !important;
         }
         
-        /* 2. Elevar la alerta y forzar que no pierda su espacio */
+        /* 2. Forzar que las alertas muestren su contenido completo y no colapsen */
         div[data-testid="stAlert"] {
-            margin-top: 50px !important;
             position: relative !important;
             z-index: 9999 !important;
+            min-height: 2.5rem !important;
+            margin-top: 10px !important;
+            margin-bottom: 15px !important;
             clear: both !important;
+        }
+        
+        /* 3. Asegurar que el texto dentro de la alerta sea visible y no se oculte */
+        div[data-testid="stAlert"] div {
+            overflow: visible !important;
         }
     }
 /* =================================================================
