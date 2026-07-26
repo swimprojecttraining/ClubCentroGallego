@@ -17,7 +17,7 @@ st.markdown("""
     <style>
         /* 1. Reducir el espacio superior del contenedor principal */
         .block-container {
-            padding-top: 1rem !important;
+            padding-top: 0.8rem !important;
             padding-bottom: 0rem !important;
         }
         
