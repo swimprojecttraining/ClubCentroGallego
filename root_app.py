@@ -14,8 +14,18 @@ st.set_page_config(
     page_title="Swimming Club Training Control and Performance Forecasting System", 
     layout="wide"
 )
-def aplicar_fondo():
-  ruta_fondo = "Fondo_de_pantalla_Swimprojecttraining.png"
+import base64
+import os
+import streamlit as st
+
+
+# --- 1. FUNCIÓN DE FONDO CORREGIDA (RUTA ABSOLUTA) ---
+def aplicar_fondo_pantalla():
+  # Resolvemos la ruta exacta dentro del repositorio en Streamlit Cloud
+  directorio_actual = os.path.dirname(os.path.abspath(__file__))
+  ruta_fondo = os.path.join(
+      directorio_actual, "Fondo_de_pantalla_Swimprojecttraining.png"
+  )
 
   if os.path.exists(ruta_fondo):
     with open(ruta_fondo, "rb") as image_file:
@@ -24,7 +34,7 @@ def aplicar_fondo():
     st.markdown(
         f"""
             <style>
-            /* Fondo global para toda la aplicación */
+            /* Fondo global de la app */
             .stApp {{
                 background-image: url("data:image/png;base64,{encoded_string}");
                 background-size: cover;
@@ -33,9 +43,9 @@ def aplicar_fondo():
                 background-attachment: fixed;
             }}
             
-            /* Tarjeta de protección translúcida para que los textos sigan siendo 100% legibles */
+            /* Contenedor principal con transparencia elegante para asegurar lecturabilidad */
             div[data-testid="stMainBlockContainer"] {{
-                background-color: rgba(255, 255, 255, 0.88) !important;
+                background-color: rgba(255, 255, 255, 0.90) !important;
                 border-radius: 12px;
                 padding: 2.5rem !important;
                 margin-top: 1.5rem;
@@ -45,8 +55,113 @@ def aplicar_fondo():
             """,
         unsafe_allow_html=True,
     )
-# Ejecutamos la función de fondo
-aplicar_fondo()
+
+
+# Invocamos el fondo al inicio
+aplicar_fondo_pantalla()
+
+
+# --- 2. CANDADO DE SEGURIDAD CORREGIDO ---
+SECRET_EXCLUSIVO_LOCAL = st.secrets.get(
+    "CLUB_SECRET_KEY", "ClubdeNatacionCentroGallegoqazws"
+)
+
+if "puente_validado" not in st.session_state:
+  st.session_state["puente_validado"] = False
+
+params = st.query_params
+token_url = params.get("auth")
+
+# Si el puente aún no ha sido marcado como validado en la sesión
+if not st.session_state["puente_validado"]:
+
+  # A. Si no hay token en la URL ni en la sesión
+  if token_url is None or token_url == "":
+    st.query_params.clear()
+
+    st.markdown(
+        """
+            <div style="
+                background-color: #ffebe9;
+                border: 1px solid #ffc1c0;
+                color: #cf222e;
+                padding: 24px;
+                border-radius: 12px;
+                font-weight: 500;
+                font-size: 15px;
+                margin: 30px auto 15px auto;
+                max-width: 550px;
+                text-align: center;
+                box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
+            ">
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
+                    🔒 Acceso Denegado
+                </div>
+                <div>
+                    No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.
+                </div>
+            </div>
+            """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+      st.link_button(
+          "🏠 Volver al Hub Central",
+          "https://swimming-pro.streamlit.app",
+          use_container_width=True,
+      )
+
+    st.stop()
+
+  # B. Si hay token, lo validamos
+  es_valido, resultado_o_error = validar_token_handshake(
+      token_url, SECRET_EXCLUSIVO_LOCAL
+  )
+
+  if not es_valido:
+    st.query_params.clear()
+
+    st.markdown(
+        f"""
+            <div style="
+                background-color: #ffebe9;
+                border: 1px solid #ffc1c0;
+                color: #cf222e;
+                padding: 24px;
+                border-radius: 12px;
+                font-weight: 500;
+                font-size: 15px;
+                margin: 30px auto 15px auto;
+                max-width: 550px;
+                text-align: center;
+                box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
+            ">
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
+                    🔒 Acceso Denegado
+                </div>
+                <div>
+                    {resultado_o_error}
+                </div>
+            </div>
+            """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+      st.link_button(
+          "🏠 Volver al Hub Central",
+          "https://swimming-pro.streamlit.app",
+          use_container_width=True,
+      )
+
+    st.stop()
+
+  # C. Si la validación es EXITOSA: marcamos sesión y limpiamos la URL
+  st.session_state["puente_validado"] = True
+  st.query_params.clear()
 # --- INYECCIÓN DE CSS GLOBAL OPTIMIZADO ---
 st.markdown(
     """
