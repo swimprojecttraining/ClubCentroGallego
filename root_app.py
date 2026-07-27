@@ -105,7 +105,6 @@ def validar_token_handshake(token_b64, secret_key_local):
 # 🛑 CANDADO DE SEGURIDAD INTERCLUBES (MULTI-TENANT PURO)
 # =============================================================================
 
-# Lectura directa desde st.secrets sin funciones externas ni parches
 SECRET_EXCLUSIVO_LOCAL = st.secrets["CLUB_SECRET_KEY"]
 URL_HUB_CENTRAL = st.secrets["URL_HUB_CENTRAL"]
 
@@ -116,6 +115,26 @@ params = st.query_params
 token_url = params.get("auth")
 
 if not st.session_state["puente_validado"]:
+
+  # CSS DEDICADO PARA FORZAR LA VISIBILIDAD DE LAS ALERTAS EN PANTALLA
+  css_alertas_visibles = """
+    <style>
+    /* Forzar margen superior para que las alertas no se metan debajo del header de Streamlit */
+    .block-container {
+        padding-top: 3rem !important;
+    }
+    
+    /* Resaltar la caja de alerta y asegurar que esté por encima de cualquier capa */
+    [data-testid="stNotification"], [data-testid="stAlert"] {
+        z-index: 999999 !important;
+        margin-top: 15px !important;
+        box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.25) !important;
+        border-radius: 10px !important;
+    }
+    </style>
+    """
+  st.markdown(css_alertas_visibles, unsafe_allow_html=True)
+
   # 1. Acceso directo sin token
   if not token_url:
     st.error(
@@ -132,10 +151,16 @@ if not st.session_state["puente_validado"]:
   )
 
   if not es_valido:
+    # Renderizado garantizado y visible en el centro de la pantalla
     st.error(f"🔒 **Acceso Denegado:** {resultado_o_error}")
-    st.info("💡 Los enlaces de acceso vencen a los 30 segundos por seguridad.")
+    st.info(
+        "💡 Los enlaces de acceso rápido vencen a los 30 segundos por razones"
+        " de seguridad."
+    )
     st.link_button(
-        "🔄 Volver al Hub Central", URL_HUB_CENTRAL, use_container_width=True
+        "🔄 Volver al Hub Central para Generar Nuevo Enlace",
+        URL_HUB_CENTRAL,
+        use_container_width=True,
     )
     st.stop()
 
