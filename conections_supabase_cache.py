@@ -7,6 +7,22 @@ import pandas as pd
 def _get_db():
     return st.session_state.get("supabase")
 
+# =============================================================================
+# FUNCIONES GLOBALMENTE CACHADAS (OPTIMIZACIÓN DE SUPABASE)
+# =============================================================================
+
+@st.cache_data(ttl=300, show_spinner=False)
+def obtener_bitacora_atleta_cache(atleta_id):
+    """Descarga el historial completo de entrenamientos de la bitácora para un atleta de forma individual."""
+    supabase = st.session_state.get("supabase")
+    if not supabase or not atleta_id: 
+        return []
+    try:
+        query_rep = supabase.table("bitacora_entrenamientos").select("*").eq("atleta_id", atleta_id).execute()
+        return query_rep.data if query_rep and query_rep.data else []
+    except: 
+        return []
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def obtener_atletas_asignados_cache(entrenador_id):
     supabase = _get_db()
