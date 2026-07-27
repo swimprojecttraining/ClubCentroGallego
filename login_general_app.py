@@ -87,88 +87,91 @@ def login_usuario(user, password, client_db):
 
 
 def mostrar_pantalla_login():
-    """Función principal que renderiza el Login, Certificación por Pre-Alta (OTP) y Recuperación.
+  """Función principal que renderiza el Login, Certificación por Pre-Alta (OTP) y Recuperación.
 
-    Llamada directamente desde root_app.py tras validar el handshake.
-    """
-    # ------------------------------------------------------------
-    # 0. LIMPIEZA INTELIGENTE DE SESIÓN AL ENTRAR AL LOGIN
-    # ------------------------------------------------------------
-    # Capturamos si el usuario viene de un logout voluntario desded el sidebar
-    logout_voluntario = st.session_state.get("logout_solicitado", False)
+  Llamada directamente desde root_app.py tras validar el handshake.
+  """
+  # ------------------------------------------------------------
+  # 0. LIMPIEZA DE SESIÓN DE USUARIO (SIN BORRAR EL HANDSHAKE)
+  # ------------------------------------------------------------
+  # Si el usuario solicitó salir, solo borramos los datos del usuario activo, NO las banderas del sistema
+  if st.session_state.get("logout_solicitado", False):
+    st.session_state.autenticado = False
+    st.session_state.pop("usuario_actual", None)
+    st.session_state.pop("logout_solicitado", None)
 
-    # Preservamos conexiones globales o tokens si venían en la sesión antes de barrer
-    supabase_previo = st.session_state.get("supabase")
-    club_previo = st.session_state.get("club_seleccionado")
+  # ------------------------------------------------------------
+  # 1. INICIALIZACIÓN DE VARIABLES DE ESTADO LOCALES
+  # ------------------------------------------------------------
+  if "rec_codigo_verificacion" not in st.session_state:
+    st.session_state.rec_codigo_verificacion = None
+  if "rec_datos_temporales" not in st.session_state:
+    st.session_state.rec_datos_temporales = None
+  if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
 
-    # Si fue un logout intencional o entrada limpia, purgamos variables de usuario
-    if logout_voluntario or not st.session_state.get("autenticado", False):
-        st.session_state.clear()
+  # ------------------------------------------------------------
+  # 2. CONEXIÓN A SUPABASE Y CLUB
+  # ------------------------------------------------------------
+  if not st.session_state.get("supabase"):
+    try:
+      st.session_state.supabase = obtener_cliente_supabase()
+      st.session_state.club_seleccionado = st.secrets.get(
+          "NOMBRE_CLUB_LOCAL", "Centro Gallego"
+      )
+    except Exception as e:
+      st.error(
+          "❌ Error de infraestructura al conectar base de datos local:"
+          f" {e}"
+      )
+      st.stop()
 
-        # Restauramos conexiones/infraestructura de Supabase para no reconectar de cero
-        if supabase_previo:
-            st.session_state.supabase = supabase_previo
-        if club_previo:
-            st.session_state.club_seleccionado = club_previo
+  # ------------------------------------------------------------
+  # 3. INTERFAZ DE PORTADA UNIFICADA
+  # ------------------------------------------------------------
+  if not st.session_state.autenticado:
+    st.markdown(
+        f"<h2 style='text-align: center;'>🏊‍♂️"
+        f" {st.session_state.club_seleccionado}</h2>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<h4 style='text-align: center; color: gray;'>Sistema de Gestión de"
+        " Entrenamientos y Proyección de Rendimiento</h4>",
+        unsafe_allow_html=True,
+    )
 
-    # ------------------------------------------------------------
-    # 1. INICIALIZACIÓN DE VARIABLES DE ESTADO LOCALES
-    # ------------------------------------------------------------
-    if "rec_codigo_verificacion" not in st.session_state:
-        st.session_state.rec_codigo_verificacion = None
-    if "rec_datos_temporales" not in st.session_state:
-        st.session_state.rec_datos_temporales = None
-    if "autenticado" not in st.session_state:
-        st.session_state.autenticado = False
+    instancia_supabase_club = st.session_state.supabase
 
-    # ------------------------------------------------------------
-    # 2. RECEPTOR Y VALIDADOR CRIPTOGRÁFICO INTERCLUBES (HANDSHAKE)
-    # ------------------------------------------------------------
-    if not st.session_state.get("supabase"):
-        try:
-            st.session_state.supabase = obtener_cliente_supabase()
-            st.session_state.club_seleccionado = st.secrets.get(
-                "NOMBRE_CLUB_LOCAL", "Centro Gallego"
-            )
-        except Exception as e:
-            st.error(
-                "❌ Error de infraestructura al conectar base de datos local:"
-                f" {e}"
-            )
-            st.stop()
+    c_login, _ = st.columns([1.5, 1.5])
 
-    # ------------------------------------------------------------
-    # 2. INTERFAZ DE PORTADA UNIFICADA MULTI-TENANT PRO
-    # ------------------------------------------------------------
-    if not st.session_state.autenticado:
-        st.markdown(f"<h2 style='text-align: center;'>🏊‍♂️ {st.session_state.club_seleccionado}</h2>", unsafe_allow_html=True)
-        st.markdown("<h4 style='text-align: center; color: gray;'>Sistema de Gestión de Entrenamientos y Proyección de Rendimiento</h4>", unsafe_allow_html=True)
-        
-        instancia_supabase_club = st.session_state.supabase
+    with c_login:
+      tab_login, tab_registro_otp, tab_recuperar = st.tabs([
+          "🔑 Iniciar Sesión",
+          "📝 Registro (Pre-Alta OTP)",
+          "🔄 Recuperar Contraseña",
+      ])
 
-        c_login, _ = st.columns([1.5, 1.5])
-        
-        with c_login:
-            tab_login, tab_registro_otp, tab_recuperar = st.tabs([
-                "🔑 Iniciar Sesión", 
-                "📝 Registro (Pre-Alta OTP)", 
-                "🔄 Recuperar Contraseña"
-            ])
-            
-            # --- TAB LOGIN ---
-            with tab_login:
-                st.caption("Nota: Los nombres de usuario se procesan en minúsculas.")
-                with st.form("form_login"):
-                    usuario_input = st.text_input("Usuario o Correo:")
-                    usuario_lower = usuario_input.lower()
-                    contrasena_input = st.text_input("Contraseña:", type="password")
-                    
-                    if st.form_submit_button("Ingresar"):
-                        if login_usuario(usuario_lower, contrasena_input, instancia_supabase_club):
-                            st.success("Acceso autorizado.")
-                            st.rerun()
-                        else:
-                            st.error("Credenciales incorrectas o cuenta en revisión. Verifique sus datos.")
+      # --- TAB LOGIN ---
+      with tab_login:
+        st.caption("Nota: Los nombres de usuario se procesan en minúsculas.")
+        with st.form("form_login"):
+          usuario_input = st.text_input("Usuario o Correo:")
+          contrasena_input = st.text_input("Contraseña:", type="password")
+
+          if st.form_submit_button("Ingresar"):
+            usuario_lower = usuario_input.lower().strip()
+            if login_usuario(
+                usuario_lower, contrasena_input, instancia_supabase_club
+            ):
+              st.session_state.autenticado = True
+              st.success("Acceso autorizado.")
+              st.rerun()
+            else:
+              st.error(
+                  "Credenciales incorrectas o cuenta en revisión. Verifique sus"
+                  " datos."
+              )
                             
             # --- TAB ÚNICO DE REGISTRO: CERTIFICACIÓN DE PRE-ALTA VIA OTP ---
             with tab_registro_otp:
