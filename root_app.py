@@ -102,31 +102,45 @@ def validar_token_handshake(token_b64, secret_key_local):
 
 
 # =============================================================================
-# 🛑 CANDADO DE SEGURIDAD INTERCLUBES (ASIGNACIÓN DIRECTA)
+# 🛑 CANDADO DE SEGURIDAD INTERCLUBES (MULTI-TENANT PURO)
 # =============================================================================
 
-# Leemos directamente la clave configurada en tus Secrets (con respaldo idéntico)
-SECRET_EXCLUSIVO_LOCAL = st.secrets.get("CLUB_SECRET_KEY", "ClubdeNatacionCentroGallegoqazws")
+# Carga limpia desde st.secrets. Si no existen en la nube, se detiene con error de config.
+SECRET_EXCLUSIVO_LOCAL = obtener_secret_obligatorio("CLUB_SECRET_KEY")
+URL_HUB_CENTRAL = obtener_secret_obligatorio("URL_HUB_CENTRAL")
 
 if "puente_validado" not in st.session_state:
-    st.session_state["puente_validado"] = False
+  st.session_state["puente_validado"] = False
 
 params = st.query_params
 token_url = params.get("auth")
 
 if not st.session_state["puente_validado"]:
-    if token_url is None or token_url == "":
-        st.error("🔒 **Acceso Denegado:** No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.")
-        st.stop()
-        
-    es_valido, resultado_o_error = validar_token_handshake(token_url, SECRET_EXCLUSIVO_LOCAL)
-    
-    if not es_valido:
-        st.error(f"🔒 **Acceso Denegado:** {resultado_o_error}")
-        st.stop()
-        
-    # Si todo coincide perfectamente:
-    st.session_state["puente_validado"] = True
+  # 1. Acceso directo sin token
+  if not token_url:
+    st.error(
+        "🔒 **Acceso Denegado:** Debe iniciar sesión a través del Hub Central."
+    )
+    st.link_button(
+        "🔄 Ir al Hub Central", URL_HUB_CENTRAL, use_container_width=True
+    )
+    st.stop()
+
+  # 2. Validación criptográfica
+  es_valido, resultado_o_error = validar_token_handshake(
+      token_url, SECRET_EXCLUSIVO_LOCAL
+  )
+
+  if not es_valido:
+    st.error(f"🔒 **Acceso Denegado:** {resultado_o_error}")
+    st.info("💡 Los enlaces de acceso vencen a los 30 segundos por seguridad.")
+    st.link_button(
+        "🔄 Volver al Hub Central", URL_HUB_CENTRAL, use_container_width=True
+    )
+    st.stop()
+
+  # 3. Acceso autorizado
+  st.session_state["puente_validado"] = True
 
 # =============================================================================
 # 🔑 ENTORNO OPERATIVO DEL CLUB (EJECUCIÓN DIRECTA POST-HANDSHAKE)
