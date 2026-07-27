@@ -127,15 +127,9 @@ def login_usuario(user, password, client_db):
       # =========================================================================
       limpiar_sesion_al_autenticar()
 
-# --- VARIABLES GENERALES PARA CUALQUIER ROL ---
+      # --- VARIABLES GENERALES PARA CUALQUIER ROL ---
       st.session_state.autenticado = True
-
-      # 🎯 CAS TEO DE RAÍZ: Garantiza que el ID de usuario sea siempre INTEGER en la sesión
-      try:
-        st.session_state.usuario_id = int(user_data["id"])
-      except (ValueError, TypeError):
-        st.session_state.usuario_id = user_data["id"]
-
+      st.session_state.usuario_id = user_data["id"]
       st.session_state.nombre_usuario = user_data["nombre"]
       st.session_state.nombre_nadador = user_data["nombre"]
       st.session_state.genero = user_data.get("genero", "M")
@@ -160,13 +154,7 @@ def login_usuario(user, password, client_db):
 
         st.session_state.categoria_atleta = cat
         st.session_state.edad_comp_atleta = ed_c
-
-        # 🎯 También aseguramos el ID numérico del nadador seleccionado
-        try:
-          st.session_state.nadador_seleccionado_id = int(user_data["id"])
-        except (ValueError, TypeError):
-          st.session_state.nadador_seleccionado_id = user_data["id"]
-
+        st.session_state.nadador_seleccionado_id = user_data["id"]
         st.session_state.nadador_seleccionado_nombre = user_data["nombre"]
         st.session_state.nadador_seleccionado_genero = user_data.get(
             "genero", "F"
