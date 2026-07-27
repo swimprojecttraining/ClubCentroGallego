@@ -105,9 +105,9 @@ def validar_token_handshake(token_b64, secret_key_local):
 # 🛑 CANDADO DE SEGURIDAD INTERCLUBES (MULTI-TENANT PURO)
 # =============================================================================
 
-# Carga limpia desde st.secrets. Si no existen en la nube, se detiene con error de config.
-SECRET_EXCLUSIVO_LOCAL = obtener_secret_obligatorio("CLUB_SECRET_KEY")
-URL_HUB_CENTRAL = obtener_secret_obligatorio("URL_HUB_CENTRAL")
+# Lectura directa desde st.secrets sin funciones externas ni parches
+SECRET_EXCLUSIVO_LOCAL = st.secrets["CLUB_SECRET_KEY"]
+URL_HUB_CENTRAL = st.secrets["URL_HUB_CENTRAL"]
 
 if "puente_validado" not in st.session_state:
   st.session_state["puente_validado"] = False
@@ -126,7 +126,7 @@ if not st.session_state["puente_validado"]:
     )
     st.stop()
 
-  # 2. Validación criptográfica
+  # 2. Validación criptográfica de apretón de manos
   es_valido, resultado_o_error = validar_token_handshake(
       token_url, SECRET_EXCLUSIVO_LOCAL
   )
