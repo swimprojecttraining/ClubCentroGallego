@@ -212,7 +212,7 @@ def renderizar_sidebar_completo():
       # CASO A: Administrador Emulando Rol Entrenador
       if rol_real == "Administrador":
         todos_entrenadores = (
-            obtener_usuarios_po_rol_cache("Entrenador") or []
+            obtener_usuarios_por_rol_cache("Entrenador") or []
         )
 
         dict_entrenadores = {}
