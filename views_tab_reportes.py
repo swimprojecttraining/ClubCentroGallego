@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import io
 
-from conections_supabase_cache obtener_atletas_asignados_cache
+from conections_supabase_cache import obtener_atletas_asignados_cache
 
 def renderizar_tab_reportes(datos_sidebar=None):
     """
@@ -49,25 +49,36 @@ def renderizar_tab_reportes(datos_sidebar=None):
 
     st.markdown("---")
 
-    # =============================================================================
+# =============================================================================
     # 2. RESOLUCIÓN DE NÓMINA SEGURA POR ROL
     # =============================================================================
     ctx_supabase_rep = st.session_state.get("supabase")
     atletas_pool_rep = []
     rol_usuario = st.session_state.get("rol")
+    rol_real = st.session_state.get("rol_real", rol_usuario)
     id_usuario = st.session_state.get("usuario_id")
 
     if ctx_supabase_rep:
         try:
             if rol_usuario == "Nadador":
-                resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("id", id_usuario).execute()
+                if rol_real == "Administrador":
+                    sim_id = st.session_state.get("nadador_seleccionado_id")
+                    resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("id", sim_id).execute()
+                else:
+                    resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("id", id_usuario).execute()
+                
                 if resp_sb.data:
                     atletas_pool_rep = resp_sb.data
 
             elif rol_usuario == "Entrenador":
-                if id_usuario:
-                    resp_asig_rep = ctx_supabase_rep.table("asignaciones").select("atleta_id").eq("entrenador_id", id_usuario).execute()
-                    ids_autorizados_rep = [reg["atleta_id"] for reg in resp_asig_rep.data] if resp_asig_rep.data else []
+                # Soporte exacto para el ID del entrenador real o el simulado por el Administrador en el sidebar
+                id_entrenador_evaluar = id_usuario
+                if rol_real == "Administrador":
+                    id_entrenador_evaluar = st.session_state.get("sb_entrenador_simular_selector", id_usuario)
+
+                if id_entrenador_evaluar:
+                    # Llamada a tu función cacheada (ahorra peticiones y acelera el panel)
+                    ids_autorizados_rep = obtener_atletas_asignados_cache(id_entrenador_evaluar)
                     
                     if ids_autorizados_rep:
                         resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").in_("id", ids_autorizados_rep).eq("rol", "Nadador").eq("estatus", "Activo").execute()
@@ -79,6 +90,7 @@ def renderizar_tab_reportes(datos_sidebar=None):
                     st.error("❌ Error de sesión: No se detectó ID único de Entrenador.")
 
             elif rol_usuario in ["Head Coach", "Administrador"]:
+                # Head Coach y Administrador visualizan a toda la plantilla de nadadores activos para fines de auditoría
                 resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
                 if resp_sb.data:
                     atletas_pool_rep = resp_sb.data
