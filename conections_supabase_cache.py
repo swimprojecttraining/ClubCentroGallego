@@ -12,36 +12,41 @@ def _get_db():
 # =============================================================================
 @st.cache_data(ttl=3600)
 def obtener_atletas_asignados_cache(id_entrenador):
-  """Retorna la lista de IDs de atletas asignados tolerando tipos str e int."""
+  """Retorna la lista de IDs de atletas asignados usando la conexión de session_state."""
   if id_entrenador is None:
     return []
 
-  # Intentar primero con el ID tal como viene
+  # Recuperar el cliente de Supabase guardado en la sesión
+  client = st.session_state.get("supabase") or getattr(
+      st.session_state, "supabase", None
+  )
+  if not client:
+    return []
+
+  # 1. Intento con el ID tal como llega
   res = (
-      supabase.table("entrenador_atleta")
+      client.table("entrenador_atleta")
       .select("atleta_id")
       .eq("entrenador_id", id_entrenador)
       .execute()
   )
 
-  # Si no trajo datos y es un string numérico, intentar convirtiendo a entero
+  # 2. Reintento con entero si no devolvió registros
   if not res.data and str(id_entrenador).isdigit():
     res = (
-        supabase.table("entrenador_atleta")
+        client.table("entrenador_atleta")
         .select("atleta_id")
         .eq("entrenador_id", int(id_entrenador))
         .execute()
     )
 
   if res.data:
-    # Retorna lista limpia de IDs
     return [
         item["atleta_id"]
         for item in res.data
         if item.get("atleta_id") is not None
     ]
   return []
-
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_bitacora_atleta_cache(atleta_id):
     """Descarga el historial completo de entrenamientos de la bitácora para un atleta de forma individual."""
