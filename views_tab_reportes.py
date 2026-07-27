@@ -29,9 +29,21 @@ def renderizar_tab_reportes(datos_sidebar=None):
   )
 
 # =============================================================================
-  # 1. RESOLUCIÓN DE NÓMINA DESDE CACHÉ
+  # 1. RESOLUCIÓN DE NÓMINA DESDE CACHÉ (BLINDADO CONTRA MUTACIÓN DE SESIÓN)
   # =============================================================================
-  id_usuario_logueado = st.session_state.get("usuario_id")
+  # Captura inmutable del usuario autenticado original
+  user_raw = (
+      st.session_state.get("usuario_logueado_id")
+      or st.session_state.get("usuario_id")
+      or st.session_state.get("user")
+  )
+  
+  # Si el state guardó el objeto/diccionario de usuario completo en lugar de un scalar
+  if isinstance(user_raw, dict):
+      id_usuario_logueado = user_raw.get("id") or user_raw.get("usuario_id")
+  else:
+      id_usuario_logueado = user_raw
+
   rol_real = st.session_state.get(
       "rol_real", st.session_state.get("rol", "Nadador")
   )
@@ -46,24 +58,31 @@ def renderizar_tab_reportes(datos_sidebar=None):
         atletas_pool_rep = [usr]
 
   elif rol_activo == "Entrenador":
-    id_simulado = st.session_state.get("sb_entrenador_simular_selector")
+    # 1. Resolver ID del entrenador de forma aislada
+    if rol_real == "Administrador":
+      id_entrenador_evaluar = st.session_state.get("sb_entrenador_simular_selector")
+    else:
+      # En sesión real de Entrenador, garantizamos usar el ID de la cuenta logueada
+      id_entrenador_evaluar = id_usuario_logueado
 
-    # Si es Administrador emulando usa el ID simulado; si es Entrenador real usa su ID
-    id_entrenador_evaluar = (
-        id_simulado
-        if (rol_real == "Administrador" and id_simulado)
-        else id_usuario_logueado
-    )
-
+    # 2. Consultar asignaciones
     if id_entrenador_evaluar is not None:
-      ids_autorizados = obtener_atletas_asignados_cache(id_entrenador_evaluar)
+      ids_autorizados = obtener_atletas_asignados_cache(id_entrenador_evaluar) or []
 
-      if ids_autorizados:
-        # Normaliza todos los IDs autorizados a string para hacer match perfecto
-        set_ids_str = {str(x) for x in ids_autorizados}
+      # Desempaquetado resiliente de la respuesta de Supabase
+      set_ids_str = set()
+      for item in ids_autorizados:
+        if isinstance(item, dict):
+          val = item.get("atleta_id") or item.get("id") or item.get("usuario_id")
+          if val is not None:
+            set_ids_str.add(str(val))
+        elif item is not None:
+          set_ids_str.add(str(item))
+
+      if set_ids_str:
         todos_nadadores = obtener_nadadores_activos_cache() or []
 
-        # Evaluación resiliente de 'id' o 'usuario_id' para la intersección
+        # Filtrado directo
         atletas_pool_rep = [
             a for a in todos_nadadores
             if str(a.get("id") if a.get("id") is not None else a.get("usuario_id")) in set_ids_str
@@ -75,7 +94,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
   if not atletas_pool_rep:
     st.warning("⚠️ No se detectaron atletas disponibles para generar reportes.")
     return
-
   # =============================================================================
   # 2. SELECTOR LOCAL E INDEPENDIENTE DE ATLETA Y TEMPORALIDAD (UX MÓVIL)
   # =============================================================================
