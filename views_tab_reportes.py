@@ -6,10 +6,13 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import io
 
+
+
+
 def renderizar_tab_reportes(datos_sidebar=None):
     """
     CÓDIGO MODULAR OPTIMIZADO Y BLINDADO (PRODUCCIÓN)
-    Version: 2.0 (Resiliente a esquemas, descarga completa e inmunidad IDOR)
+    Version: 2.1 (Con caché global de entrenadores y bitácoras individuales)
     """
     st.markdown("### 📊 Panel de Control y Análisis de Carga Individual")
     st.caption("Define la ventana temporal y evalúa el volumen biomecánico o modela el rendimiento científico de un atleta específico.")
@@ -48,7 +51,7 @@ def renderizar_tab_reportes(datos_sidebar=None):
     st.markdown("---")
 
     # =============================================================================
-    # 2. RESOLUCIÓN DE NÓMINA SEGURA POR ROL
+    # 2. RESOLUCIÓN DE NÓMINA SEGURA POR ROL (CON CACHÉ DE ASIGNACIONES)
     # =============================================================================
     ctx_supabase_rep = st.session_state.get("supabase")
     atletas_pool_rep = []
@@ -64,8 +67,8 @@ def renderizar_tab_reportes(datos_sidebar=None):
 
             elif rol_usuario == "Entrenador":
                 if id_usuario:
-                    resp_asig_rep = ctx_supabase_rep.table("asignaciones").select("atleta_id").eq("entrenador_id", id_usuario).execute()
-                    ids_autorizados_rep = [reg["atleta_id"] for reg in resp_asig_rep.data] if resp_asig_rep.data else []
+                    # Utiliza la función global cacheada para rescatar asignaciones de forma limpia y eficiente
+                    ids_autorizados_rep = obtener_atletas_asignados_cache(id_usuario)
                     
                     if ids_autorizados_rep:
                         resp_sb = ctx_supabase_rep.table("usuarios").select("id, nombre, email, genero, fecha_nacimiento").in_("id", ids_autorizados_rep).eq("rol", "Nadador").eq("estatus", "Activo").execute()
@@ -81,7 +84,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
                 if resp_sb.data:
                     atletas_pool_rep = resp_sb.data
             else:
-                # [CORRECCIÓN] Cierre explícito de seguridad para roles desconocidos
                 st.error("🔒 Rol no autorizado para visualizar reportes de rendimiento.")
                 return
 
@@ -111,16 +113,20 @@ def renderizar_tab_reportes(datos_sidebar=None):
         st.markdown("---")
         
         # =============================================================================
-        # 3. EXTRACCIÓN Y PREPARACIÓN DE DATOS DEL ATLETA SELECCIONADO
+        # 3. EXTRACCIÓN Y PREPARACIÓN DE DATOS DEL ATLETA SELECCIONADO (USANDO CACHÉ DE BITÁCORA)
         # =============================================================================
         with st.spinner("Compilando históricos de entrenamiento..."):
             try:
-                query_rep = ctx_supabase_rep.table("bitacora_entrenamientos").select("*").eq("atleta_id", atleta_sel_id)
-                if fecha_limite:
-                    query_rep = query_rep.gte("fecha", str(fecha_limite))
+                # Se invoca la función cacheada que trae los registros del atleta de manera independiente
+                records_crudos = obtener_bitacora_atleta_cache(atleta_sel_id)
                 
-                data_historica = query_rep.execute()
-                records = data_historica.data if data_historica else []
+                # Filtrar estrictamente por fecha límite de la ventana si aplica
+                records = []
+                for r in records_crudos:
+                    if r.get("fecha"):
+                        f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
+                        if fecha_limite is None or f_rec >= fecha_limite:
+                            records.append(r)
                 
                 # Filtrar estrictamente hasta el día de hoy
                 records_hasta_hoy = []
@@ -146,14 +152,13 @@ def renderizar_tab_reportes(datos_sidebar=None):
                     else:
                         rango_analisis = rango_fechas_completo
 
-# =============================================================================
+                    # =============================================================================
                     # SUBTAB 1: DISTRIBUCIÓN Y CARGA DE VOLUMEN ACUMULATIVA (INTEGRAL EN EL TIEMPO)
                     # =============================================================================
                     with subtab_volumen:
                         st.markdown("#### 📈 Diagnóstico de Carga Acumulada y Bloques Fijos")
                         st.caption("Métricas fijas calculadas hacia atrás desde hoy, independientes de la ventana visual seleccionada.")
                         
-                        # 1. CÁLCULO DE BLOQUES TEMPORALES SOLICITADOS (HACIA ATRÁS DESDE HOY)
                         hoy_date = datetime.date.today()
                         def calcular_volumen_bloque(dias_bloque):
                             limite_bloque = hoy_date - datetime.timedelta(days=dias_bloque)
@@ -167,7 +172,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         vol_42d = calcular_volumen_bloque(42)
                         vol_90d = calcular_volumen_bloque(90)
                         
-                        # Panel de control de metros absolutos
                         c_b1, c_b2, c_b3, c_b4 = st.columns(4)
                         with c_b1: st.metric(label="📆 Últimos 7 días", value=f"{vol_7d:,} m")
                         with c_b2: st.metric(label="📅 Últimos 30 días", value=f"{vol_30d:,} m")
@@ -178,7 +182,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         st.markdown("#### 🏊‍♂️ Áreas Acumulativas de Carga (Análisis de Pendientes)")
                         st.caption("La inclinación de la curva representa la tasa de carga. Una meseta horizontal (pendiente = 0) indica ausencia de entrenamiento.")
 
-                        # 2. PREPARACIÓN DE LA MATRIZ DIARIA BASE
                         estilos_lista = ["Libre", "Espalda", "Pecho", "Mariposa", "Combinado", "Otros"]
                         intensidades_lista = ["Aeróbico Ligero", "Aeróbico Medio", "Umbral", "Anaeróbico"]
                         columnas_vol = ["Fecha"] + estilos_lista + intensidades_lista + ["Total Día"]
@@ -213,21 +216,18 @@ def renderizar_tab_reportes(datos_sidebar=None):
                             
                         df_vol_diario = pd.DataFrame(matriz_volumen).sort_values("Fecha").reset_index(drop=True)
                         
-                        # 3. TRANSFORMACIÓN INTEGRAL: CALCULAR SUMAS ACUMULATIVAS (CUMSUM)
                         df_vol_acum = df_vol_diario.copy()
                         for est in estilos_lista:
                             df_vol_acum[est] = df_vol_acum[est].cumsum()
                         for inten in intensidades_lista:
                             df_vol_acum[inten] = df_vol_acum[inten].cumsum()
                         
-                        # --- GRÁFICO 1: ACUMULADO POR ESTILOS ---
+                        # Gráfico 1: Estilos
                         fig_est, ax_est = plt.subplots(figsize=(8.5, 3.2))
                         ax_est.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
                         ax_est.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(df_vol_acum) // 6)))
-                        
                         y_estilos_acum = [df_vol_acum[est].values for est in estilos_lista]
                         colores_estilos = ["#2ecc71", "#3498db", "#9b59b6", "#e67e22", "#f1c40f", "#95a5a6"]
-                        
                         ax_est.stackplot(df_vol_acum["Fecha"], *y_estilos_acum, labels=estilos_lista, colors=colores_estilos, alpha=0.80)
                         ax_est.set_ylabel("Metros Acumulados", fontsize=8)
                         ax_est.set_title("Evolución Integral del Volumen por Estilo", fontsize=9, fontweight='bold')
@@ -237,15 +237,12 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         plt.tight_layout()
                         st.pyplot(fig_est)
                         
-                        # --- GRÁFICO 2: ACUMULADO POR INTENSIDADES ---
+                        # Gráfico 2: Intensidades
                         fig_int, ax_int = plt.subplots(figsize=(8.5, 3.2))
                         ax_int.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
                         ax_int.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(df_vol_acum) // 6)))
-                        
                         y_intensidades_acum = [df_vol_acum[inten].values for inten in intensidades_lista]
-                        # Semáforo fisiológico de carga: verde (suave) a rojo (anaeróbico)
                         colores_intensidades = ["#27ae60", "#f1c40f", "#e67e22", "#c0392b"] 
-                        
                         ax_int.stackplot(df_vol_acum["Fecha"], *y_intensidades_acum, labels=intensidades_lista, colors=colores_intensidades, alpha=0.80)
                         ax_int.set_ylabel("Metros Acumulados", fontsize=8)
                         ax_int.set_title("Evolución Integral del Volumen por Zona de Intensidad", fontsize=9, fontweight='bold')
@@ -255,12 +252,10 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         plt.tight_layout()
                         st.pyplot(fig_int)
 
-                        # Guardar Gráficos combinados en buffer
                         buf_png_vol = io.BytesIO()
                         fig_est.savefig(buf_png_vol, format="png", dpi=300)
                         st.download_button("🖼️ Guardar Tendencia de Estilos (PNG)", data=buf_png_vol.getvalue(), file_name=f"acumulado_estilos_{nombre_atleta_safename}.png", mime="image/png")
 
-                        # 4. MATRIZ DE AUDITORÍA DIARIA (Mantiene la transparencia de los datos crudos)
                         st.markdown("##### 📋 Matriz de Auditoría de Volúmenes Diarios")
                         df_tabla_vol = df_vol_diario.copy()
                         fila_totales_vol = {"Fecha": "TOTAL ACUMULADO"}
@@ -271,12 +266,11 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         df_tabla_vol = pd.concat([df_tabla_vol, pd.DataFrame([fila_totales_vol])], ignore_index=True)
                         st.write(df_tabla_vol.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                         
-                        # Exportaciones analíticas estándar
                         csv_unificado_data = df_tabla_vol.to_csv(index=False).encode('utf-8')
                         st.download_button(label="📥 Descargar Historial de Auditoría (CSV)", data=csv_unificado_data, file_name=f"auditoria_volumen_{nombre_atleta_safename}.csv", mime="text/csv", use_container_width=True)
 
-# =============================================================================
-                    # SUBTAB 2: ANÁLISIS CIENTÍFICO INDIVIDUAL (TRIMP EXPONENCIAL - ADIMENSIONAL)
+                    # =============================================================================
+                    # SUBTAB 2: ANÁLISIS CIENTÍFICO INDIVIDUAL (TRIMP EXPONENCIAL)
                     # =============================================================================
                     with subtab_fisiologico:
                         st.markdown("### 📈 Modelo Fisiológico TRIMP Exponencial (Adimensional)")
@@ -285,12 +279,8 @@ def renderizar_tab_reportes(datos_sidebar=None):
                             st.markdown("**Fórmula del Impulso de Entrenamiento de Alta Intensidad:**")
                             st.latex(r"\text{Carga Diaria (AU)} = \text{Volumen (Km)} \times e^{0.218 \times \text{RPE}}")
                             st.latex(r"\text{TSB \%}_t = \left( \frac{\text{CTL}_t - \text{ATL}_t}{\max(\text{CTL}_t, \text{ATL}_t)} \right) \cdot 100")
-                            st.caption("Nota: El factor exponencial 0.218 penaliza severamente las sesiones de alto RPE, emulando la curva de acumulación de lactato en sangre.")
 
-                        # Inicializar mapa de carga diaria adimensional (AU)
                         carga_diaria_au = {f: 0.0 for f in rango_analisis}
-                        
-                        # Mapeo interno de RPE equivalente por zona (en caso de que falte el RPE global)
                         mapeo_rpe_zonas = {
                             "Aeróbico Ligero": 3.5,
                             "Aeróbico Medio": 5.5,
@@ -302,19 +292,16 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         for r in records_hasta_hoy:
                             f_rec = datetime.datetime.strptime(r["fecha"], "%Y-%m-%d").date() if isinstance(r["fecha"], str) else r["fecha"]
                             if f_rec in carga_diaria_au:
-                                # 1. Intentar capturar el RPE de la pizarra consolidada
                                 rpe_global = r.get("rpe") or r.get("factor_exigencia")
                                 
                                 if rpe_global and float(rpe_global) > 0:
-                                    # Conversión directa: Volumen en Km * e^(0.218 * RPE)
                                     vol_km = r.get("metros_totales", 0) / 1000.0
                                     carga_sesion = vol_km * np.exp(0.218 * float(rpe_global))
                                 else:
-                                    # 2. Fallback: Si no hay RPE global, calculamos de forma ponderada por metros en cada zona
                                     carga_sesion = 0.0
                                     int_dict = r.get("desglose_intensity") or r.get("desglose_intensidad") or {}
                                     for k_int, m_int in int_dict.items():
-                                        rpe_zona = 3.5 # Defecto base
+                                        rpe_zona = 3.5 
                                         for key_map, val_rpe in mapeo_rpe_zonas.items():
                                             if key_map in k_int:
                                                 rpe_zona = val_rpe
@@ -322,24 +309,20 @@ def renderizar_tab_reportes(datos_sidebar=None):
                                         vol_zona_km = m_int / 1000.0
                                         carga_sesion += vol_zona_km * np.exp(0.218 * rpe_zona)
                                     
-                                    # 3. Salvaguarda absoluta si el registro está completamente vacío
                                     if not int_dict and r.get("metros_totales", 0) > 0:
                                         vol_km = r.get("metros_totales", 0) / 1000.0
-                                        carga_sesion = vol_km * np.exp(0.218 * 5.0) # Asume un RPE 5 moderado
+                                        carga_sesion = vol_km * np.exp(0.218 * 5.0)
                                 
                                 carga_diaria_au[f_rec] += carga_sesion
                         
-                        # Construcción del DataFrame Fisiológico
                         df_cargas = pd.DataFrame([{"Fecha": f, "Carga_AU": carga_diaria_au[f]} for f in rango_analisis])
                         df_cargas["Fecha"] = pd.to_datetime(df_cargas["Fecha"])
                         df_cargas = df_cargas.sort_values("Fecha").reset_index(drop=True)
                         
-                        # Filtros Exponenciales EWM para CTL (42 días) y ATL (7 días)
                         df_cargas["CTL"] = df_cargas["Carga_AU"].ewm(span=42, adjust=False).mean()
                         df_cargas["ATL"] = df_cargas["Carga_AU"].ewm(span=7, adjust=False).mean()
                         df_cargas["TSB"] = df_cargas["CTL"] - df_cargas["ATL"]
                         
-                        # Normalización del TSB% contra el máximo metabólico alcanzado
                         max_denominador = np.maximum(df_cargas["CTL"], df_cargas["ATL"])
                         df_cargas["TSB_Pct"] = ((df_cargas["TSB"] / max_denominador) * 100).fillna(0.0)
                         
@@ -347,7 +330,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         val_ctl, val_atl, val_tsb = round(float(ultima_fila["CTL"]), 1), round(float(ultima_fila["ATL"]), 1), round(float(ultima_fila["TSB"]), 1)
                         pct_tsb = round(float(ultima_fila["TSB_Pct"]), 1)
                         
-                        # Semáforo de Control Fisiológico por Porcentaje
                         if pct_tsb <= -35.0: estado_forma = f"🔴 Fatiga Severa / Alerta Lesión ({pct_tsb}%)"
                         elif -35.0 < pct_tsb < -10.0: estado_forma = f"⚠️ Fase Inmunológica / Sobrecarga ({pct_tsb}%)"
                         elif -10.0 <= pct_tsb <= 10.0: estado_forma = f"🟡 Balance de Adaptación Óptima ({pct_tsb}%)"
@@ -359,7 +341,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         with c_m2: st.metric("🔥 Fatiga (ATL)", value=f"{val_atl} AU")
                         with c_m3: st.metric("🎯 Balance Fisiológico", value=f"{val_tsb} AU", delta=estado_forma)
                         
-                        # --- GENERACIÓN DEL PLOT LINEAL COMPRIMIDO ---
                         fig_ban, ax1 = plt.subplots(figsize=(8.5, 3.8))
                         
                         ax1.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
@@ -377,9 +358,8 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         ax1.set_ylabel("Métricas de Carga (Escala Lineal AU)", color="#1f77b4", fontsize=8)
                         ax1.tick_params(axis='y', labelcolor="#1f77b4", labelsize=7)
                         ax1.tick_params(axis='x', labelsize=7, rotation=35)
-                        ax1.grid(True, linestyle=":", alpha=0.3) # Rejilla limpia gracias a la escala lineal
+                        ax1.grid(True, linestyle=":", alpha=0.3)
                         
-                        # Eje derecho para el porcentaje del índice de balance (TSB %)
                         ax2 = ax1.twinx()
                         l_pct = ax2.plot(df_cargas["Fecha"], df_cargas["TSB_Pct"], label="Índice TSB (%)", color="#2c3e50", linewidth=1.8)
                         
@@ -398,12 +378,10 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         plt.tight_layout()
                         st.pyplot(fig_ban)
                         
-                        # Guardar gráfico de Bannister
                         buf_png_ban = io.BytesIO()
                         fig_ban.savefig(buf_png_ban, format="png", dpi=300)
                         st.download_button("🖼️ Guardar Perfil Fisiológico (PNG)", data=buf_png_ban.getvalue(), file_name=f"fisiologico_{nombre_atleta_safename}.png", mime="image/png")
 
-                        # Tabla de reporte de Bannister
                         st.markdown("##### 📋 Tabla de Valores Diarios y Métricas de Estado")
                         df_tabla_ban = df_cargas.copy()
                         df_tabla_ban["Fecha"] = df_tabla_ban["Fecha"].dt.strftime("%Y-%m-%d")
@@ -419,7 +397,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
                         ]
                         st.write(df_tabla_ban.to_html(index=False, classes="tabla-estilizada"), unsafe_allow_html=True)
                         
-                        # Exportación de datos fisiológicos
                         csv_ban_data = df_tabla_ban.to_csv(index=False).encode('utf-8')
                         txt_ban_data = df_tabla_ban.to_string(index=False).encode('utf-8')
                         
