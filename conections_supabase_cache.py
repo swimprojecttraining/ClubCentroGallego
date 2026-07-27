@@ -10,18 +10,28 @@ def _get_db():
 # =============================================================================
 # FUNCIONES GLOBALMENTE CACHADAS (OPTIMIZACIÓN DE SUPABASE)
 # =============================================================================
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def obtener_atletas_asignados_cache(entrenador_id):
-    """Obtiene los IDs de los atletas asignados a un entrenador específico."""
-    supabase = st.session_state.get("supabase")
-    if not supabase or not entrenador_id: 
-        return []
-    try:
-        ent_id_int = int(entrenador_id)
-        resp = supabase.table("asignaciones").select("atleta_id").eq("entrenador_id", ent_id_int).eq("activo", True).execute()
-        return [reg["atleta_id"] for reg in resp.data if "atleta_id" in reg] if resp.data else []
-    except: 
-        return []
+  """Obtiene los IDs de los atletas asignados a un entrenador específico."""
+  supabase = _get_db()
+  if not supabase or not entrenador_id:
+    return []
+  try:
+    # Consultamos sin forzar int(), manteniendo el tipo original (UUID, str o int)
+    resp = (
+        supabase.table("asignaciones")
+        .select("atleta_id")
+        .eq("entrenador_id", entrenador_id)
+        .eq("activo", True)
+        .execute()
+    )
+
+    if resp and resp.data:
+      return [reg["atleta_id"] for reg in resp.data if "atleta_id" in reg]
+    return []
+  except Exception as e:
+    print(f"Error en obtener_atletas_asignados_cache: {e}")
+    return []
 
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_bitacora_atleta_cache(atleta_id):
