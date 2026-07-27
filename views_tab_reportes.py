@@ -20,7 +20,7 @@ from conections_supabase_cache import (
 def renderizar_tab_reportes(datos_sidebar=None):
   """CÓDIGO MODULAR OPTIMIZADO Y 100% CACHEADO (PRODUCCIÓN)
 
-  Version: 3.0 (Zero-Direct-Queries a Supabase)
+  Version: 3.1 (Aislamiento de Rol Simulado y Asignaciones)
   """
   st.markdown("### 📊 Panel de Control y Análisis de Carga Individual")
   st.caption(
@@ -28,17 +28,15 @@ def renderizar_tab_reportes(datos_sidebar=None):
       " biomecánico o modelar su rendimiento científico."
   )
 
-# =============================================================================
+  # =============================================================================
   # 1. RESOLUCIÓN DE NÓMINA DESDE CACHÉ (BLINDADO CONTRA MUTACIÓN DE SESIÓN)
   # =============================================================================
-  # Captura inmutable del usuario autenticado original
   user_raw = (
       st.session_state.get("usuario_logueado_id")
       or st.session_state.get("usuario_id")
       or st.session_state.get("user")
   )
   
-  # Si el state guardó el objeto/diccionario de usuario completo en lugar de un scalar
   if isinstance(user_raw, dict):
       id_usuario_logueado = user_raw.get("id") or user_raw.get("usuario_id")
   else:
@@ -58,18 +56,18 @@ def renderizar_tab_reportes(datos_sidebar=None):
         atletas_pool_rep = [usr]
 
   elif rol_activo == "Entrenador":
+    id_entrenador_evaluar = None
+    
     # 1. Resolver ID del entrenador de forma aislada
     if rol_real == "Administrador":
       id_entrenador_evaluar = st.session_state.get("sb_entrenador_simular_selector")
     else:
-      # En sesión real de Entrenador, garantizamos usar el ID de la cuenta logueada
       id_entrenador_evaluar = id_usuario_logueado
 
-    # 2. Consultar asignaciones
+    # 2. Consultar asignaciones solo si existe un ID de entrenador válido
     if id_entrenador_evaluar is not None:
       ids_autorizados = obtener_atletas_asignados_cache(id_entrenador_evaluar) or []
 
-      # Desempaquetado resiliente de la respuesta de Supabase
       set_ids_str = set()
       for item in ids_autorizados:
         if isinstance(item, dict):
@@ -82,7 +80,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
       if set_ids_str:
         todos_nadadores = obtener_nadadores_activos_cache() or []
 
-        # Filtrado directo
         atletas_pool_rep = [
             a for a in todos_nadadores
             if str(a.get("id") if a.get("id") is not None else a.get("usuario_id")) in set_ids_str
@@ -94,10 +91,10 @@ def renderizar_tab_reportes(datos_sidebar=None):
   if not atletas_pool_rep:
     st.warning("⚠️ No se detectaron atletas disponibles para generar reportes.")
     return
+
   # =============================================================================
-  # 2. SELECTOR LOCAL E INDEPENDIENTE DE ATLETA Y TEMPORALIDAD (UX MÓVIL)
+  # 2. SELECTOR LOCAL E INDEPENDIENTE DE ATLETA Y TEMPORALIDAD
   # =============================================================================
-  # Mapeo resiliente que soporta 'id'/'usuario_id' y 'nombre'/'nombre_completo'
   dict_nom_rep = {}
   for a in atletas_pool_rep:
     atleta_id = a.get("id") if a.get("id") is not None else a.get("usuario_id")
@@ -130,15 +127,12 @@ def renderizar_tab_reportes(datos_sidebar=None):
     ventana_sel = st.selectbox(
         "⏳ Ventana Temporal:",
         options=list(opciones_tiempo.keys()),
-        index=3,  # Defecto en 42 días (CTL)
+        index=3,
         key="rep_selectbox_temporalidad",
     )
 
-  # Blindaje Anti-IDOR
   if atleta_sel_id not in dict_nom_rep:
-    st.error(
-        "🔒 Acción denegada: Intento de acceso a un registro no autorizado."
-    )
+    st.error("🔒 Acción denegada: Intento de acceso a un registro no autorizado.")
     st.stop()
 
   dias_atras = opciones_tiempo[ventana_sel]
@@ -158,7 +152,7 @@ def renderizar_tab_reportes(datos_sidebar=None):
   st.markdown("---")
 
   # =============================================================================
-  # 3. EXTRACCIÓN Y PREPARACIÓN DE DATOS (HISTORIAL CACHEADO)
+  # 3. EXTRACCIÓN Y PREPARACIÓN DE DATOS
   # =============================================================================
   with st.spinner("Compilando históricos de entrenamiento..."):
     try:
