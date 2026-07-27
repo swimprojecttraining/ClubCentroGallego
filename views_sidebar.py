@@ -23,7 +23,7 @@ from conections_supabase_cache import (
     obtener_marcas_referencia_cache,
     obtener_nadadores_activos_cache,
     obtener_usuario_por_id_cache,
-    obtener_usuarios_po_rol_cache,
+    obtener_usuarios_por_rol_cache,
 )
 
 
