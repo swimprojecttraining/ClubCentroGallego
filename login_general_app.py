@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import random
 import time
+import os
 # 📦 IMPORTACIÓN DIRECTA DESDE TU LIBRERÍA REAL DE FUNCIONES
 from formulas_lib_funciones import (
     calcular_categoria_competencia,
@@ -14,6 +15,54 @@ from formulas_lib_funciones import (
 import streamlit as st
 from supabase import Client, create_client
 
+
+def aplicar_fondo_pantalla_institucional(
+    nombre_archivo_imagen="Fondo_de_pantalla_Swimprojecttraining",
+):
+  """Lee una imagen desde la raíz del proyecto, la convierte a Base64 e inyecta CSS
+
+  seguro en stApp sin bloquear la capa de clics de los botones de login.
+  """
+  # Verificar que el archivo existe en la raíz
+  if os.path.exists(nombre_archivo_imagen):
+    with open(nombre_archivo_imagen, "rb") as f:
+      data_imagen = f.read()
+    encoded_imagen = base64.b64encode(data_imagen).decode()
+
+    # Determinamos la extensión del archivo para el MIME tipo
+    ext = nombre_archivo_imagen.split(".")[-1].lower()
+    mime_type = "png" if ext == "png" else "jpeg"
+
+    css_fondo = f"""
+        <style>
+        /* Aplicar el fondo exclusivamente a la app principal */
+        .stApp {{
+            background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), url("data:image/{mime_type};base64,{encoded_imagen}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        
+        /* Asegurar que el contenedor del formulario sea opaco y resalte */
+        [data-testid="stForm"] {{
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+        }}
+
+        /* Garantizar que los botones siempre capturen el puntero */
+        button {{
+            pointer-events: auto !important;
+            z-index: 99999 !important;
+        }}
+        </style>
+        """
+    st.markdown(css_fondo, unsafe_allow_html=True)
+  else:
+    # Si la imagen aún no está en el path exacto, no rompe la app
+    pass
 
 # ============================================================
 # ⚙️ CONEXIÓN GLOBAL CACHEADA (A nivel raíz del archivo)
@@ -129,10 +178,12 @@ def login_usuario(user, password, client_db):
 
 def mostrar_pantalla_login():
   """Función principal que renderiza el Login, Certificación por Pre-Alta (OTP) y
-
   Recuperación. Llamada directamente desde root_app.py tras validar el
   handshake.
   """
+  aplicar_fondo_pantalla_institucional(
+      "Fondo_de_pantalla_Swimprojecttraining.png"
+  )
   if "rec_codigo_verificacion" not in st.session_state:
     st.session_state.rec_codigo_verificacion = None
   if "rec_datos_temporales" not in st.session_state:
