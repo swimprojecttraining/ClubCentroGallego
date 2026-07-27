@@ -35,15 +35,24 @@ def obtener_bitacora_atleta_cache(atleta_id):
     except: 
         return []
         
+@st.cache_data(ttl=3600, show_spinner=False)
 def obtener_nadadores_activos_cache():
-    supabase = _get_db()
-    if not supabase: return []
-    try:
-        resp = supabase.table("usuarios").select("id, nombre, genero, fecha_nacimiento").eq("rol", "Nadador").eq("estatus", "Activo").execute()
-        return resp.data if resp.data else []
-    except: return []
-
-@st.cache_data(ttl=300, show_spinner=False)
+  """Obtiene la nómina general de todos los nadadores activos en el sistema."""
+  supabase = _get_db()
+  if not supabase:
+    return []
+  try:
+    resp = (
+        supabase.table("usuarios")
+        .select("id, nombre, email, genero, fecha_nacimiento")
+        .eq("rol", "Nadador")
+        .eq("estatus", "Activo")
+        .execute()
+    )
+    return resp.data if resp.data else []
+  except Exception:
+    return []
+      
 def obtener_marcas_historicas_cache(prueba, usuario_id):
     supabase = _get_db()
     if not supabase: return []
