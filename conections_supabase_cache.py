@@ -179,7 +179,7 @@ def obtener_todo_el_historial_cache(usuario_id):
     except: return []
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def obtener_entrenadores_cache():
+def obtener_usuarios_por_rol_cache(rol="Entrenador"):
   supabase = _get_db()
   if not supabase:
     return []
@@ -187,7 +187,7 @@ def obtener_entrenadores_cache():
     response = (
         supabase.table("usuarios")
         .select("id, nombre, genero, rol, estatus")
-        .eq("rol", "Entrenador")
+        .eq("rol", rol)
         .execute()
     )
     return response.data if response.data else []
