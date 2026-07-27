@@ -12,41 +12,49 @@ def _get_db():
 # =============================================================================
 @st.cache_data(ttl=3600)
 def obtener_atletas_asignados_cache(id_entrenador):
-  """Retorna la lista de IDs de atletas asignados usando la conexión de session_state."""
+  """Retorna los atletas vinculados al entrenador desde la tabla 'asignaciones'."""
   if id_entrenador is None:
     return []
 
-  # Recuperar el cliente de Supabase guardado en la sesión
+  # Cliente Supabase directo de la sesión
   client = st.session_state.get("supabase") or getattr(
       st.session_state, "supabase", None
   )
   if not client:
     return []
 
-  # 1. Intento con el ID tal como llega
-  res = (
-      client.table("entrenador_atleta")
-      .select("atleta_id")
-      .eq("entrenador_id", id_entrenador)
-      .execute()
-  )
-
-  # 2. Reintento con entero si no devolvió registros
-  if not res.data and str(id_entrenador).isdigit():
+  try:
+    # 1. Consulta a la tabla correcta 'asignaciones'
     res = (
-        client.table("entrenador_atleta")
+        client.table("asignaciones")
         .select("atleta_id")
-        .eq("entrenador_id", int(id_entrenador))
+        .eq("entrenador_id", id_entrenador)
+        .eq("activo", True)
         .execute()
     )
 
-  if res.data:
-    return [
-        item["atleta_id"]
-        for item in res.data
-        if item.get("atleta_id") is not None
-    ]
+    # 2. Reintento convirtiendo a int si el id vino como texto y no trajo registros
+    if not res.data and str(id_entrenador).isdigit():
+      res = (
+          client.table("asignaciones")
+          .select("atleta_id")
+          .eq("entrenador_id", int(id_entrenador))
+          .eq("activo", True)
+          .execute()
+      )
+
+    if res.data:
+      return [
+          item["atleta_id"]
+          for item in res.data
+          if item.get("atleta_id") is not None
+      ]
+
+  except Exception as e:
+    st.error(f"Error consultando tabla asignaciones: {e}")
+
   return []
+    
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_bitacora_atleta_cache(atleta_id):
     """Descarga el historial completo de entrenamientos de la bitácora para un atleta de forma individual."""
