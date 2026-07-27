@@ -28,8 +28,8 @@ def renderizar_tab_reportes(datos_sidebar=None):
       " biomecánico o modelar su rendimiento científico."
   )
 
-  # =============================================================================
-  # 1. RESOLUCIÓN DE NÓMINA DESDE CACHÉ (SIN CONSULTAS DIRECTAS A SUPABASE)
+# =============================================================================
+  # 1. RESOLUCIÓN DE NÓMINA DESDE CACHÉ
   # =============================================================================
   id_usuario_logueado = st.session_state.get("usuario_id")
   rol_real = st.session_state.get(
@@ -38,12 +38,8 @@ def renderizar_tab_reportes(datos_sidebar=None):
   rol_activo = st.session_state.get("rol", "Nadador")
 
   atletas_pool_rep = []
-  st.info(
-      f"🔍 DEBUG -> usuario_id: {id_usuario_logueado} | ids_autorizados:"
-      f" {ids_autorizados if 'ids_autorizados' in locals() else 'N/A'}"
-  )
+
   if rol_activo == "Nadador":
-    # Consulta cacheada del perfil individual del usuario
     if id_usuario_logueado:
       usr = obtener_usuario_por_id_cache(id_usuario_logueado)
       if usr:
@@ -51,31 +47,32 @@ def renderizar_tab_reportes(datos_sidebar=None):
 
   elif rol_activo == "Entrenador":
     id_simulado = st.session_state.get("sb_entrenador_simular_selector")
+
+    # Si es Administrador emulando usa el ID simulado; si es Entrenador real usa su ID
     id_entrenador_evaluar = (
         id_simulado
         if (rol_real == "Administrador" and id_simulado)
         else id_usuario_logueado
     )
 
-    if id_entrenador_evaluar:
+    if id_entrenador_evaluar is not None:
       ids_autorizados = obtener_atletas_asignados_cache(id_entrenador_evaluar)
 
       if ids_autorizados:
-        # Convertimos a string para evitar incompatibilidades de tipo (int vs str)
+        # Normaliza todos los IDs autorizados a string para hacer match perfecto
         set_ids_str = {str(x) for x in ids_autorizados}
         todos_nadadores = obtener_nadadores_activos_cache()
+
         atletas_pool_rep = [
-            a for a in todos_nadadores if str(a["id"]) in set_ids_str
+            a for a in todos_nadadores if str(a.get("id")) in set_ids_str
         ]
 
   elif rol_activo in ["Head Coach", "Administrador"]:
-    # Trae todos los nadadores activos desde la función cacheada
     atletas_pool_rep = obtener_nadadores_activos_cache()
 
   if not atletas_pool_rep:
     st.warning("⚠️ No se detectaron atletas disponibles para generar reportes.")
     return
-
   # =============================================================================
   # 2. SELECTOR LOCAL E INDEPENDIENTE DE ATLETA Y TEMPORALIDAD (UX MÓVIL)
   # =============================================================================
