@@ -109,16 +109,10 @@ def login_usuario(user, password, client_db):
     if response.data:
       user_data = response.data[0]
 
-      if user_data.get("estatus") == "Pendiente":
+      if user_data.get("estatus") == "Inactivo":
         st.error(
-            "⚠️ Tu cuenta está en proceso de revisión por la administración. Aún"
-            " no puedes ingresar."
-        )
-        return False
-
-      if user_data.get("estatus", "Activo") in ["Suspendido", "Bloqueado"]:
-        st.error(
-            f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica."
+            "⚠️  Aún no puedes ingresar."
+            "Debes contactar con la administración."
         )
         return False
 
@@ -130,6 +124,7 @@ def login_usuario(user, password, client_db):
       # --- VARIABLES GENERALES PARA CUALQUIER ROL ---
       st.session_state.autenticado = True
       st.session_state.usuario_id = user_data["id"]
+      st.session_state.usuario_logueado = user_data["id"]
       st.session_state.nombre_usuario = user_data["nombre"]
       st.session_state.nombre_nadador = user_data["nombre"]
       st.session_state.genero = user_data.get("genero", "M")
@@ -238,7 +233,7 @@ def mostrar_pantalla_login():
       with tab_login:
         st.caption("Nota: Los nombres de usuario se procesan en minúsculas.")
         with st.form("form_login"):
-          usuario_input = st.text_input("Usuario o Correo:")
+          usuario_input = st.text_input("Usuario:")
           usuario_lower = usuario_input.lower()
           contrasena_input = st.text_input("Contraseña:", type="password")
 
