@@ -5,7 +5,6 @@ import hashlib
 import base64
 import os
 import sys
-import streamlit.components.v1 as components
 
 # **********************************************************************************
 # 1. CONFIGURACIÓN ÚNICA DE LA PÁGINA
@@ -82,7 +81,7 @@ def validar_token_handshake(token_b64, secret_key_local):
         # 2. Comprobar expiración estricta (Máximo 30 segundos)
         tiempo_transcurrido = time.time() - int(timestamp_str)
         if tiempo_transcurrido > 30 or tiempo_transcurrido < -5:
-            return False, f"El ticket digital de acceso ha expirado. (Transcurrido: {int(tiempo_transcurrido)}s) Debe ingresar por la puerta principal de la aplicación"
+            return False, f"El ticket digital de acceso ha expirado. (Transcurrido: {int(tiempo_transcurrido)}s)"
             
         # 3. Re-calcular firma con la clave local exacta
         # Forzamos un strip() para eliminar espacios invisibles que puedan venir de la BD o los Secrets
@@ -116,97 +115,18 @@ params = st.query_params
 token_url = params.get("auth")
 
 if not st.session_state["puente_validado"]:
-
-  # 1. Si entran sin token por la URL
-  if token_url is None or token_url == "":
-    st.query_params.clear()
-
-    # Tarjeta estática de aviso
-    st.markdown(
-        """
-            <div style="
-                background-color: #ffebe9;
-                border: 1px solid #ffc1c0;
-                color: #cf222e;
-                padding: 24px;
-                border-radius: 12px;
-                font-weight: 500;
-                font-size: 15px;
-                margin: 30px auto 15px auto;
-                max-width: 550px;
-                text-align: center;
-                box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
-            ">
-                <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
-                    🔒 Acceso Denegado
-                </div>
-                <div>
-                    No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.
-                </div>
-            </div>
-            """,
-        unsafe_allow_html=True,
-    )
-
-    # Botón nativo de Streamlit alineado al centro
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-      st.link_button(
-          "🏠 Volver al Hub Central",
-          "https://swimming-pro.streamlit.app",
-          use_container_width=True,
-      )
-
-    st.stop()
-
-  # 2. Validar el token si viene en la URL
-  es_valido, resultado_o_error = validar_token_handshake(
-      token_url, SECRET_EXCLUSIVO_LOCAL
-  )
-
-  # 3. Si el token expiró o la firma es inválida
-  if not es_valido:
-    st.query_params.clear()
-
-    st.markdown(
-        f"""
-            <div style="
-                background-color: #ffebe9;
-                border: 1px solid #ffc1c0;
-                color: #cf222e;
-                padding: 24px;
-                border-radius: 12px;
-                font-weight: 500;
-                font-size: 15px;
-                margin: 30px auto 15px auto;
-                max-width: 550px;
-                text-align: center;
-                box-shadow: 0px 4px 12px rgba(0,0,0,0.08);
-            ">
-                <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">
-                    🔒 Acceso Denegado
-                </div>
-                <div>
-                    {resultado_o_error}
-                </div>
-            </div>
-            """,
-        unsafe_allow_html=True,
-    )
-
-    # Botón nativo de Streamlit alineado al centro
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-      st.link_button(
-          "🏠 Volver al Hub Central",
-          "https://swimming-pro.streamlit.app",
-          use_container_width=True,
-      )
-
-    st.stop()
-
-  # Si la validación pasa correctamente
-  st.session_state["puente_validado"] = True
+    if token_url is None or token_url == "":
+        st.error("🔒 **Acceso Denegado:** No está autorizado a entrar directamente a este nodo. Debe iniciar sesión a través del Hub Central.")
+        st.stop()
+        
+    es_valido, resultado_o_error = validar_token_handshake(token_url, SECRET_EXCLUSIVO_LOCAL)
+    
+    if not es_valido:
+        st.error(f"🔒 **Acceso Denegado:** {resultado_o_error}")
+        st.stop()
+        
+    # Si todo coincide perfectamente:
+    st.session_state["puente_validado"] = True
 
 # =============================================================================
 # 🔑 ENTORNO OPERATIVO DEL CLUB (EJECUCIÓN DIRECTA POST-HANDSHAKE)

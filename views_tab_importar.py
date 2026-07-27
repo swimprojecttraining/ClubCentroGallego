@@ -115,25 +115,6 @@ def guardar_en_bd(df_procesado, nombre_competencia):
 
 
 def renderizar_tab_importar():
-  # 1. Obtener el rol actual (soporta emulación de roles)
-  rol_actual = st.session_state.get("rol")
-
-  # 2. Definir los roles autorizados para la carga masiva
-  ROLES_PERMITIDOS_IMPORTACION = ["Head Coach", "Administrador"]
-
-  # 3. Bloqueo de seguridad
-  if rol_actual not in ROLES_PERMITIDOS_IMPORTACION:
-    st.error("🔒 **Acceso Restringido**")
-    st.warning(
-        "El módulo de importación masiva de datos está reservado exclusivamente"
-        " para la Dirección Técnica (Head Coach) y Administradores para prevenir"
-        " inconsistencias en la base de datos."
-    )
-    st.info(
-        "Si necesitas cargar marcas o atletas en lote, por favor contacta al"
-        " Head Coach o a la Junta Directiva."
-    )
-    return  # Corta la ejecución del resto de la pantalla
     st.markdown("### 📥 Importación de Competencias (HY3 / Lenex)")
     # 1. Actualizado para aceptar nuevos formatos
     archivo_subido = st.file_uploader("Selecciona el archivo (.hy3, .lxf, .len, .xml)", type=['hy3', 'txt', 'lxf', 'len', 'xml'])
