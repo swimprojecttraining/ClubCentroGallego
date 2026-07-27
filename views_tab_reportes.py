@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import io
 
+from conections_supabase_cache obtener_atletas_asignados_cache
+
 def renderizar_tab_reportes(datos_sidebar=None):
     """
     CÓDIGO MODULAR OPTIMIZADO Y BLINDADO (PRODUCCIÓN)
