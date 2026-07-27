@@ -17,7 +17,7 @@ from supabase import Client, create_client
 
 
 def aplicar_fondo_pantalla_institucional(
-    nombre_archivo_imagen="Fondo_de_pantalla_Swimprojecttraining",
+    nombre_archivo_imagen="Fondo_de_pantalla_Swimprojecttraining.png",
 ):
   """Lee una imagen desde la raíz del proyecto, la convierte a Base64 e inyecta CSS
 
