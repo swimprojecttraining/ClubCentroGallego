@@ -10,10 +10,10 @@ import streamlit as st
 # IMPORTACIÓN CENTRALIZADA DE CACHÉ
 # =============================================================================
 from conections_supabase_cache import (
-    obtener_atletas_asignados_cache,
-    obtener_bitacora_atleta_cache,
-    obtener_nadadores_activos_cache,
-    obtener_usuario_por_id_cache,
+  obtener_atletas_asignados_cache,
+  obtener_bitacora_atleta_cache,
+  obtener_nadadores_activos_cache,
+  obtener_usuario_por_id_cache,
 )
 
 
@@ -39,35 +39,35 @@ def renderizar_tab_reportes(datos_sidebar=None):
 
   atletas_pool_rep = []
 
-    if rol_activo == "Nadador":
-        # Consulta cacheada del perfil individual del usuario
-        if id_usuario_logueado:
-            usr = obtener_usuario_por_id_cache(id_usuario_logueado)
-            if usr:
-                atletas_pool_rep = [usr]
-    
-    elif rol_activo == "Entrenador":
-        id_simulado = st.session_state.get("sb_entrenador_simular_selector")
-        id_entrenador_evaluar = (
-            id_simulado
-            if (rol_real == "Administrador" and id_simulado)
-            else id_usuario_logueado
-        )
-    
-        if id_entrenador_evaluar:
-            ids_autorizados = obtener_atletas_asignados_cache(id_entrenador_evaluar)
-    
-            if ids_autorizados:
-                # Convertimos a string para evitar incompatibilidades de tipo (int vs str)
-                set_ids_str = {str(x) for x in ids_autorizados}
-                todos_nadadores = obtener_nadadores_activos_cache()
-                atletas_pool_rep = [
-                    a for a in todos_nadadores if str(a["id"]) in set_ids_str
-                ]
-    
-    elif rol_activo in ["Head Coach", "Administrador"]:
-        # Trae todos los nadadores activos desde la función cacheada
-        atletas_pool_rep = obtener_nadadores_activos_cache()
+  if rol_activo == "Nadador":
+    # Consulta cacheada del perfil individual del usuario
+    if id_usuario_logueado:
+      usr = obtener_usuario_por_id_cache(id_usuario_logueado)
+      if usr:
+        atletas_pool_rep = [usr]
+
+  elif rol_activo == "Entrenador":
+    id_simulado = st.session_state.get("sb_entrenador_simular_selector")
+    id_entrenador_evaluar = (
+        id_simulado
+        if (rol_real == "Administrador" and id_simulado)
+        else id_usuario_logueado
+    )
+
+    if id_entrenador_evaluar:
+      ids_autorizados = obtener_atletas_asignados_cache(id_entrenador_evaluar)
+
+      if ids_autorizados:
+        # Convertimos a string para evitar incompatibilidades de tipo (int vs str)
+        set_ids_str = {str(x) for x in ids_autorizados}
+        todos_nadadores = obtener_nadadores_activos_cache()
+        atletas_pool_rep = [
+            a for a in todos_nadadores if str(a["id"]) in set_ids_str
+        ]
+
+  elif rol_activo in ["Head Coach", "Administrador"]:
+    # Trae todos los nadadores activos desde la función cacheada
+    atletas_pool_rep = obtener_nadadores_activos_cache()
 
   if not atletas_pool_rep:
     st.warning("⚠️ No se detectaron atletas disponibles para generar reportes.")
