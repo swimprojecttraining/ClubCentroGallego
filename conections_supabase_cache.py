@@ -177,3 +177,19 @@ def obtener_todo_el_historial_cache(usuario_id):
         res = supabase.table("marcas_historicas").select("id, prueba, edad, tiempo, nota").eq("usuario_id", usuario_id).order("edad", desc=False).execute()
         return res.data if res.data else []
     except: return []
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def obtener_entrenadores_cache():
+  supabase = _get_db()
+  if not supabase:
+    return []
+  try:
+    response = (
+        supabase.table("usuarios")
+        .select("id, nombre, genero, rol, estatus")
+        .eq("rol", "Entrenador")
+        .execute()
+    )
+    return response.data if response.data else []
+  except Exception:
+    return []
