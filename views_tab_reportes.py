@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import io
 
-
+from conections_supabase_cache import obtener_atletas_asignados_cache, obtener_bitacora_atleta_cache
 
 
 def renderizar_tab_reportes(datos_sidebar=None):
