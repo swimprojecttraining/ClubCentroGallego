@@ -205,7 +205,7 @@ def renderizar_sidebar_completo():
     spc()
     st.sidebar.subheader("🎯 Panel de Entrenador")
     try:
-      id_entrenador_evaluar = st.session_state.get("usuario_id")
+      id_entrenador_evaluar = st.session_state.get("usuario_logueado_id")
 
       # SI ES ADMINISTRADOR EMULANDO A ENTRENADOR: MUESTRA SELECTOR DE ENTRENADORES
       if rol_real == "Administrador":
