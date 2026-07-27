@@ -38,7 +38,10 @@ def renderizar_tab_reportes(datos_sidebar=None):
   rol_activo = st.session_state.get("rol", "Nadador")
 
   atletas_pool_rep = []
-
+  st.info(
+      f"🔍 DEBUG -> usuario_id: {id_usuario_logueado} | ids_autorizados:"
+      f" {ids_autorizados if 'ids_autorizados' in locals() else 'N/A'}"
+  )
   if rol_activo == "Nadador":
     # Consulta cacheada del perfil individual del usuario
     if id_usuario_logueado:
