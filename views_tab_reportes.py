@@ -61,22 +61,32 @@ def renderizar_tab_reportes(datos_sidebar=None):
       if ids_autorizados:
         # Normaliza todos los IDs autorizados a string para hacer match perfecto
         set_ids_str = {str(x) for x in ids_autorizados}
-        todos_nadadores = obtener_nadadores_activos_cache()
+        todos_nadadores = obtener_nadadores_activos_cache() or []
 
+        # Evaluación resiliente de 'id' o 'usuario_id' para la intersección
         atletas_pool_rep = [
-            a for a in todos_nadadores if str(a.get("id")) in set_ids_str
+            a for a in todos_nadadores
+            if str(a.get("id") if a.get("id") is not None else a.get("usuario_id")) in set_ids_str
         ]
 
   elif rol_activo in ["Head Coach", "Administrador"]:
-    atletas_pool_rep = obtener_nadadores_activos_cache()
+    atletas_pool_rep = obtener_nadadores_activos_cache() or []
 
   if not atletas_pool_rep:
     st.warning("⚠️ No se detectaron atletas disponibles para generar reportes.")
     return
+
   # =============================================================================
   # 2. SELECTOR LOCAL E INDEPENDIENTE DE ATLETA Y TEMPORALIDAD (UX MÓVIL)
   # =============================================================================
-  dict_nom_rep = {a["id"]: a["nombre"] for a in atletas_pool_rep}
+  # Mapeo resiliente que soporta 'id'/'usuario_id' y 'nombre'/'nombre_completo'
+  dict_nom_rep = {}
+  for a in atletas_pool_rep:
+    atleta_id = a.get("id") if a.get("id") is not None else a.get("usuario_id")
+    nombre = a.get("nombre") or a.get("nombre_completo") or f"Atleta {atleta_id}"
+    if atleta_id is not None:
+      dict_nom_rep[atleta_id] = nombre
+
   ids_disponibles = list(dict_nom_rep.keys())
 
   col_atleta, col_tiempo = st.columns([1.2, 1])
@@ -88,7 +98,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
         format_func=lambda x: dict_nom_rep.get(x, "Cargando atleta..."),
         key="rep_atleta_local_selector",
     )
-
   with col_tiempo:
     opciones_tiempo = {
         "7 días (Última semana - ATL)": 7,
