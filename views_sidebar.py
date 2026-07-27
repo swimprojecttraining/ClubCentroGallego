@@ -75,49 +75,115 @@ def renderizar_sidebar_completo():
       "Club",
       "Administrador",
   ]
-
+  
   if "rol_real" not in st.session_state:
     st.session_state["rol_real"] = st.session_state.get("rol", "Nadador")
-
+  
   rol_real = st.session_state["rol_real"]
-  nombre_mostrar = st.session_state.get(
-      "nombre_usuario"
-  ) or st.session_state.get("nombre_nadador", "Usuario")
-
+  nombre_mostrar = st.session_state.get("nombre_usuario") or st.session_state.get(
+      "nombre_nadador", "Usuario"
+  )
+  
   st.sidebar.markdown(
       f"**Usuario:** {nombre_mostrar}  \n**Nivel Real:** `{rol_real}`"
   )
-
+  
   if rol_real == "Administrador":
     st.sidebar.markdown(
         "<hr style='margin: 8px 0; border-top: 1px solid #0055ff;'/>",
         unsafe_allow_html=True,
     )
     st.sidebar.caption("🛠️ **Modo Emulación (Administrador)**")
-
+  
     rol_actual_simulado = st.session_state.get("rol", "Administrador")
     idx_defecto = (
         ROLES_OFICIALES.index(rol_actual_simulado)
         if rol_actual_simulado in ROLES_OFICIALES
         else 4
     )
-
+  
     rol_efectivo = st.sidebar.selectbox(
         "Simular vista como:",
         options=ROLES_OFICIALES,
         index=idx_defecto,
         key="selector_emulacion_rol",
     )
-
+  
     if rol_efectivo != st.session_state.get("rol"):
       st.session_state["rol"] = rol_efectivo
       st.rerun()
-
+  
   if st.sidebar.button("🚪 Salir del Sistema"):
     st.session_state.autenticado = False
     st.rerun()
-
+  
   rol_activo = st.session_state.get("rol", "Nadador")
+  
+  # -------------------------------------------------------------
+  # 2. PANEL DE ENTRENADOR Y SELECCIÓN DE ATLETAS
+  # -------------------------------------------------------------
+  if rol_activo == "Entrenador":
+    st.sidebar.markdown("---")
+    st.sidebar.caption("🎯 **Panel de Entrenador**")
+  
+    id_entrenador_evaluar = None
+  
+    # CASO A: Administrador Emulando
+    if rol_real == "Administrador":
+      # Carga lista de usuarios/entrenadores para que el Admin seleccione a quién simular
+      todos_usuarios = obtener_nadadores_activos_cache() or []
+  
+      # Filtrado o mapa de entrenadores disponibles para simular
+      dict_entrenadores = {}
+      for u in todos_usuarios:
+        uid = u.get("id") if u.get("id") is not None else u.get("usuario_id")
+        nom = u.get("nombre") or u.get("nombre_completo") or f"Entrenador {uid}"
+        if uid is not None:
+          dict_entrenadores[uid] = nom
+  
+      if dict_entrenadores:
+        id_entrenador_evaluar = st.sidebar.selectbox(
+            "👨‍🏫 Seleccionar Entrenador a Simular:",
+            options=list(dict_entrenadores.keys()),
+            format_func=lambda x: dict_entrenadores.get(x, "Entrenador"),
+            key="sb_entrenador_simular_selector",
+        )
+  
+    # CASO B: Entrenador Real en su sesión
+    else:
+      # Consume ESTRICTAMENTE la variable inmutable guardada en el Login
+      id_entrenador_evaluar = st.session_state.get("usuario_logueado_id")
+  
+    # -------------------------------------------------------------
+    # 3. CARGA DE ATLETAS ASIGNADOS AL ENTRENADOR EVALUADO
+    # -------------------------------------------------------------
+    if id_entrenador_evaluar:
+      atletas_asignados = (
+          obtener_atletas_asignados_cache(id_entrenador_evaluar) or []
+      )
+  
+      dict_atletas = {}
+      for a in atletas_asignados:
+        aid = a.get("id") if a.get("id") is not None else a.get("usuario_id")
+        nom = a.get("nombre") or a.get("nombre_completo") or f"Atleta {aid}"
+        if aid is not None:
+          dict_atletas[aid] = nom
+  
+      if dict_atletas:
+        atleta_sel_id = st.sidebar.selectbox(
+            "🏊‍♂️ Atletas Asignados:",
+            options=list(dict_atletas.keys()),
+            format_func=lambda x: dict_atletas.get(x, "Atleta"),
+            key="sb_atleta_selector",
+        )
+  
+        # Almacena en la variable aislada del nadador seleccionado
+        st.session_state["nadador_seleccionado_id"] = atleta_sel_id
+        st.session_state["nadador_seleccionado_nombre"] = dict_atletas.get(
+            atleta_sel_id
+        )
+      else:
+        st.sidebar.warning("⚠️ No hay nadadores asignados a este entrenador.")
 
   # -------------------------------------------------------------
   # 2. SALIDA DE DATOS SI EL ROL EMULADO ES "CLUB"
