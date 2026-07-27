@@ -124,7 +124,7 @@ def login_usuario(user, password, client_db):
       # --- VARIABLES GENERALES PARA CUALQUIER ROL ---
       st.session_state.autenticado = True
       st.session_state.usuario_id = user_data["id"]
-      st.session_state.usuario_logueado = user_data["id"]
+      st.session_state.usuario_logueado_id = user_data["id"]
       st.session_state.nombre_usuario = user_data["nombre"]
       st.session_state.nombre_nadador = user_data["nombre"]
       st.session_state.genero = user_data.get("genero", "M")
