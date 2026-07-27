@@ -20,7 +20,6 @@ st.set_page_config(
 
 # --- FUNCIÓN PARA INYECTAR EL FONDO DE PANTALLA ---
 def cargar_fondo_pantalla():
-  # Buscamos la imagen en la misma carpeta donde está este script
   directorio_script = os.path.dirname(os.path.abspath(__file__))
   ruta_imagen = os.path.join(
       directorio_script, "Fondo_de_pantalla_Swimprojecttraining.png"
@@ -33,7 +32,7 @@ def cargar_fondo_pantalla():
     st.markdown(
         f"""
         <style>
-            /* Fondo global en el cuerpo de la aplicación */
+            /* 1. Aplicar fondo directamente al viewport global */
             .stApp {{
                 background-image: url("data:image/png;base64,{encoded_string}");
                 background-size: cover;
@@ -41,13 +40,21 @@ def cargar_fondo_pantalla():
                 background-repeat: no-repeat;
                 background-attachment: fixed;
             }}
-            /* Fondo blanco translúcido en el contenedor principal para no perder legibilidad */
+            
+            /* 2. Tarjeta contenedora blanca sin bloquear puntero */
             div[data-testid="stMainBlockContainer"] {{
-                background-color: rgba(255, 255, 255, 0.92) !important;
+                background-color: rgba(255, 255, 255, 0.95) !important;
                 border-radius: 12px;
                 padding: 2rem !important;
                 margin-top: 1rem;
-                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.05);
+                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.08);
+            }}
+
+            /* 3. FORZAR que todos los botones e inputs reciban el clic del usuario */
+            button, input, select, div[role="button"] {{
+                position: relative !important;
+                z-index: 999999 !important;
+                pointer-events: auto !important;
             }}
         </style>
         """,
@@ -55,7 +62,6 @@ def cargar_fondo_pantalla():
     )
 
 
-# Ejecutamos la carga del fondo
 cargar_fondo_pantalla()
 
 # --- INYECCIÓN DE CSS GLOBAL OPTIMIZADO ---
