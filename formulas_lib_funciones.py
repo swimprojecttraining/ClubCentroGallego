@@ -322,7 +322,7 @@ def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target
             return float(k_opt_eq[0])
             
     # Si llegamos aquí, no se cumplió la condición o no hubo convergencia
-    return none
+    return None
 
 def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
     tiempos = []
