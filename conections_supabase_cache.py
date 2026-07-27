@@ -10,28 +10,37 @@ def _get_db():
 # =============================================================================
 # FUNCIONES GLOBALMENTE CACHADAS (OPTIMIZACIÓN DE SUPABASE)
 # =============================================================================
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_atletas_asignados_cache(entrenador_id):
-  """Obtiene los IDs de los atletas asignados a un entrenador específico."""
-  supabase = _get_db()
-  if not supabase or not entrenador_id:
+@st.cache_data(ttl=3600)
+def obtener_atletas_asignados_cache(id_entrenador):
+  """Retorna la lista de IDs de atletas asignados tolerando tipos str e int."""
+  if id_entrenador is None:
     return []
-  try:
-    # Consultamos sin forzar int(), manteniendo el tipo original (UUID, str o int)
-    resp = (
-        supabase.table("asignaciones")
+
+  # Intentar primero con el ID tal como viene
+  res = (
+      supabase.table("entrenador_atleta")
+      .select("atleta_id")
+      .eq("entrenador_id", id_entrenador)
+      .execute()
+  )
+
+  # Si no trajo datos y es un string numérico, intentar convirtiendo a entero
+  if not res.data and str(id_entrenador).isdigit():
+    res = (
+        supabase.table("entrenador_atleta")
         .select("atleta_id")
-        .eq("entrenador_id", entrenador_id)
-        .eq("activo", True)
+        .eq("entrenador_id", int(id_entrenador))
         .execute()
     )
 
-    if resp and resp.data:
-      return [reg["atleta_id"] for reg in resp.data if "atleta_id" in reg]
-    return []
-  except Exception as e:
-    print(f"Error en obtener_atletas_asignados_cache: {e}")
-    return []
+  if res.data:
+    # Retorna lista limpia de IDs
+    return [
+        item["atleta_id"]
+        for item in res.data
+        if item.get("atleta_id") is not None
+    ]
+  return []
 
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_bitacora_atleta_cache(atleta_id):
