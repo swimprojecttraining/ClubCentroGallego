@@ -29,7 +29,7 @@ def mostrar_vista_enrutador():
 
   # 3. SI EL ROL ES "CLUB", RENDERIZAMOS ÚNICAMENTE LA PESTAÑA DEL CLUB
   if rol_usuario == "Club":
-    tab_club, = st.tabs(["🏛️ Gestión Administrativa"])
+    (tab_club,) = st.tabs(["🏛️ Gestión Administrativa"])
     with tab_club:
       renderizar_tab_club()
 
@@ -66,7 +66,7 @@ def mostrar_vista_enrutador():
         f" {nombre_nadador}"
     )
 
-  # --- CONTINÚA EL RENDERIZADO REGULAR DE LAS 9 PESTAÑAS (Gráficos, Pizarra, etc.) ---
+  # --- CONTINÚA EL RENDERIZADO REGULAR DE LAS PESTAÑAS ---
 
   genero_str = (
       "Masculino (M)"
@@ -80,14 +80,28 @@ def mostrar_vista_enrutador():
   )
   st.markdown("---")
 
-  # Segregación de pestañas según el Modo Simulación
+  # Segregación de pestañas según el Modo Simulación y el Rol
   if simulacion_externa:
     st.info(
         "⚠️ **Modo Simulación Externa Activo.** El módulo de gestión y control"
-        " de marcas se encuentra oculto para evitar alteraciones accidentales"
-        " en la base de datos real."
+        " de marcas se encuentra oculto para evitar alterations en la base de"
+        " datos real."
     )
-    tab_grafico, = st.tabs(["📝 Gráfico de Proyecciones"])
+    (tab_grafico,) = st.tabs(["📝 Gráfico de Proyecciones"])
+  elif rol_usuario in ["Entrenador", "Nadador"]:
+    (
+        tab_grafico,
+        tab_pizarra,
+        tab_reportes,
+        tab_marcas,
+        tab_calendario,
+    ) = st.tabs([
+        "📉 Gráfico de Proyecciones",
+        "📝 Pizarra Diaria",
+        "📊 Reportes de Entrenamiento",
+        "📋 Resultados de competencias",
+        "📅 Calendario Anual de Competencias",
+    ])
   else:
     (
         tab_grafico,
@@ -109,7 +123,7 @@ def mostrar_vista_enrutador():
         "📅 Calendario Anual de Competencias",
     ])
 
-  # Enrutamiento directo a los archivos de la misma carpeta
+  # Enrutamiento directo a los archivos
   with tab_grafico:
     renderizar_tab_grafico(datos_sidebar)
 
@@ -120,15 +134,18 @@ def mostrar_vista_enrutador():
       renderizar_tab_reportes(datos_sidebar)
     with tab_marcas:
       renderizar_tab_marcas(datos_sidebar)
-    with tab_importar:
-      renderizar_tab_importar()
-    with tab_entrenador:
-      renderizar_tab_entrenador()
-    with tab_asignaciones:
-      renderizar_tab_asignaciones()
+
+    # Solo renderizamos los tabs de gestión si no es Entrenador ni Nadador
+    if rol_usuario not in ["Entrenador", "Nadador"]:
+      with tab_importar:
+        renderizar_tab_importar()
+      with tab_entrenador:
+        renderizar_tab_entrenador()
+      with tab_asignaciones:
+        renderizar_tab_asignaciones()
+
     with tab_calendario:
       renderizar_tab_calendario()
-
 
   # 🎨 Espaciado global para evitar el efecto de "contenido apretado"
   st.markdown(
@@ -144,4 +161,3 @@ def mostrar_vista_enrutador():
     """,
       unsafe_allow_html=True,
   )
-
