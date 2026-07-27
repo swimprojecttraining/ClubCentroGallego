@@ -29,62 +29,49 @@ def obtener_cliente_supabase():
         st.secrets["SUPABASE_KEY"]
     )
 
-def login_usuario(user, password, client_db):
-    try:
-        user_lower = user.strip().lower()
-        hashed_pw = hash_password(password)
-        # Consulta exacta a la estructura de tu BD local
-        response = client_db.table("usuarios").select("id, nombre, genero, rol, estatus, fecha_nacimiento").eq("usuario", user_lower).eq("contrasena", hashed_pw).execute()
-        
-        if response.data:
-            user_data = response.data[0]
-            
-            if user_data.get("estatus") == "Pendiente":
-                st.error("⚠️ Tu cuenta está en proceso de revisión por la administración. Aún no puedes ingresar.")
-                return False
-                
-            if user_data.get("estatus", "Activo") in ["Suspendido", "Bloqueado"]:
-                st.error(f"❌ Cuenta {user_data['estatus']}. Contacte a la dirección técnica.")
-                return False
-                
-            # --- VARIABLES GENERALES PARA CUALQUIER ROL ---
-            st.session_state.autenticado = True
-            st.session_state.usuario_id = user_data["id"]
-            st.session_state.nombre_usuario = user_data["nombre"]  # 💡 Genérico para el sistema
-            st.session_state.nombre_nadador = user_data["nombre"]
-            st.session_state.genero = user_data.get("genero", "M")
-            st.session_state.rol = user_data.get("rol", "Nadador")
-            st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
-            
-            # --- SEGREGACIÓN SEGÚN ROL DE USUARIO ---
-            if st.session_state.rol == "Nadador":
-                # Lógica exclusiva para atletas
-                if st.session_state.fecha_nacimiento:
-                    cat, ed_c = calcular_categoria_competencia(st.session_state.fecha_nacimiento)
-                else:
-                    cat, ed_c = "Sin Categoría", 0
-                
-                st.session_state.categoria_atleta = cat
-                st.session_state.edad_comp_atleta = ed_c
-                st.session_state.nadador_seleccionado_id = user_data["id"]
-                st.session_state.nadador_seleccionado_nombre = user_data["nombre"]
-                st.session_state.nadador_seleccionado_genero = user_data.get("genero", "F")
-                st.session_state.nadador_seleccionado_categoria = cat
-            else:
-                # Inicialización limpia para Club / Administrador / Entrenadores / Head Coach
-                st.session_state.categoria_atleta = None
-                st.session_state.edad_comp_atleta = None
-                st.session_state.nadador_seleccionado_id = None
-                st.session_state.nadador_seleccionado_nombre = None
-                st.session_state.nadador_seleccionado_genero = None
-                st.session_state.nadador_seleccionado_categoria = None
+def login_usuario(usuario, contrasena, supabase_client):
+  """Valida credenciales contra Supabase y registra la sesión del usuario
 
-            return True
-        return False
-    except Exception as e:
-        st.error(f"Error en Login: {e}")
-        return False
+  preservando las variables globales del sistema (como puente_validado).
+  """
+  try:
+    # 1. Consulta el usuario en la tabla
+    respuesta = (
+        supabase_client.table("usuarios")
+        .select("*")
+        .eq("usuario", usuario)
+        .execute()
+    )
 
+    if not respuesta.data:
+      return False
+
+    datos_usuario = respuesta.data[0]
+
+    # 2. Verificación de contraseña
+    # (Ajusta la clave 'contrasena' o el método de hashing si usas bcrypt)
+    if datos_usuario.get("contrasena") == contrasena:
+
+      # -------------------------------------------------------------
+      # 3. ASIGNACIÓN DE SESIÓN (Se AÑADEN valores, NO se borra nada)
+      # -------------------------------------------------------------
+      st.session_state["usuario_actual"] = datos_usuario.get("usuario")
+      st.session_state["rol_usuario"] = datos_usuario.get("rol", "entrenador")
+      st.session_state["nombre_usuario"] = datos_usuario.get(
+          "nombre", datos_usuario.get("usuario")
+      )
+      st.session_state["correo_usuario"] = datos_usuario.get("email", "")
+
+      # Marcamos la autenticación
+      st.session_state["autenticado"] = True
+
+      return True
+
+    return False
+
+  except Exception as e:
+    st.error(f"Error en el proceso de autenticación: {e}")
+    return False
 
 def mostrar_pantalla_login():
   """Función principal que renderiza el Login, Certificación por Pre-Alta (OTP) y Recuperación.
