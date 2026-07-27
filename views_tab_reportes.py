@@ -12,14 +12,15 @@ import streamlit as st
 from conections_supabase_cache import (
     obtener_atletas_asignados_cache,
     obtener_bitacora_atleta_cache,
+    obtener_nadadores_activos_cache,
+    obtener_usuario_por_id_cache,
 )
 
 
 def renderizar_tab_reportes(datos_sidebar=None):
-  """CÓDIGO MODULAR OPTIMIZADO Y BLINDADO (PRODUCCIÓN)
+  """CÓDIGO MODULAR OPTIMIZADO Y 100% CACHEADO (PRODUCCIÓN)
 
-  Version: 2.5 (Selector Local Independiente para UX Móvil y Módulo de
-  Simulación Unificado)
+  Version: 3.0 (Zero-Direct-Queries a Supabase)
   """
   st.markdown("### 📊 Panel de Control y Análisis de Carga Individual")
   st.caption(
@@ -27,7 +28,9 @@ def renderizar_tab_reportes(datos_sidebar=None):
       " biomecánico o modelar su rendimiento científico."
   )
 
-  ctx_supabase_rep = st.session_state.get("supabase")
+  # =============================================================================
+  # 1. RESOLUCIÓN DE NÓMINA DESDE CACHÉ (SIN CONSULTAS DIRECTAS A SUPABASE)
+  # =============================================================================
   id_usuario_logueado = st.session_state.get("usuario_id")
   rol_real = st.session_state.get(
       "rol_real", st.session_state.get("rol", "Nadador")
@@ -36,67 +39,36 @@ def renderizar_tab_reportes(datos_sidebar=None):
 
   atletas_pool_rep = []
 
-  # =============================================================================
-  # 1. RESOLUCIÓN DE IDENTIDAD Y OBTENCIÓN DE NÓMINA DE ATLETAS
-  # =============================================================================
-  if ctx_supabase_rep:
-    try:
-      if rol_activo == "Nadador":
-        # Caso Nadador: Se consulta únicamente su perfil
-        if id_usuario_logueado:
-          resp_sb = (
-              ctx_supabase_rep.table("usuarios")
-              .select("id, nombre, email, genero, fecha_nacimiento")
-              .eq("id", id_usuario_logueado)
-              .execute()
-          )
-          if resp_sb.data:
-            atletas_pool_rep = resp_sb.data
+  if rol_activo == "Nadador":
+    # Consulta cacheada del perfil individual del usuario
+    if id_usuario_logueado:
+      usr = obtener_usuario_por_id_cache(id_usuario_logueado)
+      if usr:
+        atletas_pool_rep = [usr]
 
-      elif rol_activo == "Entrenador":
-        # --- VERIFICACIÓN DE SIMULACIÓN VS SESIÓN REAL ---
-        id_simulado = st.session_state.get("sb_entrenador_simular_selector")
+  elif rol_activo == "Entrenador":
+    # --- EVALUACIÓN DE SIMULACIÓN VS SESIÓN REAL ---
+    id_simulado = st.session_state.get("sb_entrenador_simular_selector")
+    id_entrenador_evaluar = (
+        id_simulado
+        if (rol_real == "Administrador" and id_simulado)
+        else id_usuario_logueado
+    )
 
-        if rol_real == "Administrador" and id_simulado:
-          # Hay simulación: tomamos el ID del entrenador simulado
-          id_entrenador_evaluar = id_simulado
-        else:
-          # No hay simulación: usamos el ID verificado de la sesión activa
-          id_entrenador_evaluar = id_usuario_logueado
+    if id_entrenador_evaluar:
+      # 1. IDs asignados desde caché
+      ids_autorizados = obtener_atletas_asignados_cache(id_entrenador_evaluar)
 
-        # Invocación a la caché con el ID resuelto
-        if id_entrenador_evaluar:
-          ids_autorizados_rep = obtener_atletas_asignados_cache(
-              id_entrenador_evaluar
-          )
+      if ids_autorizados:
+        # 2. Cruce en memoria con el listado global cacheado
+        todos_nadadores = obtener_nadadores_activos_cache()
+        atletas_pool_rep = [
+            a for a in todos_nadadores if a["id"] in ids_autorizados
+        ]
 
-          if ids_autorizados_rep:
-            resp_sb = (
-                ctx_supabase_rep.table("usuarios")
-                .select("id, nombre, email, genero, fecha_nacimiento")
-                .in_("id", ids_autorizados_rep)
-                .eq("rol", "Nadador")
-                .eq("estatus", "Activo")
-                .execute()
-            )
-            if resp_sb.data:
-              atletas_pool_rep = resp_sb.data
-
-      elif rol_activo in ["Head Coach", "Administrador"]:
-        # Head Coach y Administrador (sin emular entrenador) acceden a todos los nadadores
-        resp_sb = (
-            ctx_supabase_rep.table("usuarios")
-            .select("id, nombre, email, genero, fecha_nacimiento")
-            .eq("rol", "Nadador")
-            .eq("estatus", "Activo")
-            .execute()
-        )
-        if resp_sb.data:
-          atletas_pool_rep = resp_sb.data
-
-    except Exception as e:
-      st.error(f"Error al cargar la nómina de atletas: {e}")
-      return
+  elif rol_activo in ["Head Coach", "Administrador"]:
+    # Trae todos los nadadores activos desde la función cacheada
+    atletas_pool_rep = obtener_nadadores_activos_cache()
 
   if not atletas_pool_rep:
     st.warning("⚠️ No se detectaron atletas disponibles para generar reportes.")
@@ -111,7 +83,6 @@ def renderizar_tab_reportes(datos_sidebar=None):
   col_atleta, col_tiempo = st.columns([1.2, 1])
 
   with col_atleta:
-    # Selector autocontenido en la vista principal
     atleta_sel_id = st.selectbox(
         "🏊‍♂️ Seleccione el Nadador a Analizar:",
         options=ids_disponibles,
@@ -137,7 +108,7 @@ def renderizar_tab_reportes(datos_sidebar=None):
         key="rep_selectbox_temporalidad",
     )
 
-  # 🛡️ Blindaje Anti-IDOR
+  # Blindaje Anti-IDOR
   if atleta_sel_id not in dict_nom_rep:
     st.error(
         "🔒 Acción denegada: Intento de acceso a un registro no autorizado."
@@ -161,7 +132,7 @@ def renderizar_tab_reportes(datos_sidebar=None):
   st.markdown("---")
 
   # =============================================================================
-  # 3. EXTRACCIÓN Y PREPARACIÓN DE DATOS
+  # 3. EXTRACCIÓN Y PREPARACIÓN DE DATOS (HISTORIAL CACHEADO)
   # =============================================================================
   with st.spinner("Compilando históricos de entrenamiento..."):
     try:
