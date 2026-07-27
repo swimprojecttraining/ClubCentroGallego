@@ -23,6 +23,7 @@ from conections_supabase_cache import (
     obtener_marcas_referencia_cache,
     obtener_nadadores_activos_cache,
     obtener_usuario_por_id_cache,
+    obtener_usuarios_po_rol_cache,
 )
 
 
@@ -165,119 +166,23 @@ def renderizar_sidebar_completo():
         "m_wr": m_wr,
     }
 
-  # -------------------------------------------------------------
-  # 3. PANEL UNIFICADO DE NAVEGACIÓN Y SELECCIÓN DE ATLETAS
-  # -------------------------------------------------------------
-  if rol_activo in ["Head Coach", "Administrador"]:
-    spc()
-    st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
-    try:
-      atletas_disponibles = obtener_nadadores_activos_cache() or []
-      if atletas_disponibles:
-        df_atl = pd.DataFrame(atletas_disponibles)
-        dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
-
-        sel_id = st.sidebar.selectbox(
-            "Monitorear Nadador:",
-            options=list(dict_atletas.keys()),
-            format_func=lambda x: dict_atletas[x],
-            key="sb_atleta_selector",
-        )
-        atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
-
-        st.session_state["nadador_seleccionado_id"] = int(atleta_row["id"])
-        st.session_state["nadador_seleccionado_nombre"] = atleta_row["nombre"]
-        st.session_state["nadador_seleccionado_genero"] = atleta_row.get(
-            "genero", "M"
-        )
-
-        cat_calc, _ = (
-            calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-            if atleta_row.get("fecha_nacimiento")
-            else ("Sin Categoría", 0)
-        )
-        st.session_state["nadador_seleccionado_categoria"] = cat_calc
-      else:
-        st.sidebar.warning("⚠️ No hay nadadores registrados.")
-    except Exception as e:
-      st.error(f"Error cargando atletas: {e}")
-
-  elif rol_activo == "Entrenador":
-    spc()
-    st.sidebar.subheader("🎯 Panel de Entrenador")
-    try:
-      id_entrenador_evaluar = None
-
-      # CASO A: Administrador Emulando
-      if rol_real == "Administrador":
-        todos_usuarios = obtener_nadadores_activos_cache() or []
-        dict_entrenadores = {}
-        for u in todos_usuarios:
-          if isinstance(u, dict):
-            uid = u.get("id") if u.get("id") is not None else u.get("usuario_id")
-            nom = (
-                u.get("nombre")
-                or u.get("nombre_completo")
-                or f"Entrenador {uid}"
-            )
-            if uid is not None:
-              dict_entrenadores[uid] = nom
-
-        if dict_entrenadores:
-          id_entrenador_evaluar = st.sidebar.selectbox(
-              "👨‍🏫 Seleccionar Entrenador a Simular:",
-              options=list(dict_entrenadores.keys()),
-              format_func=lambda x: dict_entrenadores.get(x, "Entrenador"),
-              key="sb_entrenador_simular_selector",
-          )
-        else:
-          st.sidebar.info("💡 No hay usuarios registrados.")
-
-      # CASO B: Entrenador Real en su sesión
-      else:
-        id_entrenador_evaluar = st.session_state.get(
-            "usuario_logueado_id"
-        ) or st.session_state.get("usuario_id")
-
-      # CONSULTA RESILIENTE DE ASIGNACIONES (Maneja enteros, UUIDs o dicts)
-      if id_entrenador_evaluar is not None:
-        raw_asignados = (
-            obtener_atletas_asignados_cache(id_entrenador_evaluar) or []
-        )
-
-        set_ids_asignados = set()
-        for item in raw_asignados:
-          if isinstance(item, dict):
-            val = (
-                item.get("atleta_id")
-                or item.get("id")
-                or item.get("usuario_id")
-            )
-            if val is not None:
-              set_ids_asignados.add(str(val))
-          elif item is not None:
-            set_ids_asignados.add(str(item))
-
-        todos_nadadores = obtener_nadadores_activos_cache() or []
-        atletas_disponibles = [
-            a
-            for a in todos_nadadores
-            if isinstance(a, dict)
-            and str(
-                a.get("id") if a.get("id") is not None else a.get("usuario_id")
-            )
-            in set_ids_asignados
-        ]
-
+# -------------------------------------------------------------
+    # 3. PANEL UNIFICADO DE NAVEGACIÓN Y SELECCIÓN DE ATLETAS
+    # -------------------------------------------------------------
+    if rol_activo in ["Head Coach", "Administrador"]:
+      spc()
+      st.sidebar.subheader("🎯 Panel de Navegación de Atletas")
+      try:
+        atletas_disponibles = obtener_nadadores_activos_cache() or []
         if atletas_disponibles:
           df_atl = pd.DataFrame(atletas_disponibles)
           dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
 
           sel_id = st.sidebar.selectbox(
-              "🏊‍♂️ Atletas Asignados:",
+              "Monitorear Nadador:",
               options=list(dict_atletas.keys()),
               format_func=lambda x: dict_atletas[x],
-              key="sb_atleta_entrenador_selector",
+              key="sb_atleta_selector",
           )
           atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
 
@@ -294,57 +199,163 @@ def renderizar_sidebar_completo():
           )
           st.session_state["nadador_seleccionado_categoria"] = cat_calc
         else:
-          st.sidebar.warning("⚠️ No hay nadadores asignados a este entrenador.")
-    except Exception as e:
-      st.error(f"Error cargando atletas asignados: {e}")
+          st.sidebar.warning("⚠️ No hay nadadores registrados.")
+      except Exception as e:
+        st.error(f"Error cargando atletas: {e}")
 
-  else:
-    # 🏊‍♂️ ROL NADADOR
-    if rol_real == "Administrador":
+    elif rol_activo == "Entrenador":
       spc()
-      st.sidebar.subheader("🏊‍♂️ Selección de Nadador a Simular")
-      atletas_disponibles = obtener_nadadores_activos_cache() or []
+      st.sidebar.subheader("🎯 Panel de Entrenador")
+      try:
+        id_entrenador_evaluar = None
 
-      if atletas_disponibles:
-        df_atl = pd.DataFrame(atletas_disponibles)
-        dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
+        # CASO A: Administrador Emulando (usa la función por rol)
+        if rol_real == "Administrador":
+          todos_entrenadores = (
+              obtener_usuarios_por_rol_cache("Entrenador") or []
+          )
 
-        sel_id = st.sidebar.selectbox(
-            "Simular sesión del atleta:",
-            options=list(dict_atletas.keys()),
-            format_func=lambda x: dict_atletas[x],
-            key="sb_atleta_simular_nadador",
+          dict_entrenadores = {}
+          for u in todos_entrenadores:
+            if isinstance(u, dict):
+              uid = (
+                  u.get("id") if u.get("id") is not None else u.get("usuario_id")
+              )
+              nom = (
+                  u.get("nombre")
+                  or u.get("nombre_completo")
+                  or f"Entrenador {uid}"
+              )
+              if uid is not None:
+                dict_entrenadores[uid] = nom
+
+          if dict_entrenadores:
+            id_entrenador_evaluar = st.sidebar.selectbox(
+                "👨‍🏫 Seleccionar Entrenador a Simular:",
+                options=list(dict_entrenadores.keys()),
+                format_func=lambda x: dict_entrenadores.get(x, "Entrenador"),
+                key="sb_entrenador_simular_selector",
+            )
+          else:
+            st.sidebar.info("💡 No hay entrenadores registrados.")
+
+        # CASO B: Entrenador Real en su sesión
+        else:
+          id_entrenador_evaluar = st.session_state.get(
+              "usuario_logueado_id"
+          ) or st.session_state.get("usuario_id")
+
+        # CONSULTA DE ASIGNACIONES (Aplica para el simulado y el real)
+        if id_entrenador_evaluar is not None:
+          raw_asignados = (
+              obtener_atletas_asignados_cache(id_entrenador_evaluar) or []
+          )
+
+          set_ids_asignados = set()
+          for item in raw_asignados:
+            if isinstance(item, dict):
+              val = (
+                  item.get("atleta_id")
+                  or item.get("id")
+                  or item.get("usuario_id")
+              )
+              if val is not None:
+                set_ids_asignados.add(str(val))
+            elif item is not None:
+              set_ids_asignados.add(str(item))
+
+          todos_nadadores = obtener_nadadores_activos_cache() or []
+          atletas_disponibles = [
+              a
+              for a in todos_nadadores
+              if isinstance(a, dict)
+              and str(
+                  a.get("id") if a.get("id") is not None else a.get("usuario_id")
+              )
+              in set_ids_asignados
+          ]
+
+          if atletas_disponibles:
+            df_atl = pd.DataFrame(atletas_disponibles)
+            dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
+
+            sel_id = st.sidebar.selectbox(
+                "🏊‍♂️ Atletas Asignados:",
+                options=list(dict_atletas.keys()),
+                format_func=lambda x: dict_atletas[x],
+                key="sb_atleta_entrenador_selector",
+            )
+            atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
+
+            st.session_state["nadador_seleccionado_id"] = int(atleta_row["id"])
+            st.session_state["nadador_seleccionado_nombre"] = atleta_row[
+                "nombre"
+            ]
+            st.session_state["nadador_seleccionado_genero"] = atleta_row.get(
+                "genero", "M"
+            )
+
+            cat_calc, _ = (
+                calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+                if atleta_row.get("fecha_nacimiento")
+                else ("Sin Categoría", 0)
+            )
+            st.session_state["nadador_seleccionado_categoria"] = cat_calc
+          else:
+            st.sidebar.warning(
+                "⚠️ No hay nadadores asignados a este entrenador."
+            )
+      except Exception as e:
+        st.error(f"Error cargando atletas asignados: {e}")
+
+    else:
+      # 🏊‍♂️ ROL NADADOR
+      if rol_real == "Administrador":
+        spc()
+        st.sidebar.subheader("🏊‍♂️ Selección de Nadador a Simular")
+        atletas_disponibles = obtener_nadadores_activos_cache() or []
+
+        if atletas_disponibles:
+          df_atl = pd.DataFrame(atletas_disponibles)
+          dict_atletas = dict(zip(df_atl["id"], df_atl["nombre"]))
+
+          sel_id = st.sidebar.selectbox(
+              "Simular sesión del atleta:",
+              options=list(dict_atletas.keys()),
+              format_func=lambda x: dict_atletas[x],
+              key="sb_atleta_simular_nadador",
+          )
+          atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
+
+          st.session_state["nadador_seleccionado_id"] = int(atleta_row["id"])
+          st.session_state["nadador_seleccionado_nombre"] = atleta_row[
+              "nombre"
+          ]
+          st.session_state["nadador_seleccionado_genero"] = atleta_row.get(
+              "genero", "M"
+          )
+
+          cat_calc, _ = (
+              calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
+              if atleta_row.get("fecha_nacimiento")
+              else ("Sin Categoría", 0)
+          )
+          st.session_state["nadador_seleccionado_categoria"] = cat_calc
+        else:
+          st.sidebar.warning("⚠️ No hay atletas disponibles.")
+      else:
+        st.session_state["nadador_seleccionado_id"] = st.session_state.get(
+            "usuario_logueado_id"
+        ) or st.session_state.get("usuario_id")
+        st.session_state["nadador_seleccionado_nombre"] = st.session_state.get(
+            "nombre_nadador"
         )
-        atleta_row = df_atl[df_atl["id"] == sel_id].iloc[0]
-
-        st.session_state["nadador_seleccionado_id"] = int(atleta_row["id"])
-        st.session_state["nadador_seleccionado_nombre"] = atleta_row["nombre"]
-        st.session_state["nadador_seleccionado_genero"] = atleta_row.get(
+        st.session_state["nadador_seleccionado_genero"] = st.session_state.get(
             "genero", "M"
         )
-
-        cat_calc, _ = (
-            calcular_categoria_competencia(atleta_row["fecha_nacimiento"])
-            if atleta_row.get("fecha_nacimiento")
-            else ("Sin Categoría", 0)
+        st.session_state["nadador_seleccionado_categoria"] = (
+            st.session_state.get("categoria_atleta", "")
         )
-        st.session_state["nadador_seleccionado_categoria"] = cat_calc
-      else:
-        st.sidebar.warning("⚠️ No hay atletas disponibles.")
-    else:
-      st.session_state["nadador_seleccionado_id"] = st.session_state.get(
-          "usuario_logueado_id"
-      ) or st.session_state.get("usuario_id")
-      st.session_state["nadador_seleccionado_nombre"] = st.session_state.get(
-          "nombre_nadador"
-      )
-      st.session_state["nadador_seleccionado_genero"] = st.session_state.get(
-          "genero", "M"
-      )
-      st.session_state["nadador_seleccionado_categoria"] = st.session_state.get(
-          "categoria_atleta", ""
-      )
-
   # -------------------------------------------------------------
   # 4. SELECCIÓN DE PRUEBA
   # -------------------------------------------------------------
