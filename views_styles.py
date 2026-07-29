@@ -105,35 +105,37 @@ def aplicar_estilos_globales():
         background-color: #FAFAFA !important;
     }}
 
-    /* =================================================================
+/* =================================================================
        4. FONDO DE PANTALLA Y FORMULARIO DE LOGIN
        ================================================================= */
-    [data-testid="stAppViewContainer"] {{
+    [data-testid="stAppViewContainer"] {
         {estilo_fondo}
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-    }}
+    }
     
-    [data-testid="stAppViewContainer"]::before {{
+    /* Velo sutil o degradado elegante que deja ver la textura original */
+    [data-testid="stAppViewContainer"]::before {
         content: "";
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.35); 
+        /* Reducimos la opacidad a un tono casi imperceptible (0.12) para que conserve sus colores vivos */
+        background-color: rgba(0, 0, 0, 0.12); 
         pointer-events: none;
         z-index: 0;
-    }}
+    }
 
-    [data-testid="stForm"] {{
-        background-color: rgba(255, 255, 255, 0.90);
+    [data-testid="stForm"] {
+        background-color: rgba(255, 255, 255, 0.92);
         padding: 2rem;
         border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); /* Sombra más limpia y elegante */
         margin-left: 2rem;
-    }}
+    }
 
     /* =================================================================
        5. BOTONES Y PESTAÑAS FLUIDAS (ADAPTATIVOS)
