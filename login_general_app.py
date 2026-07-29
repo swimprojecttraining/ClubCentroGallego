@@ -20,7 +20,7 @@ def aplicar_fondo_pantalla_institucional(
     nombre_archivo_imagen="Fondo_de_pantalla_Swimprojecttraining.png",
 ):
   """Lee una imagen desde la raíz del proyecto, la convierte a Base64 e inyecta CSS
-  seguro en stApp sin bloquear la capa de clics de los botones de login.
+  seguro en stApp con velo agua fresco y centrado vertical/horizontal.
   """
   # Verificar que el archivo existe en la raíz
   if os.path.exists(nombre_archivo_imagen):
@@ -34,21 +34,28 @@ def aplicar_fondo_pantalla_institucional(
 
     css_fondo = f"""
         <style>
-        /* Aplicar el fondo exclusivamente a la app principal */
+        /* Aplicar el fondo con un velo Azul Agua muy claro y luminoso (Frescura marina) */
         .stApp {{
-            background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), url("data:image/{mime_type};base64,{encoded_imagen}");
+            background-image: linear-gradient(rgba(224, 247, 250, 0.75), rgba(240, 253, 250, 0.82)), url("data:image/{mime_type};base64,{encoded_imagen}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             background-attachment: fixed;
         }}
         
-        /* Asegurar que el contenedor del formulario sea opaco y resalte */
+        /* Contenedor principal: bajar un poco más verticalmente */
+        .block-container {{
+            padding-top: 3.5rem !important;
+            max-width: 1100px !important;
+        }}
+
+        /* Tarjeta del formulario limpia, blanca con ligera transparencia y bordes suaves */
         [data-testid="stForm"] {{
-            background-color: rgba(255, 255, 255, 0.95) !important;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+            background-color: rgba(255, 255, 255, 0.96) !important;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0px 8px 25px rgba(0, 100, 150, 0.15);
+            border: 1px solid rgba(180, 220, 240, 0.6);
         }}
 
         /* Garantizar que los botones siempre capturen el puntero */
@@ -60,7 +67,6 @@ def aplicar_fondo_pantalla_institucional(
         """
     st.markdown(css_fondo, unsafe_allow_html=True)
   else:
-    # Si la imagen aún no está en el path exacto, no rompe la app
     pass
 
 # ============================================================
@@ -68,9 +74,6 @@ def aplicar_fondo_pantalla_institucional(
 # ============================================================
 @st.cache_resource
 def obtener_cliente_supabase():
-  """Crea y mantiene viva la instancia de conexión a Supabase en memoria.
-  Se ejecuta una sola vez para la app y la reutilizan todos los usuarios/reruns.
-  """
   return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 
@@ -78,10 +81,6 @@ def obtener_cliente_supabase():
 # 🧹 PURGA DE SEGURIDAD (CONSERVA SOLO LA INFRAESTRUCTURA)
 # ============================================================
 def limpiar_sesion_al_autenticar():
-  """Elimina toda la basura de la sesión de usuarios anteriores conservando
-  únicamente las llaves reales de infraestructura ('puente_validado' y
-  'supabase') para no romper la navegación ni expirar el token de 30 segundos.
-  """
   LLAVES_INFRAESTRUCTURA = {"puente_validado", "supabase"}
 
   for key in list(st.session_state.keys()):
@@ -94,7 +93,6 @@ def login_usuario(user, password, client_db):
     user_lower = user.strip().lower()
     hashed_pw = hash_password(password)
 
-    # Consulta exacta a la estructura de tu BD local
     response = (
         client_db.table("usuarios")
         .select("id, nombre, genero, rol, estatus, fecha_nacimiento")
@@ -108,17 +106,12 @@ def login_usuario(user, password, client_db):
 
       if user_data.get("estatus") == "Inactivo":
         st.error(
-            "⚠️  Aún no puedes ingresar."
-            "Debes contactar con la administración."
+            "⚠️  Aún no puedes ingresar. Debes contactar con la administración."
         )
         return False
 
-      # =========================================================================
-      # 💥 PURGA EXACTA: Limpiamos basura anterior manteniendo puente_validado y supabase
-      # =========================================================================
       limpiar_sesion_al_autenticar()
 
-      # --- VARIABLES GENERALES PARA CUALQUIER ROL ---
       st.session_state.autenticado = True
       st.session_state.usuario_id = user_data["id"]
       st.session_state.usuario_logueado_id = user_data["id"]
@@ -126,7 +119,6 @@ def login_usuario(user, password, client_db):
       st.session_state.nombre_nadador = user_data["nombre"]
       st.session_state.genero = user_data.get("genero", "M")
 
-      # Mapeo y asignación limpia del rol
       rol_db = str(user_data.get("rol", "Nadador")).strip()
       st.session_state.rol = rol_db
       st.session_state.rol_real = rol_db
@@ -134,9 +126,7 @@ def login_usuario(user, password, client_db):
 
       st.session_state.fecha_nacimiento = user_data.get("fecha_nacimiento")
 
-      # --- SEGREGACIÓN SEGÚN ROL DE USUARIO ---
       if st.session_state.rol == "Nadador":
-        # Lógica exclusiva para atletas
         if st.session_state.fecha_nacimiento:
           cat, ed_c = calcular_categoria_competencia(
               st.session_state.fecha_nacimiento
@@ -153,7 +143,6 @@ def login_usuario(user, password, client_db):
         )
         st.session_state.nadador_seleccionado_categoria = cat
       else:
-        # Inicialización limpia para Club / Administrador / Entrenadores / Head Coach
         st.session_state.categoria_atleta = None
         st.session_state.edad_comp_atleta = None
         st.session_state.nadador_seleccionado_id = None
@@ -170,8 +159,7 @@ def login_usuario(user, password, client_db):
 
 def mostrar_pantalla_login():
   """Función principal que renderiza el Login, Certificación por Pre-Alta (OTP) y
-  Recuperación. Llamada directamente desde root_app.py tras validar el
-  handshake.
+  Recuperación.
   """
   aplicar_fondo_pantalla_institucional(
       "Fondo_de_pantalla_Swimprojecttraining.png"
@@ -181,9 +169,6 @@ def mostrar_pantalla_login():
   if "rec_datos_temporales" not in st.session_state:
     st.session_state.rec_datos_temporales = None
 
-  # ------------------------------------------------------------
-  # 1. RECEPTOR Y VALIDADOR CRIPTOGRÁFICO INTERCLUBES (HANDSHAKE)
-  # ------------------------------------------------------------
   if "supabase" not in st.session_state:
     st.session_state.supabase = None
   if "autenticado" not in st.session_state:
@@ -201,26 +186,28 @@ def mostrar_pantalla_login():
       st.stop()
 
   # ------------------------------------------------------------
-  # 2. INTERFAZ DE PORTADA UNIFICADA MULTI-TENANT PRO
+  # 2. INTERFAZ CENTRADA Y BALANCEADA
   # ------------------------------------------------------------
   if not st.session_state.autenticado:
     nombre_club = st.secrets.get("NOMBRE_CLUB_LOCAL", "Centro Gallego")
+    
+    # Encabezado Centralizado Superior
     st.markdown(
-        f"<h2 style='text-align: center;'>🏊‍♂️ {nombre_club}</h2>",
+        f"<h2 style='text-align: center; color: #0F172A; margin-bottom: 2px;'>🏊‍♂️ {nombre_club}</h2>",
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<h4 style='text-align: center; color: gray;'>Sistema de Control de"
+        "<h4 style='text-align: center; color: #475569; margin-bottom: 25px;'>Sistema de Control de"
         " Entrenamientos y Rendimiento</h4>",
         unsafe_allow_html=True,
     )
 
     instancia_supabase_club = st.session_state.supabase
 
-    # Layout centrado simétrico para realzar la estética del fondo
-    _, c_login, _ = st.columns([0.6, 1.8, 0.6])
+    # Estructura de columnas centrada vertical y horizontalmente
+    col_izq, col_centro, col_der = st.columns([1, 2.2, 1])
 
-    with c_login:
+    with col_centro:
       tab_login, tab_registro_otp, tab_recuperar = st.tabs([
           "🔑 Iniciar Sesión",
           "📝 Registro (Pre-Alta OTP)",
@@ -235,7 +222,6 @@ def mostrar_pantalla_login():
           usuario_lower = usuario_input.lower()
           contrasena_input = st.text_input("Contraseña:", type="password")
 
-          # Botón de ancho completo alineado con el resto de los formularios
           if st.form_submit_button("Ingresar", use_container_width=True):
             if login_usuario(
                 usuario_lower, contrasena_input, instancia_supabase_club
@@ -291,7 +277,6 @@ def mostrar_pantalla_login():
               st.error("❌ Las contraseñas no coinciden.")
             else:
               try:
-                # 1. Validar el token en la tabla 'invitaciones'
                 res_inv = (
                     instancia_supabase_club.table("invitaciones")
                     .select("*")
@@ -322,12 +307,10 @@ def mostrar_pantalla_login():
                   else:
                     datos_perfil = invitacion.get("datos_perfil", {})
 
-                    # --- EXTRACCIÓN DE CAMPOS MÍNIMOS OBLIGATORIOS ---
                     nombre_val = invitacion.get("nombre")
                     email_val = invitacion.get("email")
                     rol_val = invitacion.get("rol")
 
-                    # Extracción de género desde datos_perfil
                     raw_genero = datos_perfil.get("genero") or datos_perfil.get(
                         "sexo"
                     )
@@ -341,10 +324,8 @@ def mostrar_pantalla_login():
                         )
                     )
 
-                    # Extracción de fecha de nacimiento
                     fecha_nac_val = datos_perfil.get("fecha_nacimiento")
 
-                    # --- AUDITORÍA Y VALIDACIÓN DE INTEGRIDAD DE DATOS ---
                     faltantes = []
                     if not nombre_val:
                       faltantes.append("Nombre")
@@ -365,7 +346,6 @@ def mostrar_pantalla_login():
                           " administrador."
                       )
                     else:
-                      # Construcción del registro de usuario completo
                       usuario_oficial = {
                           "nombre": nombre_val,
                           "usuario": nuevo_alias_pa.strip().lower(),
@@ -379,7 +359,6 @@ def mostrar_pantalla_login():
                           "fecha_nacimiento": fecha_nac_val,
                       }
 
-                      # Insertar en tabla de usuarios y quemar token OTP
                       instancia_supabase_club.table("usuarios").insert(
                           usuario_oficial
                       ).execute()
