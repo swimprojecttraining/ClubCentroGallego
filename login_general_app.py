@@ -189,7 +189,7 @@ def mostrar_pantalla_login():
   # 2. INTERFAZ CENTRADA Y BALANCEADA
   # ------------------------------------------------------------
   if not st.session_state.autenticado:
-    nombre_club = st.secrets.get("NOMBRE_CLUB_LOCAL", "Centro Gallego")
+    nombre_club = st.secrets.get("NOMBRE_CLUB_LOCAL", "Swimming Club")
     
     # Encabezado Centralizado Superior
     st.markdown(
@@ -228,6 +228,7 @@ def mostrar_pantalla_login():
             ):
               st.success("Acceso autorizado.")
               st.rerun()
+              st.stop()
             else:
               st.error(
                   "Credenciales incorrectas o cuenta en revisión. Verifique sus"
