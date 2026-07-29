@@ -20,7 +20,6 @@ def aplicar_fondo_pantalla_institucional(
     nombre_archivo_imagen="Fondo_de_pantalla_Swimprojecttraining.png",
 ):
   """Lee una imagen desde la raíz del proyecto, la convierte a Base64 e inyecta CSS
-
   seguro en stApp sin bloquear la capa de clics de los botones de login.
   """
   # Verificar que el archivo existe en la raíz
@@ -70,7 +69,6 @@ def aplicar_fondo_pantalla_institucional(
 @st.cache_resource
 def obtener_cliente_supabase():
   """Crea y mantiene viva la instancia de conexión a Supabase en memoria.
-
   Se ejecuta una sola vez para la app y la reutilizan todos los usuarios/reruns.
   """
   return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -81,7 +79,6 @@ def obtener_cliente_supabase():
 # ============================================================
 def limpiar_sesion_al_autenticar():
   """Elimina toda la basura de la sesión de usuarios anteriores conservando
-
   únicamente las llaves reales de infraestructura ('puente_validado' y
   'supabase') para no romper la navegación ni expirar el token de 30 segundos.
   """
@@ -220,7 +217,8 @@ def mostrar_pantalla_login():
 
     instancia_supabase_club = st.session_state.supabase
 
-    c_login, _ = st.columns([1.5, 1.5])
+    # Layout centrado simétrico para realzar la estética del fondo
+    _, c_login, _ = st.columns([0.6, 1.8, 0.6])
 
     with c_login:
       tab_login, tab_registro_otp, tab_recuperar = st.tabs([
@@ -237,7 +235,8 @@ def mostrar_pantalla_login():
           usuario_lower = usuario_input.lower()
           contrasena_input = st.text_input("Contraseña:", type="password")
 
-          if st.form_submit_button("Ingresar"):
+          # Botón de ancho completo alineado con el resto de los formularios
+          if st.form_submit_button("Ingresar", use_container_width=True):
             if login_usuario(
                 usuario_lower, contrasena_input, instancia_supabase_club
             ):
@@ -408,7 +407,9 @@ def mostrar_pantalla_login():
                 "Ingrese el código temporal de recuperación:"
             )
 
-            if st.form_submit_button("Validar Código y Cambiar Contraseña"):
+            if st.form_submit_button(
+                "Validar Código y Cambiar Contraseña", use_container_width=True
+            ):
               if str(codigo_rec_ingresado).strip() == str(
                   st.session_state.rec_codigo_verificacion
               ):
@@ -428,7 +429,7 @@ def mostrar_pantalla_login():
               else:
                 st.error("❌ El código ingresado es incorrecto.")
 
-          if st.button("❌ Cancelar Recuperación"):
+          if st.button("❌ Cancelar Recuperación", use_container_width=True):
             st.session_state.rec_codigo_verificacion = None
             st.session_state.rec_datos_temporales = None
             st.rerun()
@@ -443,7 +444,9 @@ def mostrar_pantalla_login():
                 "Confirmar Nueva Contraseña:", type="password"
             )
 
-            if st.form_submit_button("🔄 Solicitar Código de Recuperación"):
+            if st.form_submit_button(
+                "🔄 Solicitar Código de Recuperación", use_container_width=True
+            ):
               if not (
                   rec_usuario and rec_email and nueva_clave and confirmar_clave
               ):
