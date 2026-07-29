@@ -16,7 +16,8 @@ def aplicar_estilos_globales():
   nombre_archivo_fondo = "Fondo_de_pantalla_Swimprojecttraining.png"
   base64_img = obtener_base64_imagen(nombre_archivo_fondo)
 
-  estilo_fondo = (
+  # Construimos la línea de fondo de manera limpia fuera del bloque masivo de CSS
+  css_fondo_regla = (
       f"background-image: url('data:image/png;base64,{base64_img}');"
       if base64_img
       else ""
@@ -101,37 +102,36 @@ def aplicar_estilos_globales():
         background-color: #FAFAFA !important;
     }}
 
-/* =================================================================
+    /* =================================================================
        4. FONDO DE PANTALLA Y FORMULARIO DE LOGIN (VELO AZULADO Y CENTRADO)
        ================================================================= */
-    [data-testid="stAppViewContainer"] {
-        {estilo_fondo}
+    [data-testid="stAppViewContainer"] {{
+        {css_fondo_regla}
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-    }
+    }}
     
     /* Velo azulado elegante en lugar de gris opaco */
-    [data-testid="stAppViewContainer"]::before {
+    [data-testid="stAppViewContainer"]::before {{
         content: "";
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        /* Tono azul marino/agua muy sutil y elegante (rgba con tinte azul) */
         background-color: rgba(20, 50, 80, 0.22); 
         pointer-events: none;
         z-index: 0;
-    }
+    }}
 
-    [data-testid="stForm"] {
+    [data-testid="stForm"] {{
         background-color: rgba(255, 255, 255, 0.94);
         padding: 2.5rem;
         border-radius: 14px;
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-        /* Eliminamos el margin-left forzado para que el posicionamiento lo maneje Streamlit mediante columnas */
-    }
+    }}
+
     /* =================================================================
        5. BOTONES Y PESTAÑAS FLUIDAS (ADAPTATIVOS)
        ================================================================= */
