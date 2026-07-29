@@ -36,7 +36,7 @@ def aplicar_fondo_pantalla_institucional(
         <style>
         /* Aplicar el fondo con un velo Azul Agua muy claro y luminoso (Frescura marina) */
         .stApp {{
-            background-image: linear-gradient(rgba(224, 247, 250, 0.75), rgba(240, 253, 250, 0.82)), url("data:image/{mime_type};base64,{encoded_imagen}");
+            background-image: linear-gradient(135deg, rgba(186, 230, 253, 0.70), rgba(207, 250, 254, 0.82)), url("data:image/{mime_type};base64,{encoded_imagen}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -54,8 +54,8 @@ def aplicar_fondo_pantalla_institucional(
             background-color: rgba(255, 255, 255, 0.96) !important;
             border-radius: 16px;
             padding: 25px;
-            box-shadow: 0px 8px 25px rgba(0, 100, 150, 0.15);
-            border: 1px solid rgba(180, 220, 240, 0.6);
+            box-shadow: 0px 10px 30px rgba(6, 182, 212, 0.25);
+            border: 1.5px solid rgba(103, 232, 249, 0.8);
         }}
 
         /* Garantizar que los botones siempre capturen el puntero */
