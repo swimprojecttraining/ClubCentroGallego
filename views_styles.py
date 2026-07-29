@@ -13,15 +13,11 @@ def obtener_base64_imagen(ruta_imagen):
 
 
 def aplicar_estilos_globales():
-  # ⚠️ CAMBIA "tu_fondo.png" por el nombre exacto del archivo PNG en tu raíz
-  nombre_archivo_fondo = (
-      "Fondo_de_pantalla_Swimprojecttraining.png"  # Ajusta si tiene otro nombre
-  )
+  nombre_archivo_fondo = "Fondo_de_pantalla_Swimprojecttraining.png"
   base64_img = obtener_base64_imagen(nombre_archivo_fondo)
 
-  # Si encuentra la imagen, genera la regla CSS con Base64; si no, deja el fondo transparente
   estilo_fondo = (
-      f'background-image: url("data:image/png;base64,{base64_img}");'
+      f"background-image: url('data:image/png;base64,{base64_img}');"
       if base64_img
       else ""
   )
@@ -105,37 +101,35 @@ def aplicar_estilos_globales():
         background-color: #FAFAFA !important;
     }}
 
-/* =================================================================
-       4. FONDO DE PANTALLA Y FORMULARIO DE LOGIN
+    /* =================================================================
+       4. FONDO DE PANTALLA Y FORMULARIO DE LOGIN (VELO SUAVE)
        ================================================================= */
-    [data-testid="stAppViewContainer"] {
+    [data-testid="stAppViewContainer"] {{
         {estilo_fondo}
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-    }
+    }}
     
-    /* Velo sutil o degradado elegante que deja ver la textura original */
-    [data-testid="stAppViewContainer"]::before {
+    [data-testid="stAppViewContainer"]::before {{
         content: "";
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        /* Reducimos la opacidad a un tono casi imperceptible (0.12) para que conserve sus colores vivos */
         background-color: rgba(0, 0, 0, 0.12); 
         pointer-events: none;
         z-index: 0;
-    }
+    }}
 
-    [data-testid="stForm"] {
+    [data-testid="stForm"] {{
         background-color: rgba(255, 255, 255, 0.92);
         padding: 2rem;
         border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); /* Sombra más limpia y elegante */
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
         margin-left: 2rem;
-    }
+    }}
 
     /* =================================================================
        5. BOTONES Y PESTAÑAS FLUIDAS (ADAPTATIVOS)
