@@ -101,36 +101,37 @@ def aplicar_estilos_globales():
         background-color: #FAFAFA !important;
     }}
 
-    /* =================================================================
-       4. FONDO DE PANTALLA Y FORMULARIO DE LOGIN (VELO SUAVE)
+/* =================================================================
+       4. FONDO DE PANTALLA Y FORMULARIO DE LOGIN (VELO AZULADO Y CENTRADO)
        ================================================================= */
-    [data-testid="stAppViewContainer"] {{
+    [data-testid="stAppViewContainer"] {
         {estilo_fondo}
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-    }}
+    }
     
-    [data-testid="stAppViewContainer"]::before {{
+    /* Velo azulado elegante en lugar de gris opaco */
+    [data-testid="stAppViewContainer"]::before {
         content: "";
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.12); 
+        /* Tono azul marino/agua muy sutil y elegante (rgba con tinte azul) */
+        background-color: rgba(20, 50, 80, 0.22); 
         pointer-events: none;
         z-index: 0;
-    }}
+    }
 
-    [data-testid="stForm"] {{
-        background-color: rgba(255, 255, 255, 0.92);
-        padding: 2rem;
-        border-radius: 12px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-        margin-left: 2rem;
-    }}
-
+    [data-testid="stForm"] {
+        background-color: rgba(255, 255, 255, 0.94);
+        padding: 2.5rem;
+        border-radius: 14px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+        /* Eliminamos el margin-left forzado para que el posicionamiento lo maneje Streamlit mediante columnas */
+    }
     /* =================================================================
        5. BOTONES Y PESTAÑAS FLUIDAS (ADAPTATIVOS)
        ================================================================= */
