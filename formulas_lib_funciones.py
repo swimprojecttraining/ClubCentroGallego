@@ -14,9 +14,6 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-
 def hash_password(password: str) -> str:
     """Genera el hash SHA-256 de la contraseña para validación local."""
     return hashlib.sha256(password.encode()).hexdigest()
@@ -29,37 +26,54 @@ def desencriptar_credencial(texto_cifrado: str, llave_maestra: str) -> str:
     except Exception as e:
         st.error(f"Error crítico de descifrado de credenciales: {e}")
         st.stop()
-# -------------------------------------------------------------
-# GESTIÓN DE CORREOS AUTOMATIZADOS (SMTP)
-# -------------------------------------------------------------
-def enviar_email(destinatario: str, asunto: str, cuerpo_html: str) -> tuple:
-    """Envía notificaciones automatizadas utilizando las credenciales de entorno."""
-    try:
-        # Extracción de credenciales desde los secretos del entorno
-        remitente = st.secrets["smtp"]["email"]
-        password = st.secrets["smtp"]["password"]
-        servidor = st.secrets["smtp"]["server"]
-        puerto = st.secrets["smtp"].get("port", 587)
+# ==============================================================================
+# MÓDULO DE ENVÍO DE CORREOS SMTP (UBICADO AL PRINCIPIO DE LA LIBRERÍA)
+# ==============================================================================
 
-        # Configuración del mensaje
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+import streamlit as st
+
+def enviar_correo_con_pdf(destinatario, asunto, cuerpo_html, pdf_bytes=None, nombre_archivo_pdf="documento.pdf"):
+    """
+    Envía correos utilizando el servidor SMTP de Yahoo Mail (Puerto 465 SSL).
+    """
+    try:
+        remitente = str(st.secrets["smtp"]["email"]).strip()
+        password = str(st.secrets["smtp"]["password"]).replace(" ", "").strip()
+        servidor = str(st.secrets["smtp"]["server"]).strip()
+        puerto = int(st.secrets["smtp"].get("port", 465))
+
         msg = MIMEMultipart()
-        msg['From'] = remitente
+        msg['From'] = f"Sistema Clubes <{remitente}>"
         msg['To'] = destinatario
         msg['Subject'] = asunto
         msg.attach(MIMEText(cuerpo_html, 'html'))
 
-        # Conexión al servidor SMTP
-        server = smtplib.SMTP(servidor, puerto)
-        server.starttls()
-        server.login(remitente, password)
-        server.send_message(msg)
-        server.quit()
+        if pdf_bytes:
+            adjunto = MIMEApplication(pdf_bytes, _subtype="pdf")
+            adjunto.add_header('Content-Disposition', 'attachment', filename=nombre_archivo_pdf)
+            msg.attach(adjunto)
+
+        # Conexión SSL directa con Yahoo
+        with smtplib.SMTP_SSL(servidor, puerto, timeout=15) as server:
+            server.login(remitente, password)
+            server.send_message(msg)
         
-        return True, "Correo enviado correctamente."
+        return True, "Correo enviado exitosamente."
     except Exception as e:
-        error_msg = f"Error en el servidor SMTP: {e}"
+        error_msg = f"Error en el servidor SMTP: {str(e)}"
         print(error_msg)
         return False, error_msg
+
+def enviar_email(destinatario: str, asunto: str, cuerpo_html: str) -> tuple:
+    """
+    Alias/Wrapper para mantener compatibilidad con scripts que usan el nombre 'enviar_email'.
+    Redirige la llamada a la función principal.
+    """
+    return enviar_correo_con_pdf(destinatario, asunto, cuerpo_html)
 # -------------------------------------------------------------
 # MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
 # -------------------------------------------------------------
@@ -352,35 +366,3 @@ def calcular_expiracion_token(horas_validez=24):
     """
     return datetime.utcnow() + timedelta(hours=horas_validez)
 
-# --- INFRAESTRUCTURA DE CORREO CON ADJUNTOS ---
-
-def enviar_correo_con_pdf(destinatario, asunto, cuerpo_html, pdf_bytes=None, nombre_archivo_pdf="documento.pdf"):
-    """
-    Envía correos electrónicos vía SMTP con soporte para adjuntar buffers PDF en memoria.
-    """
-    try:
-        remitente = st.secrets["smtp"]["email"]
-        password = st.secrets["smtp"]["password"]
-        servidor_smtp = st.secrets["smtp"]["server"]
-        puerto_smtp = st.secrets["smtp"]["port"]
-
-        msg = MIMEMultipart()
-        msg['From'] = remitente
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-
-        msg.attach(MIMEText(cuerpo_html, 'html'))
-
-        if pdf_bytes:
-            adjunto = MIMEApplication(pdf_bytes, _subtype="pdf")
-            adjunto.add_header('Content-Disposition', 'attachment', filename=nombre_archivo_pdf)
-            msg.attach(adjunto)
-
-        server = smtplib.SMTP(servidor_smtp, puerto_smtp)
-        server.starttls()
-        server.login(remitente, password)
-        server.send_message(msg)
-        server.quit()
-        return True, "Correo enviado exitosamente."
-    except Exception as e:
-        return False, f"Error al enviar correo: {str(e)}"
