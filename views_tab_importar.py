@@ -182,10 +182,7 @@ def parsear_hy3_hibrido(archivo_texto, fecha_inicio_campeonato_str, nomina_club_
             nadador_actual["evento_actual"] = None
 
     return pd.DataFrame(resultados)
-Integración en Streamlit
-En la vista o interfaz de carga, simplemente invocas la función pasando la fecha seleccionada en el formulario y la nómina cacheada:
 
-Python
 # 1. Obtener la nómina desde el script cacheado
 nomina_activos = obtener_nadadores_activos_cache()
 
