@@ -77,36 +77,39 @@ from datetime import datetime
 import pandas as pd
 
 
-def parsear_hy3(archivo_texto):
+def parsear_hy3_hibrido(archivo_texto, fecha_inicio_campeonato_str, nomina_club_cache):
+    """
+    Parseo híbrido de archivos HY3.
+    
+    Parameters:
+    - archivo_texto: Iterable con las líneas del archivo .HY3.
+    - fecha_inicio_campeonato_str: Fecha 'YYYY-MM-DD' ingresada por el usuario.
+    - nomina_club_cache: Lista de dicts retornada por obtener_nadadores_activos_cache().
+    """
     resultados = []
     nadador_actual = None
-    fecha_competencia_global = datetime.now().strftime("%Y-%m-%d")
+    
+    # 1. Mapeo rápido de la caché de Supabase por Cédula (y Nombre Limpio como respaldo)
+    # Asume que la cédula en 'usuarios' no tiene puntos ni letras para hacer match directo
+    db_por_cedula = {
+        re.sub(r"[^\d]", "", u.get("cedula", "")): u 
+        for u in nomina_club_cache if u.get("cedula")
+    }
+    
+    fecha_corte_dt = datetime.strptime(fecha_inicio_campeonato_str, "%Y-%m-%d")
 
     for linea in archivo_texto:
         if len(linea) < 2:
             continue
         record_type = linea[0:2]
 
-        # B1: Intentar extraer fecha global del evento por si E2 no la trae
-        if record_type == "B1":
-            match_b1 = re.search(r"(\d{8})", linea[40:70])
-            if match_b1:
-                raw_f = match_b1.group(1)
-                try:
-                    fecha_competencia_global = datetime.strptime(
-                        raw_f, "%m%d%Y"
-                    ).strftime("%Y-%m-%d")
-                except ValueError:
-                    pass
-
-        # D1: Atleta (Estructura: D1M 3215Aguilera ... 33.895.827  18902082011 14 ...)
-        elif record_type == "D1":
-            # 1. Apellido y Nombre
+        # D1: Registro de Atleta
+        if record_type == "D1":
             apellido_raw = linea[7:27].strip()
             nombre_raw = linea[27:47].strip()
             nombre_limpio = limpiar_nombre_atleta(nombre_raw, apellido_raw)
 
-            # 2. Cédula: Busca el patrón con o sin puntos (ej: 33.895.827)
+            # Extraer Cédula limpia (solo números)
             match_cedula = re.search(r"(\d{1,3}(?:\.\d{3}){2}|\d{7,8})", linea)
             cedula_limpia = (
                 re.sub(r"[^\d]", "", match_cedula.group(1))
@@ -114,33 +117,47 @@ def parsear_hy3(archivo_texto):
                 else ""
             )
 
-            # 3. Fecha Nacimiento: Buscar los 8 dígitos MMDDYYYY justo después de la cédula y los 3 dígitos internos
-            # Ejemplo: "33.895.827      18902082011" -> Captura "02082011"
-            fecha_nac_iso = None
-            match_nac = re.search(
-                r"\d{7,8}\s+\d{3}(\d{8})", re.sub(r"\.", "", linea)
-            )
+            # Extraer Edad Entera reportada en el HY3 (un espacio + 1 o 2 dígitos + espacio)
+            # Ejemplo: "18902082011 14 " -> Captura "14"
+            edad_entera_hy3 = None
+            match_edad = re.search(r"\d{8}\s+(\d{1,2})\s+", linea)
+            if match_edad:
+                edad_entera_hy3 = int(match_edad.group(1))
 
-            if match_nac:
-                raw_nac = match_nac.group(1)
+            # Verificar si pertenece a nuestro club vía Caché Supabase
+            atleta_db = db_por_cedula.get(cedula_limpia)
+            
+            es_del_club = atleta_db is not None
+            fecha_nac_iso = None
+            edad_decimal = None
+
+            if es_del_club and atleta_db.get("fecha_nacimiento"):
+                fecha_nac_iso = atleta_db["fecha_nacimiento"]
                 try:
-                    fecha_nac_iso = datetime.strptime(
-                        raw_nac, "%m%d%Y"
-                    ).strftime("%Y-%m-%d")
+                    fn_dt = datetime.strptime(fecha_nac_iso, "%Y-%m-%d")
+                    # Cálculo de Edad Decimal Precisa
+                    dias_diferencia = (fecha_corte_dt - fn_dt).days
+                    edad_decimal = round(dias_diferencia / 365.25, 4)
                 except ValueError:
-                    pass
+                    edad_decimal = None
+            else:
+                # Si no es del club, nos quedamos solo con la edad entera del HY3
+                edad_decimal = float(edad_entera_hy3) if edad_entera_hy3 is not None else None
 
             nadador_actual = {
                 "nombre_limpio": nombre_limpio,
                 "cedula": cedula_limpia,
+                "es_del_club": es_del_club,
                 "fecha_nacimiento_iso": fecha_nac_iso,
+                "edad_entera_hy3": edad_entera_hy3,
+                "edad_decimal": edad_decimal,
             }
 
-        # E1: Evento
+        # E1: Evento / Prueba
         elif record_type == "E1" and nadador_actual:
             nadador_actual["evento_actual"] = linea[18:24].strip()
 
-        # E2: Tiempo y Fecha específica de la carrera (ej: 12062025 al final de la línea)
+        # E2: Tiempo obtenido
         elif (
             record_type == "E2"
             and nadador_actual
@@ -148,27 +165,16 @@ def parsear_hy3(archivo_texto):
         ):
             tiempo_raw = linea[5:15].strip()
 
-            # Extraer fecha específica de la prueba desde la línea E2 (ej: 12062025)
-            fecha_carrera_iso = fecha_competencia_global
-            match_fecha_e2 = re.search(r"(\d{8})\s+\d+\s+\d+$", linea.strip())
-            if match_fecha_e2:
-                raw_e2 = match_fecha_e2.group(1)
-                try:
-                    fecha_carrera_iso = datetime.strptime(
-                        raw_e2, "%m%d%Y"
-                    ).strftime("%Y-%m-%d")
-                except ValueError:
-                    pass
-
             if tiempo_raw:
                 resultados.append(
                     {
                         "Atleta_Limpio": nadador_actual["nombre_limpio"],
                         "Cedula": nadador_actual["cedula"],
-                        "Fecha_Nacimiento": nadador_actual[
-                            "fecha_nacimiento_iso"
-                        ],
-                        "Fecha_Competencia": fecha_carrera_iso,
+                        "Es_Del_Club": nadador_actual["es_del_club"],
+                        "Fecha_Nacimiento": nadador_actual["fecha_nacimiento_iso"],
+                        "Edad_Entera_HY3": nadador_actual["edad_entera_hy3"],
+                        "Edad_Decimal": nadador_actual["edad_decimal"],
+                        "Fecha_Competencia": fecha_inicio_campeonato_str,
                         "Evento": nadador_actual["evento_actual"],
                         "Tiempo_Raw": tiempo_raw,
                     }
@@ -176,6 +182,24 @@ def parsear_hy3(archivo_texto):
             nadador_actual["evento_actual"] = None
 
     return pd.DataFrame(resultados)
+Integración en Streamlit
+En la vista o interfaz de carga, simplemente invocas la función pasando la fecha seleccionada en el formulario y la nómina cacheada:
+
+Python
+# 1. Obtener la nómina desde el script cacheado
+nomina_activos = obtener_nadadores_activos_cache()
+
+# 2. Input de fecha en la UI
+fecha_inicio = st.date_input("Fecha de Inicio del Campeonato")
+
+if st.button("Procesar Archivo HY3"):
+    df_resultados = parsear_hy3_hibrido(
+        archivo_texto=lineas_hy3,
+        fecha_inicio_campeonato_str=fecha_inicio.strftime("%Y-%m-%d"),
+        nomina_club_cache=nomina_activos
+    )
+    
+    st.dataframe(df_resultados)
 
 def parsear_lenex(archivo_stream):
     archivo_stream.seek(0)
