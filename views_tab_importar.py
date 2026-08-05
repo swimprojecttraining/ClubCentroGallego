@@ -62,7 +62,6 @@ def convertir_tiempo_a_segundos(valor):
 # 2. PARSERS (Solo extracción de datos)
 # ==========================================
 def parsear_hy3(archivo_texto):
-    """Extrae datos crudos del HY3 para pasarlos al procesador central."""
     resultados = []
     nadador_actual = None
 
@@ -79,19 +78,16 @@ def parsear_hy3(archivo_texto):
             match_cedula = re.search(r"(\d{1,3}(?:\.\d{3}){2}|\d{7,8})", linea)
             cedula_limpia = re.sub(r"[^\d]", "", match_cedula.group(1)) if match_cedula else ""
 
-            # Edad entera (para externos)
-            edad_entera = None
-            match_edad = re.search(r"\d{8}\s+(\d{1,2})\s+", linea)
-            if match_edad:
-                edad_entera = int(match_edad.group(1))
-            
-            # Fecha de nacimiento cruda
+            # NUEVO ENFOQUE: Buscar 8 dígitos y edad separados por espacio de manera robusta
+            match_nac = re.search(r"(\d{8})\s+(\d{1,2})\b", linea)
             fecha_nac_raw = None
-            match_nac = re.search(r"(\d{8})\s+\d{1,2}\s+", linea)
+            edad_entera = None
+            
             if match_nac:
-                raw = match_nac.group(1)
+                raw_nac = match_nac.group(1)
+                edad_entera = int(match_nac.group(2))
                 try:
-                    fecha_nac_raw = datetime.strptime(raw, "%m%d%Y").strftime("%Y-%m-%d")
+                    fecha_nac_raw = datetime.strptime(raw_nac, "%m%d%Y").strftime("%Y-%m-%d")
                 except ValueError:
                     pass
 
@@ -108,7 +104,6 @@ def parsear_hy3(archivo_texto):
         elif record_type == "E2" and nadador_actual and nadador_actual.get("Evento"):
             tiempo_raw = linea[5:15].strip()
             if tiempo_raw:
-                # Copiar el diccionario para no sobreescribir la lista
                 res = nadador_actual.copy()
                 res["Tiempo_Raw"] = tiempo_raw
                 resultados.append(res)
@@ -117,7 +112,6 @@ def parsear_hy3(archivo_texto):
     return pd.DataFrame(resultados)
 
 def parsear_lenex(archivo_stream):
-    """Extrae datos crudos del XML Lenex para pasarlos al procesador central."""
     archivo_stream.seek(0)
     tree = ET.parse(archivo_stream)
     root = tree.getroot()
@@ -134,7 +128,7 @@ def parsear_lenex(archivo_stream):
             resultados.append({
                 "Atleta_Limpio": nombre_limpio,
                 "Cedula": cedula_limpia,
-                "Edad_Entera_Raw": None, # Lenex no da edad entera directa, usa fecha
+                "Edad_Entera_Raw": None,
                 "Fecha_Nac_Raw": fecha_nac_iso,
                 "Evento": result.get("event", "Desconocido"),
                 "Tiempo_Raw": result.get("swimtime", "0"),
@@ -154,11 +148,18 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
     res_marcas = supabase.table("marcas_historicas").select("usuario_id, prueba, tiempo, edad").execute()
     marcas_existentes = res_marcas.data if res_marcas.data else []
 
-    set_duplicados = {
-        (m["usuario_id"], str(m["prueba"]).strip().lower(), float(m["tiempo"]), float(m["edad"]))
-        for m in marcas_existentes
-        if m["usuario_id"] is not None and m["tiempo"] is not None and m["edad"] is not None
-    }
+    # REESTRUCTURACIÓN: Agrupar marcas históricas por usuario para facilitar la búsqueda con tolerancia
+    marcas_por_usuario = {}
+    for m in marcas_existentes:
+        uid = m.get("usuario_id")
+        if uid:
+            if uid not in marcas_por_usuario:
+                marcas_por_usuario[uid] = []
+            marcas_por_usuario[uid].append({
+                "prueba": str(m["prueba"]).strip().lower() if m["prueba"] else "",
+                "tiempo": float(m["tiempo"]) if m["tiempo"] is not None else 0.0,
+                "edad": float(m["edad"]) if m["edad"] is not None else 0.0
+            })
 
     validos_bd = []
     lista_validos, lista_duplicados, lista_no_encontrados = [], [], []
@@ -182,27 +183,26 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
                 usuario_match = u
                 break
 
-        # Cálculo de Edad Híbrido
+        # Cálculo de Edad Híbrido (Estricto a 2 decimales)
         edad_dec = None
         if usuario_match and usuario_match.get("fecha_nacimiento"):
-            # Para atletas del club: Se usa la BD + la fecha de la UI
             try:
                 fn_dt = datetime.strptime(usuario_match["fecha_nacimiento"], "%Y-%m-%d").date()
                 dias_diferencia = (fecha_inicio_comp_obj - fn_dt).days
-                edad_dec = round(dias_diferencia / 365.25, 4)
+                edad_dec = round(dias_diferencia / 365.25, 2)
             except Exception:
                 edad_dec = None
         else:
-            # Para externos: se intenta usar la fecha o la edad entera cruda del archivo
             if fila.get("Fecha_Nac_Raw"):
                 try:
                     fn_dt = datetime.strptime(fila["Fecha_Nac_Raw"], "%Y-%m-%d").date()
-                    edad_dec = round((fecha_inicio_comp_obj - fn_dt).days / 365.25, 4)
+                    edad_dec = round((fecha_inicio_comp_obj - fn_dt).days / 365.25, 2)
                 except Exception:
                     pass
             
+            # Rescate para externos: Si falla fecha, se usa la edad entera directamente del .HY3
             if edad_dec is None and pd.notna(fila.get("Edad_Entera_Raw")):
-                edad_dec = float(fila["Edad_Entera_Raw"])
+                edad_dec = round(float(fila["Edad_Entera_Raw"]), 2)
 
         registro_ui = {
             "Atleta": usuario_match.get("nombre", nombre_file) if usuario_match else nombre_file,
@@ -217,14 +217,23 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
             lista_no_encontrados.append(registro_ui)
         else:
             usr_id = usuario_match["id"]
-            clave_duplicado = (
-                usr_id,
-                prueba_norm.lower(),
-                float(tiempo_sec),
-                float(edad_dec) if edad_dec is not None else 0.0,
-            )
+            
+            # MOTOR DE DUPLICADOS CON TOLERANCIA
+            es_duplicado = False
+            marcas_hist_usuario = marcas_por_usuario.get(usr_id, [])
+            
+            for m in marcas_hist_usuario:
+                if m["prueba"] == prueba_norm.lower() and m["tiempo"] == float(tiempo_sec):
+                    if edad_dec is not None:
+                        # Comprobar la tolerancia de 0.02 (0.021 para evitar problemas de precisión float)
+                        if abs(m["edad"] - edad_dec) <= 0.021:
+                            es_duplicado = True
+                            break
+                    else:
+                        es_duplicado = True
+                        break
 
-            if clave_duplicado in set_duplicados:
+            if es_duplicado:
                 lista_duplicados.append(registro_ui)
             else:
                 validos_bd.append({
@@ -249,7 +258,6 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
 def renderizar_tab_importar():
     st.markdown("### 📥 Importación de Competencias (HY3 / Lenex)")
     
-    # Parámetros del Campeonato exigidos en la UI
     nombre_comp = st.text_input("Nombre de la Competencia (nota):", placeholder="Ej: Campeonato Regional Oriente 2026")
     fecha_inicio = st.date_input("Fecha de Inicio del Campeonato", datetime.now())
     
@@ -263,7 +271,6 @@ def renderizar_tab_importar():
         df_crudo = pd.DataFrame()
 
         try:
-            # 1. Parsear el archivo según formato
             if extension in ["hy3", "txt"]:
                 bytes_data = archivo_subido.getvalue()
                 if not bytes_data:
@@ -283,7 +290,6 @@ def renderizar_tab_importar():
                 st.error("⚠️ No se encontraron resultados válidos en el archivo.")
                 return
 
-            # 2. Procesar marcas solo si tenemos el nombre del evento
             if nombre_comp:
                 validos_bd, df_validos, df_duplicados, df_no_encontrados = procesar_y_clasificar_marcas(
                     df_crudo, 
