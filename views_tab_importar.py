@@ -199,14 +199,14 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
             try:
                 fn_dt = datetime.strptime(usuario_match["fecha_nacimiento"], "%Y-%m-%d").date()
                 dias_diferencia = (fecha_inicio_comp_obj - fn_dt).days
-                edad_dec = round(dias_diferencia / 364, 2)
+                edad_dec = round(dias_diferencia / 365.25, 2)
             except Exception:
                 edad_dec = None
         else:
             if fila.get("Fecha_Nac_Raw"):
                 try:
                     fn_dt = datetime.strptime(fila["Fecha_Nac_Raw"], "%Y-%m-%d").date()
-                    edad_dec = round((fecha_inicio_comp_obj - fn_dt).days / 364, 2)
+                    edad_dec = round((fecha_inicio_comp_obj - fn_dt).days / 365.25, 2)
                 except Exception:
                     pass
             
