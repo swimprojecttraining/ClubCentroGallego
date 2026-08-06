@@ -63,6 +63,7 @@ def convertir_tiempo_a_segundos(valor):
 # ==========================================
 def parsear_hy3(archivo_texto):
     resultados = []
+    nadadores_procesados = {} # INTEGRACIÓN: Diccionario para unificar bloques D1 duplicados (leadoffs)
     nadador_actual = None
 
     for linea in archivo_texto:
@@ -78,7 +79,9 @@ def parsear_hy3(archivo_texto):
             match_cedula = re.search(r"(\d{1,3}(?:\.\d{3}){2}|\d{7,8})", linea)
             cedula_limpia = re.sub(r"[^\d]", "", match_cedula.group(1)) if match_cedula else ""
 
-            # NUEVO ENFOQUE: Buscar 8 dígitos y edad separados por espacio de manera robusta
+            # Clave única para agrupar (cédula, o nombre si falla la cédula)
+            id_nadador = cedula_limpia if cedula_limpia else nombre_limpio
+
             match_nac = re.search(r"(\d{8})\s+(\d{1,2})\b", linea)
             fecha_nac_raw = None
             edad_entera = None
@@ -91,15 +94,25 @@ def parsear_hy3(archivo_texto):
                 except ValueError:
                     pass
 
-            nadador_actual = {
+            info_nadador = {
                 "Atleta_Limpio": nombre_limpio,
                 "Cedula": cedula_limpia,
                 "Edad_Entera_Raw": edad_entera,
                 "Fecha_Nac_Raw": fecha_nac_raw,
             }
 
+            # INTEGRACIÓN: Si el nadador ya fue leído (ej. prueba leadoff), reutilizamos su perfil
+            if id_nadador in nadadores_procesados:
+                nadador_actual = nadadores_procesados[id_nadador]
+            else:
+                nadadores_procesados[id_nadador] = info_nadador
+                nadador_actual = nadadores_procesados[id_nadador]
+
         elif record_type == "E1" and nadador_actual:
-            nadador_actual["Evento"] = linea[18:24].strip()
+            codigo_prueba = linea[18:24].strip()
+            # INTEGRACIÓN: Se limpia el sufijo "L" de los relevos aquí para que el normalizador no falle
+            codigo_limpio = re.sub(r"L$", "", codigo_prueba.split()[0])
+            nadador_actual["Evento"] = codigo_limpio
 
         elif record_type == "E2" and nadador_actual and nadador_actual.get("Evento"):
             tiempo_raw = linea[5:15].strip()
@@ -148,7 +161,6 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
     res_marcas = supabase.table("marcas_historicas").select("usuario_id, prueba, tiempo, edad").execute()
     marcas_existentes = res_marcas.data if res_marcas.data else []
 
-    # REESTRUCTURACIÓN: Agrupar marcas históricas por usuario para facilitar la búsqueda con tolerancia
     marcas_por_usuario = {}
     for m in marcas_existentes:
         uid = m.get("usuario_id")
@@ -170,7 +182,6 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
         prueba_norm = normalizar_prueba(fila["Evento"])
         tiempo_sec = convertir_tiempo_a_segundos(fila["Tiempo_Raw"])
 
-        # Buscar en BD local
         usuario_match = None
         for u in usuarios_db:
             u_cedula = re.sub(r"[^\d]", "", str(u.get("cedula", "")))
@@ -183,7 +194,6 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
                 usuario_match = u
                 break
 
-        # Cálculo de Edad Híbrido (Estricto a 2 decimales)
         edad_dec = None
         if usuario_match and usuario_match.get("fecha_nacimiento"):
             try:
@@ -200,7 +210,6 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
                 except Exception:
                     pass
             
-            # Rescate para externos: Si falla fecha, se usa la edad entera directamente del .HY3
             if edad_dec is None and pd.notna(fila.get("Edad_Entera_Raw")):
                 edad_dec = round(float(fila["Edad_Entera_Raw"]), 2)
 
@@ -218,14 +227,12 @@ def procesar_y_clasificar_marcas(df_crudo, nombre_competencia, fecha_inicio_comp
         else:
             usr_id = usuario_match["id"]
             
-            # MOTOR DE DUPLICADOS CON TOLERANCIA
             es_duplicado = False
             marcas_hist_usuario = marcas_por_usuario.get(usr_id, [])
             
             for m in marcas_hist_usuario:
                 if m["prueba"] == prueba_norm.lower() and m["tiempo"] == float(tiempo_sec):
                     if edad_dec is not None:
-                        # Comprobar la tolerancia de 0.02 (0.021 para evitar problemas de precisión float)
                         if abs(m["edad"] - edad_dec) <= 0.021:
                             es_duplicado = True
                             break
