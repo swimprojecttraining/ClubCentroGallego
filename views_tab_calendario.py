@@ -296,15 +296,15 @@ def renderizar_tab_calendario():
         with st.spinner("Procesando mejores marcas e historial reciente..."):
           try:
             res_tiempos = (
-                supabase.table("tiempos")
-                .select("usuario_id, prueba, tiempo, fecha_registro")
+                supabase.table("marcas_historicas")
+                .select("usuario_id, prueba, tiempo, nota")
                 .in_("usuario_id", ids_seleccionados)
                 .order("fecha_registro", desc=True)
                 .execute()
             )
             tiempos_raw = res_tiempos.data if res_tiempos.data else []
           except Exception as err:
-            st.error(f"Error al consultar tiempos: {err}")
+            st.error(f"Error al consultar la tabla marcas_historicas: {err}")
             return
 
           registros_tabla = []
