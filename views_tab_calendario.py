@@ -2,28 +2,13 @@ import datetime
 import pandas as pd
 import streamlit as st
 
-# Importación de funciones core de soporte analítico
+# Importación de funciones core de soporte analítico desde la librería central
 from formulas_lib_funciones import (
     calcular_edad_tecnica_al_31_dic,
     calcular_fecha_alerta,
     evaluar_elegibilidad_internacional,
+    formatear_a_minutos,
 )
-
-
-def formatear_segundos_a_tiempo(segundos):
-  """Convierte un valor numérico en segundos (float) a formato MM:SS.ss o SS.ss."""
-  if segundos is None or segundos == "":
-    return "-"
-  try:
-    s = float(segundos)
-    mins = int(s // 60)
-    secs = s % 60
-    if mins > 0:
-      return f"{mins}:{secs:05.2f}"
-    else:
-      return f"{secs:.2f}"
-  except Exception:
-    return str(segundos)
 
 
 def estimar_fecha_marca(fecha_nac_str, edad):
@@ -320,7 +305,6 @@ def renderizar_tab_calendario():
       ):
         with st.spinner("Procesando marcas históricas..."):
           try:
-            # Consulta a la tabla marcas_historicas
             res_tiempos = (
                 supabase.table("marcas_historicas")
                 .select("usuario_id, prueba, tiempo, edad, created_at")
@@ -371,7 +355,6 @@ def renderizar_tab_calendario():
               fila = fila_base.copy()
               fila["Prueba"] = prueba_nombre
 
-              # Mejor Marca (PB) = Menor valor en segundos
               tiempos_validos = [
                   t["tiempo"] for t in lista_tiempos if t["tiempo"] is not None
               ]
@@ -386,7 +369,7 @@ def renderizar_tab_calendario():
                     if reg_pb
                     else ""
                 )
-                str_pb = formatear_segundos_a_tiempo(pb_val)
+                str_pb = formatear_a_minutos(pb_val)
                 fila["PB (Mejor Tiempo)"] = (
                     f"{str_pb} ({f_pb})" if f_pb else str_pb
                 )
@@ -402,9 +385,7 @@ def renderizar_tab_calendario():
                       else f"Res {idx + 1}"
                   )
                   if idx < len(ultimos_4):
-                    val_t = formatear_segundos_a_tiempo(
-                        ultimos_4[idx]["tiempo"]
-                    )
+                    val_t = formatear_a_minutos(ultimos_4[idx]["tiempo"])
                     f_est = estimar_fecha_marca(
                         fecha_nac, ultimos_4[idx].get("edad")
                     )
