@@ -10,11 +10,43 @@ from formulas_lib_funciones import (
 )
 
 
+def formatear_segundos_a_tiempo(segundos):
+  """Convierte un valor numérico en segundos (float) a formato MM:SS.ss o SS.ss."""
+  if segundos is None or segundos == "":
+    return "-"
+  try:
+    s = float(segundos)
+    mins = int(s // 60)
+    secs = s % 60
+    if mins > 0:
+      return f"{mins}:{secs:05.2f}"
+    else:
+      return f"{secs:.2f}"
+  except Exception:
+    return str(segundos)
+
+
+def estimar_fecha_marca(fecha_nac_str, edad):
+  """Calcula la fecha aproximada de la competencia sumando la edad (años) a la fecha de nacimiento."""
+  if not fecha_nac_str or edad is None:
+    return ""
+  try:
+    if isinstance(fecha_nac_str, str):
+      f_nac = datetime.date.fromisoformat(fecha_nac_str)
+    else:
+      f_nac = fecha_nac_str
+    dias = int(float(edad) * 365.25)
+    f_marca = f_nac + datetime.timedelta(days=dias)
+    return f_marca.strftime("%d/%m/%Y")
+  except Exception:
+    return ""
+
+
 def renderizar_tab_calendario():
   """Vista general del Calendario de Competencias estructurada en subpestañas.
 
   Incluye la gestión de eventos, generación de hitos y la herramienta de
-  exportación de nóminas con PB e historial de marcas para el Head Coach / Admin.
+  exportación de nóminas con marcas históricas para el Head Coach / Admin.
   """
   supabase = st.session_state.get("supabase")
   rol_usuario = st.session_state.get("rol_real") or st.session_state.get(
@@ -26,7 +58,6 @@ def renderizar_tab_calendario():
     st.error("❌ Conexión con el servidor no disponible.")
     return
 
-  # Configuración de subpestañas según el rol
   es_staff = rol_usuario in ["Head Coach", "Administrador"]
 
   if es_staff:
@@ -43,7 +74,6 @@ def renderizar_tab_calendario():
     temporada_actual = datetime.date.today().year
     st.markdown(f"**Competencias Programadas - Temporada {temporada_actual}**")
 
-    # 1. Carga de datos inicial con manejo seguro
     dict_comps = {}
     try:
       resp_comp = (
@@ -58,7 +88,6 @@ def renderizar_tab_calendario():
       st.error(f"Error cargando calendario: {e}")
       resp_comp_data = []
 
-    # Visualización pública
     if resp_comp_data:
       df_comp = pd.DataFrame(resp_comp_data)
       df_comp["fecha_inicio"] = pd.to_datetime(
@@ -88,7 +117,6 @@ def renderizar_tab_calendario():
           f" {temporada_actual}."
       )
 
-    # 2. Controles de Edición (Restringido)
     if es_staff:
       st.markdown("---")
       col_add, col_edit = st.columns(2)
@@ -150,7 +178,6 @@ def renderizar_tab_calendario():
               }).eq("id", datos_c["id"]).execute()
               st.rerun()
 
-      # 3. Generador de Hitos
       st.markdown("---")
       st.markdown("### 🎯 Generación de Hitos")
       if dict_comps:
@@ -220,7 +247,7 @@ def renderizar_tab_calendario():
               st.error(f"Error técnico: {e}")
 
   # ============================================================
-  # SUBPESTAÑA 2: PLANILLA DE INSCRIPCIÓN (EXCLUSIVA HEAD COACH / ADMIN)
+  # SUBPESTAÑA 2: PLANILLA DE INSCRIPCIÓN (MARCAS HISTÓRICAS)
   # ============================================================
   if es_staff:
     with tab_inscripciones:
@@ -230,7 +257,6 @@ def renderizar_tab_calendario():
           " Nacimiento, PBs y los últimos 4 registros por prueba."
       )
 
-      # 1. Obtener nadadores activos
       try:
         res_nadadores = (
             supabase.table("usuarios")
@@ -249,7 +275,6 @@ def renderizar_tab_calendario():
         st.info("No hay nadadores activos en el sistema.")
         return
 
-      # 2. Configuración de Filtros
       dict_nadadores = {n["nombre"]: n for n in nadadores_data}
       col_f1, col_f2 = st.columns([2, 1])
 
@@ -293,18 +318,19 @@ def renderizar_tab_calendario():
       if st.button(
           "🚀 Generar Tabla para Inscripción", use_container_width=True
       ):
-        with st.spinner("Procesando mejores marcas e historial reciente..."):
+        with st.spinner("Procesando marcas históricas..."):
           try:
+            # Consulta a la tabla marcas_historicas
             res_tiempos = (
                 supabase.table("marcas_historicas")
-                .select("usuario_id, prueba, tiempo, nota")
+                .select("usuario_id, prueba, tiempo, edad, created_at")
                 .in_("usuario_id", ids_seleccionados)
-                .order("fecha_registro", desc=True)
+                .order("created_at", desc=True)
                 .execute()
             )
             tiempos_raw = res_tiempos.data if res_tiempos.data else []
           except Exception as err:
-            st.error(f"Error al consultar la tabla marcas_historicas: {err}")
+            st.error(f"Error al consultar marcas históricas: {err}")
             return
 
           registros_tabla = []
@@ -312,10 +338,10 @@ def renderizar_tab_calendario():
           for nombre_atleta in nadadores_seleccionados:
             atleta_info = dict_nadadores[nombre_atleta]
             uid = atleta_info["id"]
+            fecha_nac = atleta_info.get("fecha_nacimiento")
 
             tiempos_atleta = [t for t in tiempos_raw if t["usuario_id"] == uid]
 
-            # Agrupar por prueba
             pruebas_dict = {}
             for t in tiempos_atleta:
               pr = t["prueba"]
@@ -326,13 +352,13 @@ def renderizar_tab_calendario():
             fila_base = {
                 "Atleta": atleta_info["nombre"],
                 "Cédula": atleta_info.get("cedula", "N/T"),
-                "Fecha Nacimiento": atleta_info.get("fecha_nacimiento", "N/T"),
+                "Fecha Nacimiento": fecha_nac if fecha_nac else "N/T",
                 "Género": atleta_info.get("genero", "N/T"),
             }
 
             if not pruebas_dict:
               fila = fila_base.copy()
-              fila["Prueba"] = "Sin Tiempos Registrados"
+              fila["Prueba"] = "Sin Marcas Registradas"
               fila["PB (Mejor Tiempo)"] = "-"
               if incluir_ultimos_4:
                 fila["Res 1 (Último)"] = "-"
@@ -345,12 +371,27 @@ def renderizar_tab_calendario():
               fila = fila_base.copy()
               fila["Prueba"] = prueba_nombre
 
+              # Mejor Marca (PB) = Menor valor en segundos
               tiempos_validos = [
-                  t["tiempo"] for t in lista_tiempos if t["tiempo"]
+                  t["tiempo"] for t in lista_tiempos if t["tiempo"] is not None
               ]
-              fila["PB (Mejor Tiempo)"] = (
-                  min(tiempos_validos) if tiempos_validos else "-"
-              )
+
+              if tiempos_validos:
+                pb_val = min(tiempos_validos)
+                reg_pb = next(
+                    (t for t in lista_tiempos if t["tiempo"] == pb_val), None
+                )
+                f_pb = (
+                    estimar_fecha_marca(fecha_nac, reg_pb.get("edad"))
+                    if reg_pb
+                    else ""
+                )
+                str_pb = formatear_segundos_a_tiempo(pb_val)
+                fila["PB (Mejor Tiempo)"] = (
+                    f"{str_pb} ({f_pb})" if f_pb else str_pb
+                )
+              else:
+                fila["PB (Mejor Tiempo)"] = "-"
 
               if incluir_ultimos_4:
                 ultimos_4 = lista_tiempos[:4]
@@ -361,11 +402,13 @@ def renderizar_tab_calendario():
                       else f"Res {idx + 1}"
                   )
                   if idx < len(ultimos_4):
-                    val_t = ultimos_4[idx]["tiempo"]
-                    f_t = ultimos_4[idx].get("fecha_registro", "")
-                    fila[col_nombre] = (
-                        f"{val_t} ({f_t})" if f_t else str(val_t)
+                    val_t = formatear_segundos_a_tiempo(
+                        ultimos_4[idx]["tiempo"]
                     )
+                    f_est = estimar_fecha_marca(
+                        fecha_nac, ultimos_4[idx].get("edad")
+                    )
+                    fila[col_nombre] = f"{val_t} ({f_est})" if f_est else val_t
                   else:
                     fila[col_nombre] = "-"
 
