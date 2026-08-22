@@ -1,402 +1,447 @@
-import hashlib
-import random
 import datetime
-from cryptography.fernet import Fernet
-import streamlit as st
-import numpy as np
-from scipy.optimize import fsolve
 import pandas as pd
-import smtplib
-import string
-import secrets
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-
-
-def hash_password(password: str) -> str:
-    """Genera el hash SHA-256 de la contraseña para validación local."""
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def desencriptar_credencial(texto_cifrado: str, llave_maestra: str) -> str:
-    """Descifra en caliente las credenciales de Supabase usando AES-256."""
-    try:
-        fernet = Fernet(llave_maestra.encode())
-        return fernet.decrypt(texto_cifrado.encode()).decode()
-    except Exception as e:
-        st.error(f"Error crítico de descifrado de credenciales: {e}")
-        st.stop()
-# ==============================================================================
-# MÓDULO DE ENVÍO DE CORREOS SMTP (UBICADO AL PRINCIPIO DE LA LIBRERÍA)
-# ==============================================================================
-
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
 import streamlit as st
 
-def enviar_correo_con_pdf(destinatario, asunto, cuerpo_html, pdf_bytes=None, nombre_archivo_pdf="documento.pdf"):
-    """
-    Envía correos utilizando el servidor SMTP de Yahoo Mail (Puerto 465 SSL).
-    """
-    try:
-        remitente = str(st.secrets["smtp"]["email"]).strip()
-        password = str(st.secrets["smtp"]["password"]).replace(" ", "").strip()
-        servidor = str(st.secrets["smtp"]["server"]).strip()
-        puerto = int(st.secrets["smtp"].get("port", 465))
+# Importación de funciones core de soporte analítico desde la librería central
+from formulas_lib_funciones import (
+    calcular_edad_tecnica_al_31_dic,
+    calcular_fecha_alerta,
+    evaluar_elegibilidad_internacional,
+    formatear_a_minutos,
+)
 
-        msg = MIMEMultipart()
-        msg['From'] = f"Sistema Clubes <{remitente}>"
-        msg['To'] = destinatario
-        msg['Subject'] = asunto
-        msg.attach(MIMEText(cuerpo_html, 'html'))
 
-        if pdf_bytes:
-            adjunto = MIMEApplication(pdf_bytes, _subtype="pdf")
-            adjunto.add_header('Content-Disposition', 'attachment', filename=nombre_archivo_pdf)
-            msg.attach(adjunto)
-
-        # Conexión SSL directa con Yahoo
-        with smtplib.SMTP_SSL(servidor, puerto, timeout=15) as server:
-            server.login(remitente, password)
-            server.send_message(msg)
-        
-        return True, "Correo enviado exitosamente."
-    except Exception as e:
-        error_msg = f"Error en el servidor SMTP: {str(e)}"
-        print(error_msg)
-        return False, error_msg
-
-def enviar_email(destinatario: str, asunto: str, cuerpo_html: str) -> tuple:
-    """
-    Alias/Wrapper para mantener compatibilidad con scripts que usan el nombre 'enviar_email'.
-    Redirige la llamada a la función principal.
-    """
-    return enviar_correo_con_pdf(destinatario, asunto, cuerpo_html)
-# -------------------------------------------------------------
-# MOTOR DE EVALUACIÓN DE HITOS Y COMPETENCIAS
-# -------------------------------------------------------------
-def calcular_edad_tecnica_al_31_dic(fecha_nacimiento, temporada_activa):
-    """Calcula la edad del nadador al 31 de diciembre del año en curso."""
-    if isinstance(fecha_nacimiento, str):
-        fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento, '%Y-%m-%d').date()        
-    edad_tecnica = temporada_activa - fecha_nacimiento.year
-    return edad_tecnica
-
-def evaluar_elegibilidad_internacional(edad_tecnica, ente_rector):
-    entes_internacionales = ["PANAM AQUATICS", "WORLD AQUATICS"]
-    if ente_rector in entes_internacionales:
-        if edad_tecnica < 14:
-            return False, f"Edad técnica insuficiente ({edad_tecnica} años). Mínimo requerido: 14 años."
-    return True, None
-
-def calcular_fecha_alerta(fecha_inicio_competencia, dias_anticipacion=15):
-    if isinstance(fecha_inicio_competencia, str):
-        fecha_inicio_competencia = datetime.datetime.strptime(fecha_inicio_competencia, '%Y-%m-%d').date()
-    return fecha_inicio_competencia - datetime.timedelta(days=dias_anticipacion)
-
-# -------------------------------------------------------------
-# TRANSFORMACIÓN DE TIEMPOS
-# -------------------------------------------------------------
-def formatear_a_minutos(segundos_flotante: float) -> str:
-    """Convierte segundos a formato M:SS.hh"""
-    try:
-        if segundos_flotante <= 0 or pd.isna(segundos_flotante):
-            return "-"
-        minutos = int(segundos_flotante // 60)
-        segundos = segundos_flotante % 60      
-        if minutos > 0:
-            return f"{minutos}:{segundos:05.2f}"
-        else:
-            return f"{segundos:.2f}"
-    except (ValueError, TypeError):
-        return "-"
-
-def convertir_string_a_segundos(tiempo_str: str) -> float:
-    try:
-        tiempo_str = tiempo_str.strip()
-        if ":" in tiempo_str:
-            partes_minutos = tiempo_str.split(":")
-            minutos = int(partes_minutos[0])
-            segundos = float(partes_minutos[1])
-            return float(round((minutos * 60) + segundos, 2))
-        else:
-            return float(round(float(tiempo_str), 2))
-    except Exception:
-        raise ValueError("Formato de tiempo inválido. Use 'mm:ss.00' o 'ss.00'")    
-
-# -------------------------------------------------------------
-# CÁLCULOS DE MARCAS E HITOS
-# -------------------------------------------------------------
-def procesar_mejor_marca_historica(df_atleta):
-    """
-    Calcula t0, T0, t_pb y T_pb basándose exclusivamente en la columna 'Edad'.
-    Aplica la lógica del valle: Si tras el PB absoluto hay dos marcas consecutivas peores,
-    el PB se anula y el nuevo punto de control es la última marca registrada.
-    """
-    # 1. Aseguramos orden cronológico (Edad decimal)
-    df = df_atleta.sort_values(by="Edad").reset_index(drop=True)
-    
-    # 2. Origen (t0, T0) - El registro más antiguo (primera fila)
-    t0 = float(df.iloc[0]["Edad"])
-    T0 = float(df.iloc[0]["Tiempo"])
-    
-    # 3. PB Absoluto (el mejor tiempo de toda la historia)
-    idx_pb_absoluto = df["Tiempo"].idxmin()
-    t_pb = float(df.loc[idx_pb_absoluto, "Edad"])
-    T_pb = float(df.loc[idx_pb_absoluto, "Tiempo"])
-    
-    # 4. Verificación de Valle de Rendimiento
-    # Solo miramos si hay marcas posteriores al PB absoluto
-    if idx_pb_absoluto < len(df) - 1:
-        # Extraemos solo las marcas después del PB
-        df_posterior = df.iloc[idx_pb_absoluto + 1 :].reset_index(drop=True)
-        
-        # Necesitamos al menos 2 marcas para confirmar un valle (dos peores seguidas)
-        if len(df_posterior) >= 2:
-            valle_encontrado = False
-            for i in range(len(df_posterior) - 1):
-                # Comparamos si ambas son peores que el PB absoluto
-                if df_posterior.iloc[i]["Tiempo"] > T_pb and df_posterior.iloc[i+1]["Tiempo"] > T_pb:
-                    valle_encontrado = True
-                    break
-            
-            # 5. Si hay valle, el PB actual se convierte en la última marca (la más reciente)
-            if valle_encontrado:
-                t_pb = float(df.iloc[-1]["Edad"])
-                T_pb = float(df.iloc[-1]["Tiempo"])
-                
-    return t0, T0, t_pb, T_pb
-
-@st.cache_data(show_spinner=False, ttl=600)
-def obtener_datos_hitos_atleta(nadador_id):
-    try:
-        supabase = st.session_state.get("supabase")
-        if not supabase: return None
-        
-        res_atleta = supabase.table("usuarios").select("fecha_nacimiento").eq("id", nadador_id).execute()
-        res_hitos = supabase.table("historial_hitos").select("*, catalogo_competencias(*)").eq("usuario_id", nadador_id).execute()            
-        
-        if res_atleta.data and res_atleta.data[0].get("fecha_nacimiento"):
-            return {
-                "fecha_nacimiento": res_atleta.data[0]["fecha_nacimiento"],
-                "hitos": res_hitos.data if res_hitos.data else []
-            }
-    except Exception as e:
-        print(f"Error interno en consulta cacheada de Supabase: {e}")
-    return None
-
-# -------------------------------------------------------------
-# CATEGORÍAS Y EDADES
-# -------------------------------------------------------------
-def calcular_categoria_competencia(fecha_nac_str):
-    if not fecha_nac_str: 
-        return "Desconocida", 0
-    try:
-        # Soporta el formato estándar DATE de la base de datos (YYYY-MM-DD o ISO)
-        fecha_nac = datetime.date.fromisoformat(str(fecha_nac_str).split("T")[0])
-    except Exception:
-        return "Error Formato", 0
-        
-    ano_actual = datetime.date.today().year 
-    edad_competencia = ano_actual - fecha_nac.year
-    
-    if 5 <= edad_competencia <= 6: cat = "Preinfantil A"
-    elif 7 <= edad_competencia <= 8: cat = "Preinfantil B"
-    elif edad_competencia == 9: cat = "Preinfantil C"
-    elif 10 <= edad_competencia < 12: cat = "Infantil A"
-    elif 12 <= edad_competencia < 14: cat = "Infantil B"
-    elif 14 <= edad_competencia < 16: cat = "Juvenil A"
-    elif 16 <= edad_competencia < 18: cat = "Juvenil B"
-    elif 18 <= edad_competencia < 25: cat = "Máxima"
-    elif edad_competencia >= 25: cat = "Máster"
-    else: cat = "Semillero / Menor"
-    
-    return cat, edad_competencia
-
-def calcular_edad_decimal(fecha_nacimiento_str, fecha_marca):
-    if not fecha_nacimiento_str or not fecha_marca: return None
-    try:
-        if isinstance(fecha_nacimiento_str, str):
-            fecha_nac_obj = datetime.date.fromisoformat(fecha_nacimiento_str)
-        else:
-            fecha_nac_obj = fecha_nacimiento_str
-        diferencia_dias = (fecha_marca - fecha_nac_obj).days
-        edad_decimal = diferencia_dias / 365.25
-        return round(edad_decimal, 2)
-    except Exception:
-        return None
-# -------------------------------------------------------------
-# FUNCIÓN CALCULAR PUNTOS WA
-# -------------------------------------------------------------
-@st.cache_data(ttl=300, show_spinner=False)
-def calcular_puntos_wa(tiempo_atleta: float, record_mundial: float) -> int:
-    """
-    Calcula los puntos WA basándose en el WR específico de la prueba y género activos.
-    """
-    try:
-        t = float(tiempo_atleta)
-        wr = float(record_mundial)
-        if t <= 0 or wr <= 0:
-            return 0
-        return max(0, int(1000 * ((wr / t) ** 3)))
-    except (ValueError, TypeError):
-        return 0
-
-def dibujar_lineas_referencia(ax, ref_data, lim_x_min, lim_x_max, peor_tiempo=None):
-    """ Dibuja las líneas de referencia en cualquier gráfico pasado por ax """
-    if not ref_data: return
-
-    # Extraemos el objeto
-    ref_obj = ref_data[0] if isinstance(ref_data, list) and len(ref_data) > 0 else ref_data
-    y_min, y_max = ax.get_ylim()
-    # Configuración de referencias
-    configs = [
-        {"key": "m_ano",     "lbl": "Mín. Año",    "col": "#A06000", "va": "top"},
-        {"key": "m_panam_b", "lbl": "PANAM Jr B",  "col": "#006644", "va": "bottom"},
-        {"key": "m_panam_a", "lbl": "PANAM Jr A",  "col": "#2A658A", "va": "top"},
-        {"key": "m_wa_b",    "lbl": "WA B",        "col": "#943100", "va": "bottom"},
-        {"key": "m_wa_a",    "lbl": "WA A",        "col": "#883963", "va": "top"},
-        {"key": "m_wr",      "lbl": "WR",          "col": "#2C3E50", "va": "top"}
-    ]
-    
-    x_pos = lim_x_min + (lim_x_max - lim_x_min) * 0.02
-    
-    for cfg in configs:
-        val = ref_obj.get(cfg["key"]) if isinstance(ref_obj, dict) else None
-        if val and isinstance(val, (int, float)) and val > 0:
-            if (y_min * 0.99) <= val <= (y_max * 1.01):
-                ax.axhline(y=val, color=cfg["col"], linestyle=":", linewidth=0.8, alpha=0.7)
-                
-                lbl_texto = f"{cfg['lbl']}: {formatear_a_minutos(val).replace(' s', '')}"
-                ax.text(x_pos, val, lbl_texto, color=cfg["col"], fontsize=6.5, ha="left", va=cfg["va"])
-
-def obtener_pruebas_por_categoria(cat_atleta: str) -> list:
-    """
-    Retorna la lista oficial de pruebas y distancias reglamentarias permitidas 
-    según la categoría del atleta, incluyendo separadores estéticos de estilo.
-    """
-    es_preinfantil = cat_atleta.startswith("Preinfantil") if cat_atleta else False
-
-    if es_preinfantil:
-        return [
-            '--- 🏊‍♂️ LIBRE ---', '25 Libre', '50 Libre',
-            '--- 🏊‍♂️ ESPALDA ---', '25 Espalda',
-            '--- 🏊‍♂️ MARIPOSA ---', '25 Mariposa',
-            '--- 🏊‍♂️ PECHO ---', '25 Pecho',
-            '--- 🏊‍♂️ COMBINADO ---', '100 Combinado'
-        ]
-    elif cat_atleta == "Infantil A":
-        return [
-            '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre',
-            '--- 🏊‍♂️ ESPALDA ---', '50 Espalda',
-            '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa',
-            '--- 🏊‍♂️ PECHO ---', '50 Pecho',
-            '--- 🏊‍♂️ COMBINADO ---', '200 Combinado'
-        ]
-    elif cat_atleta == "Infantil B":
-        return [
-            '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre',
-            '--- 🏊‍♂️ ESPALDA ---', '50 Espalda', '100 Espalda', '200 Espalda',
-            '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa', '100 Mariposa', '200 Mariposa',
-            '--- 🏊‍♂️ PECHO ---', '50 Pecho', '100 Pecho', '200 Pecho',
-            '--- 🏊‍♂️ COMBINADO ---', '200 Combinado'
-        ]
+def estimar_fecha_marca(fecha_nac_str, edad):
+  """Calcula la fecha aproximada de la competencia sumando la edad (años) a la fecha de nacimiento."""
+  if not fecha_nac_str or edad is None:
+    return ""
+  try:
+    if isinstance(fecha_nac_str, str):
+      f_nac = datetime.date.fromisoformat(fecha_nac_str)
     else:
-        return [
-            '--- 🏊‍♂️ LIBRE ---', '50 Libre', '100 Libre', '200 Libre', '400 Libre', '800 Libre', '1500 Libre',
-            '--- 🏊‍♂️ ESPALDA ---', '50 Espalda', '100 Espalda', '200 Espalda',
-            '--- 🏊‍♂️ MARIPOSA ---', '50 Mariposa', '100 Mariposa', '200 Mariposa',
-            '--- 🏊‍♂️ PECHO ---', '50 Pecho', '100 Pecho', '200 Pecho',
-            '--- 🏊‍♂️ COMBINADO ---', '200 Combinado', '400 Combinado'
-        ]
+      f_nac = fecha_nac_str
+    dias = int(float(edad) * 365.25)
+    f_marca = f_nac + datetime.timedelta(days=dias)
+    return f_marca.strftime("%d/%m/%Y")
+  except Exception:
+    return ""
 
-# -------------------------------------------------------------
-# MOTOR MATEMÁTICO DOBLE CÁLCULO DE CURVA (CORREGIDO)
-# -------------------------------------------------------------
 
-def resolver_k_individual(eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target):
-    """
-    Resuelve el factor de curvatura 'k' exacto sin acotamientos artificiales.
-    Soporta la resolución exacta de k alto (como en caídas iniciales pronunciadas)
-    y previene colapsos en k -> 0 mediante el límite analítico de L'Hôpital.
-    """
-    # Condición de validez temporal idéntica a la versión original
-    if eq_t_peak > eq_t0 and eq_t_pb >= eq_t0:
-        tau_eq = (eq_t_pb - eq_t0) / (eq_t_peak - eq_t0)
+def renderizar_tab_calendario():
+  """Vista general del Calendario de Competencias estructurada en subpestañas.
 
-        def ecuacion_k_eq(k_val):
-            k = float(k_val[0]) if isinstance(k_val, (np.ndarray, list)) else float(k_val)
-            
-            # Límite continuo cuando k tiende a 0 (Evita retornar 1e6 de forma abrupta)
-            if abs(k) < 1e-5:
-                ter_exp = 1.0 - tau_eq
+  Incluye la gestión de eventos, generación de hitos y la herramienta de
+  exportación de nóminas con marcas históricas para el Head Coach / Admin.
+  """
+  supabase = st.session_state.get("supabase")
+  rol_usuario = st.session_state.get("rol_real") or st.session_state.get(
+      "rol", ""
+  )
+  id_usuario = st.session_state.get("usuario_id")
+
+  if not supabase:
+    st.error("❌ Conexión con el servidor no disponible.")
+    return
+
+  es_staff = rol_usuario in ["Head Coach", "Administrador"]
+
+  if es_staff:
+    tab_eventos, tab_inscripciones = st.tabs(
+        ["📅 Calendario y Hitos", "📋 Planilla de Inscripción"]
+    )
+  else:
+    tab_eventos = st.container()
+
+  # ============================================================
+  # SUBPESTAÑA 1: CALENDARIO Y HITOS
+  # ============================================================
+  with tab_eventos if es_staff else st.container():
+    temporada_actual = datetime.date.today().year
+    st.markdown(f"**Competencias Programadas - Temporada {temporada_actual}**")
+
+    dict_comps = {}
+    try:
+      resp_comp = (
+          supabase.table("catalogo_competencias")
+          .select("*")
+          .eq("temporada", temporada_actual)
+          .order("fecha_inicio", desc=False)
+          .execute()
+      )
+      resp_comp_data = resp_comp.data if resp_comp.data else []
+    except Exception as e:
+      st.error(f"Error cargando calendario: {e}")
+      resp_comp_data = []
+
+    if resp_comp_data:
+      df_comp = pd.DataFrame(resp_comp_data)
+      df_comp["fecha_inicio"] = pd.to_datetime(
+          df_comp["fecha_inicio"]
+      ).dt.strftime("%d-%m-%Y")
+      df_comp["fecha_fin"] = pd.to_datetime(
+          df_comp["fecha_fin"]
+      ).dt.strftime("%d-%m-%Y")
+      st.dataframe(
+          df_comp[[
+              "nombre_evento",
+              "ente_rector",
+              "categoria_evento",
+              "fecha_inicio",
+              "fecha_fin",
+          ]],
+          use_container_width=True,
+          hide_index=True,
+      )
+      dict_comps = {
+          f"{c['nombre_evento']} ({c['fecha_inicio']})": c
+          for c in resp_comp_data
+      }
+    else:
+      st.info(
+          "No hay competencias registradas para la temporada"
+          f" {temporada_actual}."
+      )
+
+    if es_staff:
+      st.markdown("---")
+      col_add, col_edit = st.columns(2)
+
+      with col_add:
+        st.markdown("**➕ Programar Nueva Competencia**")
+        with st.form("form_add_comp", clear_on_submit=True):
+          add_temp = st.number_input(
+              "Temporada:", min_value=2024, value=temporada_actual
+          )
+          add_nombre = st.text_input("Nombre del Evento:")
+          add_ente = st.selectbox(
+              "Ente Rector:", ["FEVEDA", "PANAM", "SURAM", "WA"]
+          )
+          add_cat = st.selectbox("Nivel:", ["Nacional", "Internacional"])
+          c1, c2 = st.columns(2)
+          add_f_ini = c1.date_input("Inicio:")
+          add_f_fin = c2.date_input("Fin:")
+
+          if st.form_submit_button("💾 Guardar"):
+            if add_f_fin < add_f_ini:
+              st.error("La fecha de fin no puede ser anterior a la de inicio.")
+            elif not add_nombre:
+              st.error("Nombre obligatorio.")
             else:
-                try:
-                    denominador = 1.0 - np.exp(-k)
-                    if abs(denominador) < 1e-12:
-                        ter_exp = 1.0 - tau_eq
-                    else:
-                        ter_exp = (np.exp(-k * tau_eq) - np.exp(-k)) / denominador
-                except (OverflowError, ZeroDivisionError):
-                    return 1e6
+              supabase.table("catalogo_competencias").insert({
+                  "temporada": add_temp,
+                  "nombre_evento": add_nombre,
+                  "ente_rector": add_ente,
+                  "categoria_evento": add_cat,
+                  "fecha_inicio": add_f_ini.isoformat(),
+                  "fecha_fin": add_f_fin.isoformat(),
+                  "creador_id": id_usuario,
+              }).execute()
+              st.rerun()
 
-            T_predicho = eq_T_target + (eq_T0 - eq_T_target) * ter_exp
-            return T_predicho - eq_T_pb
+      with col_edit:
+        st.markdown("**✏️ Auditar / Posponer**")
+        if dict_comps:
+          comp_sel = st.selectbox("Seleccionar:", list(dict_comps.keys()))
+          datos_c = dict_comps[comp_sel]
+          with st.form("form_edit_comp"):
+            edit_nombre = st.text_input(
+                "Nombre:", value=datos_c["nombre_evento"]
+            )
+            c_i, c_f = st.columns(2)
+            edit_f_ini = c_i.date_input(
+                "Inicio:",
+                value=datetime.date.fromisoformat(datos_c["fecha_inicio"]),
+            )
+            edit_f_fin = c_f.date_input(
+                "Fin:", value=datetime.date.fromisoformat(datos_c["fecha_fin"])
+            )
+            if st.form_submit_button("🔄 Aplicar"):
+              supabase.table("catalogo_competencias").update({
+                  "fecha_inicio": edit_f_ini.isoformat(),
+                  "fecha_fin": edit_f_fin.isoformat(),
+                  "nombre_evento": edit_nombre,
+              }).eq("id", datos_c["id"]).execute()
+              st.rerun()
 
-        # Búsqueda de raíz sin restricción de clip
-        k_opt_eq, info, ier, msg = fsolve(ecuacion_k_eq, 1.0, full_output=True)
-        
-        if ier == 1:
-            return float(k_opt_eq[0])
-            
-    return None
+      st.markdown("---")
+      st.markdown("### 🎯 Generación de Hitos")
+      if dict_comps:
+        comp_ins = st.selectbox(
+            "Competencia a procesar:", options=list(dict_comps.keys())
+        )
+        datos_ins = dict_comps[comp_ins]
 
+        if st.button("🚀 Procesar Nómina"):
+          with st.spinner("Evaluando normativas..."):
+            try:
+              hitos_existentes = (
+                  supabase.table("historial_hitos")
+                  .select("usuario_id")
+                  .eq("competencia_id", datos_ins["id"])
+                  .execute()
+              )
+              set_ids_existentes = (
+                  {h["usuario_id"] for h in hitos_existentes.data}
+                  if hitos_existentes.data
+                  else set()
+              )
 
-def calcular_curva_atleta(edades_arr, eq_t0, eq_T0, eq_t_pb, eq_T_pb, eq_t_peak, eq_T_target, k_eq, h_eq):
-    """
-    Calcula el vector de tiempos proyectados de forma vectorial (NumPy).
-    Mantiene exacta fidelidad con la ecuación matemática original.
-    """
-    edades = np.asarray(edades_arr, dtype=float)
-    D_eq = eq_T_pb - eq_T_target
-    tiempos = np.zeros_like(edades)
+              atletas = (
+                  supabase.table("usuarios")
+                  .select("id, nombre, fecha_nacimiento")
+                  .eq("rol", "Nadador")
+                  .eq("estatus", "Activo")
+                  .execute()
+                  .data
+              )
 
-    fase_desarrollo = edades < eq_t_pb
-    fase_madurez = ~fase_desarrollo
+              contadores = {"elegibles": 0, "ineligibles": 0, "omitidos": 0}
+              for atleta in atletas:
+                if atleta["id"] in set_ids_existentes:
+                  contadores["omitidos"] += 1
+                  continue
 
-    # 1. Tramo Pre-PB
-    if np.any(fase_desarrollo):
-        t_dev = edades[fase_desarrollo]
-        tau_t = (t_dev - eq_t0) / (eq_t_peak - eq_t0)
-        
-        if k_eq is None or abs(k_eq) < 1e-5:
-            ter_exp = 1.0 - tau_t
+                edad_t = calcular_edad_tecnica_al_31_dic(
+                    atleta["fecha_nacimiento"], datos_ins["temporada"]
+                )
+                elegible, motivo = evaluar_elegibilidad_internacional(
+                    edad_t, datos_ins["ente_rector"]
+                )
+                f_alerta = calcular_fecha_alerta(datos_ins["fecha_inicio"], 15)
+
+                supabase.table("historial_hitos").insert({
+                    "usuario_id": atleta["id"],
+                    "competencia_id": datos_ins["id"],
+                    "temporada_auditada": datos_ins["temporada"],
+                    "elegible": elegible,
+                    "motivo_ineligibilidad": motivo if not elegible else None,
+                    "estado_cumplimiento": "Pendiente",
+                    "fecha_alerta": f_alerta.isoformat(),
+                }).execute()
+
+                contadores["elegibles" if elegible else "ineligibles"] += 1
+
+              st.success("✅ Proceso completado.")
+              st.info(
+                  f"📊 {contadores['elegibles']} elegibles |"
+                  f" {contadores['ineligibles']} ineligibles |"
+                  f" {contadores['omitidos']} ya registrados."
+              )
+              st.rerun()
+            except Exception as e:
+              st.error(f"Error técnico: {e}")
+
+  # ============================================================
+  # SUBPESTAÑA 2: PLANILLA DE INSCRIPCIÓN (MARCAS HISTÓRICAS)
+  # ============================================================
+  if es_staff:
+    with tab_inscripciones:
+      st.markdown("### 📋 Generador de Planilla de Inscripción")
+      st.caption(
+          "Genera y exporta la nómina de atletas con Cédula, Fecha de"
+          " Nacimiento, PBs y los últimos 4 registros por prueba."
+      )
+
+      try:
+        res_nadadores = (
+            supabase.table("usuarios")
+            .select("id, nombre, cedula, fecha_nacimiento, genero")
+            .eq("rol", "Nadador")
+            .eq("estatus", "Activo")
+            .order("nombre")
+            .execute()
+        )
+        nadadores_data = res_nadadores.data if res_nadadores.data else []
+      except Exception as err:
+        st.error(f"Error al obtener catálogo de nadadores: {err}")
+        return
+
+      if not nadadores_data:
+        st.info("No hay nadadores activos en el sistema.")
+        return
+
+      dict_nadadores = {n["nombre"]: n for n in nadadores_data}
+      col_f1, col_f2 = st.columns([2, 1])
+
+      with col_f1:
+        opcion_todos = st.checkbox(
+            "Seleccionar Todos los Nadadores", value=True
+        )
+        if opcion_todos:
+          nadadores_seleccionados = list(dict_nadadores.keys())
+          st.multiselect(
+              "Atletas elegidos:",
+              options=list(dict_nadadores.keys()),
+              default=nadadores_seleccionados,
+              disabled=True,
+          )
         else:
-            ter_exp = (np.exp(-k_eq * tau_t) - np.exp(-k_eq)) / (1.0 - np.exp(-k_eq))
-            
-        tiempos[fase_desarrollo] = eq_T_target + (eq_T0 - eq_T_target) * ter_exp
+          nadadores_seleccionados = st.multiselect(
+              "Selecciona los nadadores a incluir:",
+              options=list(dict_nadadores.keys()),
+              default=[],
+          )
 
-    # 2. Tramo Post-PB
-    if np.any(fase_madurez):
-        t_mad = edades[fase_madurez]
-        tiempos[fase_madurez] = eq_T_pb - D_eq * (1.0 - np.exp(-h_eq * (t_mad - eq_t_pb)))
+      with col_f2:
+        st.markdown("**Opciones de Salida**")
+        incluir_ultimos_4 = st.checkbox(
+            "Incluir últimos 4 resultados por prueba", value=True
+        )
+        formato_exportacion = st.radio(
+            "Formato de Exportación:",
+            ["CSV (Excel)", "Tabla HTML con CSS (Copiable)"],
+        )
 
-    return tiempos
+      if not nadadores_seleccionados:
+        st.warning("Selecciona al menos un atleta para procesar la planilla.")
+        return
 
-# --- UTILIDADES DE INVITACIÓN Y SEGURIDAD ---
+      ids_seleccionados = [
+          dict_nadadores[nom]["id"] for nom in nadadores_seleccionados
+      ]
 
-def generar_codigo_invitacion(longitud=6):
-    """
-    Genera un código alfanumérico OTP en mayúsculas válido para invitaciones y pre-altas.
-    """
-    alfabeto = string.ascii_uppercase + string.digits
-    return ''.join(secrets.choice(alfabeto) for _ in range(longitud))
+      if st.button(
+          "🚀 Generar Tabla para Inscripción", use_container_width=True
+      ):
+        with st.spinner("Procesando marcas históricas..."):
+          try:
+            res_tiempos = (
+                supabase.table("marcas_historicas")
+                .select("usuario_id, prueba, tiempo, edad, created_at")
+                .in_("usuario_id", ids_seleccionados)
+                .order("created_at", desc=True)
+                .execute()
+            )
+            tiempos_raw = res_tiempos.data if res_tiempos.data else []
+          except Exception as err:
+            st.error(f"Error al consultar marcas históricas: {err}")
+            return
 
-def calcular_expiracion_token(horas_validez=24):
-    """
-    Calcula el timestamp UTC de expiración para la invitación.
-    """
-    return datetime.utcnow() + timedelta(hours=horas_validez)
+          registros_tabla = []
 
+          for nombre_atleta in nadadores_seleccionados:
+            atleta_info = dict_nadadores[nombre_atleta]
+            uid = atleta_info["id"]
+            fecha_nac = atleta_info.get("fecha_nacimiento")
+
+            tiempos_atleta = [t for t in tiempos_raw if t["usuario_id"] == uid]
+
+            pruebas_dict = {}
+            for t in tiempos_atleta:
+              pr = t["prueba"]
+              if pr not in pruebas_dict:
+                pruebas_dict[pr] = []
+              pruebas_dict[pr].append(t)
+
+            fila_base = {
+                "Atleta": atleta_info["nombre"],
+                "Cédula": atleta_info.get("cedula", "N/T"),
+                "Fecha Nacimiento": fecha_nac if fecha_nac else "N/T",
+                "Género": atleta_info.get("genero", "N/T"),
+            }
+
+            if not pruebas_dict:
+              fila = fila_base.copy()
+              fila["Prueba"] = "Sin Marcas Registradas"
+              fila["PB (Mejor Tiempo)"] = "-"
+              if incluir_ultimos_4:
+                fila["Res 1 (Último)"] = "-"
+                fila["Res 2"] = "-"
+                fila["Res 3"] = "-"
+                fila["Res 4"] = "-"
+              registros_tabla.append(fila)
+
+            for prueba_nombre, lista_tiempos in pruebas_dict.items():
+              fila = fila_base.copy()
+              fila["Prueba"] = prueba_nombre
+
+              tiempos_validos = [
+                  t["tiempo"] for t in lista_tiempos if t["tiempo"] is not None
+              ]
+
+              if tiempos_validos:
+                pb_val = min(tiempos_validos)
+                reg_pb = next(
+                    (t for t in lista_tiempos if t["tiempo"] == pb_val), None
+                )
+                f_pb = (
+                    estimar_fecha_marca(fecha_nac, reg_pb.get("edad"))
+                    if reg_pb
+                    else ""
+                )
+                str_pb = formatear_a_minutos(pb_val)
+                fila["PB (Mejor Tiempo)"] = (
+                    f"{str_pb} ({f_pb})" if f_pb else str_pb
+                )
+              else:
+                fila["PB (Mejor Tiempo)"] = "-"
+
+              if incluir_ultimos_4:
+                ultimos_4 = lista_tiempos[:4]
+                for idx in range(4):
+                  col_nombre = (
+                      f"Res {idx + 1} (Último)"
+                      if idx == 0
+                      else f"Res {idx + 1}"
+                  )
+                  if idx < len(ultimos_4):
+                    val_t = formatear_a_minutos(ultimos_4[idx]["tiempo"])
+                    f_est = estimar_fecha_marca(
+                        fecha_nac, ultimos_4[idx].get("edad")
+                    )
+                    fila[col_nombre] = f"{val_t} ({f_est})" if f_est else val_t
+                  else:
+                    fila[col_nombre] = "-"
+
+              registros_tabla.append(fila)
+
+          df_resultado = pd.DataFrame(registros_tabla)
+
+          st.markdown("---")
+          st.markdown("#### 📄 Previsualización de Datos")
+          st.dataframe(df_resultado, use_container_width=True)
+
+          if formato_exportacion == "CSV (Excel)":
+            csv_data = df_resultado.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                label="📥 Descargar archivo CSV / Excel",
+                data=csv_data,
+                file_name="nomina_inscripciones_campeonato.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+          else:
+            html_css = f"""
+                    <style>
+                        .tabla-campeonato {{
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-family: 'Segoe UI', Arial, sans-serif;
+                            font-size: 13px;
+                        }}
+                        .tabla-campeonato th {{
+                            background-color: #0284C7;
+                            color: white;
+                            padding: 8px;
+                            border: 1px solid #CBD5E1;
+                            text-align: center;
+                        }}
+                        .tabla-campeonato td {{
+                            padding: 6px;
+                            border: 1px solid #CBD5E1;
+                            text-align: center;
+                        }}
+                        .tabla-campeonato tr:nth-child(even) {{
+                            background-color: #F8FAFC;
+                        }}
+                    </style>
+                    {df_resultado.to_html(classes='tabla-campeonato', index=False)}
+                    """
+            st.components.v1.html(html_css, height=400, scrolling=True)
+            st.download_button(
+                label="📥 Descargar Archivo HTML con Estilos CSS",
+                data=html_css.encode("utf-8"),
+                file_name="nomina_inscripcion_estilizada.html",
+                mime="text/html",
+                use_container_width=True,
+            )
