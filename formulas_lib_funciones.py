@@ -395,7 +395,7 @@ def calcular_expiracion_token(horas_validez=24):
     return datetime.utcnow() + timedelta(hours=horas_validez)
 
 # ==============================================================================
-# MÓDULO DE EVALUACIÓN ANTROPOMÉTRICA Y MADURACIÓN BIOLÓGICA
+# MÓDULO DE EVALUACIÓN ANTROPOMÉTRICA Y MADURACIÓN BIOLÓGICA (MIRWALD)
 # ==============================================================================
 
 def calcular_mirwald_offset(
@@ -407,22 +407,17 @@ def calcular_mirwald_offset(
     peso_kg: float,
     envergadura_cm: float
 ) -> dict:
-    """
-    Calcula el Maturity Offset (Mirwald et al., 2002) acotado y la Edad Biológica real.
-    """
+    """Calcula el Maturity Offset (Mirwald et al., 2002) y la Edad Biológica acotada."""
     if isinstance(fecha_nacimiento, str):
         fecha_nacimiento = datetime.datetime.strptime(fecha_nacimiento.split("T")[0], "%Y-%m-%d").date()
     if isinstance(fecha_evaluacion, str):
         fecha_evaluacion = datetime.datetime.strptime(fecha_evaluacion.split("T")[0], "%Y-%m-%d").date()
 
-    dias_vida = (fecha_evaluacion - fecha_nacimiento).days
-    edad_cronologica = dias_vida / 365.25
-
+    edad_cronologica = (fecha_evaluacion - fecha_nacimiento).days / 365.25
     longitud_pierna_cm = estatura_cm - estatura_sentado_cm
     ape_index = envergadura_cm - estatura_cm
 
-    sexo_norm = str(sexo).strip().upper()
-    if sexo_norm in ['M', 'MASCULINO', 'MALE']:
+    if str(sexo).strip().upper() in ['M', 'MASCULINO', 'MALE']:
         maturity_offset = (
             -9.236
             + (0.0002708 * (longitud_pierna_cm * estatura_sentado_cm))
@@ -430,7 +425,7 @@ def calcular_mirwald_offset(
             + (0.007216 * (edad_cronologica * estatura_cm))
             - (0.001068 * (estatura_cm * peso_kg))
         )
-    else:  # Femenino
+    else:
         maturity_offset = (
             -9.376
             + (0.0001882 * (longitud_pierna_cm * estatura_sentado_cm))
@@ -439,27 +434,21 @@ def calcular_mirwald_offset(
             + (0.001037 * (estatura_cm * peso_kg))
         )
 
-    # Acotar offset empírico entre -3.0 y +3.0 años para evitar deformaciones
-    maturity_offset_acotado = max(-3.0, min(3.0, maturity_offset))
+    # Acotar offset (-3 a +3 años) para eliminar deformaciones matematicas
+    offset_acotado = max(-3.0, min(3.0, maturity_offset))
+    edad_biologica = edad_cronologica + offset_acotado
 
-    # Edad Biológica / Edad de Maduración
-    edad_biologica = edad_cronologica + maturity_offset_acotado
-
-    # Clasificación PHV
-    if maturity_offset_acotado < -1.0:
-        categoria_phv = "Pré-PHV"
-        estadio = "Pré-PHV (Infantil / Maduración Tardía)"
-    elif -1.0 <= maturity_offset_acotado <= 1.0:
-        categoria_phv = "Circa-PHV"
-        estadio = "Circa-PHV (Pico de Crecimiento Activo)"
+    if offset_acotado < -1.0:
+        categoria_phv, estadio = "Pré-PHV", "Pré-PHV (Infantil / Maduración Tardía)"
+    elif -1.0 <= offset_acotado <= 1.0:
+        categoria_phv, estadio = "Circa-PHV", "Circa-PHV (Pico de Crecimiento Activo)"
     else:
-        categoria_phv = "Post-PHV"
-        estadio = "Post-PHV (Consolidación Juvenil)"
+        categoria_phv, estadio = "Post-PHV", "Post-PHV (Consolidación Juvenil)"
 
     return {
         "edad_cronologica": round(edad_cronologica, 2),
         "edad_biologica": round(edad_biologica, 2),
-        "maturity_offset": round(maturity_offset_acotado, 2),
+        "maturity_offset": round(offset_acotado, 2),
         "categoria_phv": categoria_phv,
         "estadio": estadio,
         "ape_index": round(ape_index, 2),
@@ -468,29 +457,15 @@ def calcular_mirwald_offset(
 
 
 def obtener_record_mundial_wa(prueba: str, genero: str) -> float:
-    """
-    Consulta en la tabla 'marcas_referencia' el récord mundial (m_wr)
-    para la prueba y género especificados.
-    """
+    """Consulta el récord mundial (m_wr) en 'marcas_referencia'."""
     try:
         supabase = st.session_state.get("supabase")
-        if not supabase:
-            return 0.0
-
+        if not supabase: return 0.0
         gen_db = "M" if str(genero).upper().startswith("M") else "F"
-        
-        res = supabase.table("marcas_referencia") \
-            .select("m_wr") \
-            .eq("prueba", prueba) \
-            .eq("genero", gen_db) \
-            .limit(1) \
-            .execute()
-
-        if res.data and len(res.data) > 0 and res.data[0].get("m_wr"):
-            return float(res.data[0]["m_wr"])
-    except Exception as e:
-        print(f"Error al obtener m_wr en Supabase: {e}")
-    return 0.0
+        res = supabase.table("marcas_referencia").select("m_wr").eq("prueba", prueba).eq("genero", gen_db).limit(1).execute()
+        return float(res.data[0]["m_wr"]) if res.data and res.data[0].get("m_wr") else 0.0
+    except Exception:
+        return 0.0
 
 
 def calcular_proyeccion_rendimiento_wa(
@@ -502,31 +477,21 @@ def calcular_proyeccion_rendimiento_wa(
     es_prueba_potencia: bool = True,
     meses_proyeccion: int = 12
 ) -> dict:
-    """
-    Normalización y proyección fisiológica con márgenes biomecánicos realistas.
-    """
+    """Normalización y proyección fisiológica realista."""
     if tiempo_real_seg <= 0 or record_mundial_seg <= 0:
-        return {
-            "puntos_wa_actuales": 0, "tiempo_normalizado": 0.0,
-            "puntos_wa_normalizados": 0, "tiempo_proyectado": 0.0,
-            "puntos_wa_proyectados": 0, "ganancia_puntos_wa": 0
-        }
+        return {"puntos_wa_actuales": 0, "tiempo_normalizado": 0.0, "puntos_wa_normalizados": 0, "tiempo_proyectado": 0.0, "puntos_wa_proyectados": 0, "ganancia_puntos_wa": 0}
 
-    # 1. Puntos WA Actuales
     puntos_wa_actuales = int(1000 * ((record_mundial_seg / tiempo_real_seg) ** 3))
 
-    # 2. Normalización Fisiológica por Desarrollo (Ajuste Controlado ±5%)
+    # Factor de ajuste acotado a maximo ±5%
     factor_desarrollo = max(-0.05, min(0.05, maturity_offset * 0.015))
     tiempo_normalizado = tiempo_real_seg * (1.0 + factor_desarrollo)
     puntos_wa_normalizados = int(1000 * ((record_mundial_seg / tiempo_normalizado) ** 3))
 
-    # 3. Proyección Realista a Futuro (2.5% a 4% mejora anual)
-    tasa_mejora_anual = 0.035 if categoria_phv == "Circa-PHV" else 0.025
-    if ape_index > 2.0:
-        tasa_mejora_anual += 0.005
+    tasa_mejora = 0.035 if categoria_phv == "Circa-PHV" else 0.025
+    if ape_index > 2.0: tasa_mejora += 0.005
 
-    factor_tiempo_futuro = 1.0 - (tasa_mejora_anual * (meses_proyeccion / 12.0))
-    tiempo_proyectado = tiempo_real_seg * factor_tiempo_futuro
+    tiempo_proyectado = tiempo_real_seg * (1.0 - (tasa_mejora * (meses_proyeccion / 12.0)))
     puntos_wa_proyectados = int(1000 * ((record_mundial_seg / tiempo_proyectado) ** 3))
 
     return {
