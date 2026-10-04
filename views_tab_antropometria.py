@@ -192,12 +192,15 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
     # -------------------------------------------------------------------------
     st.subheader("📈 Evolución Longitudinal: Crecimiento Somático vs. Puntos WA")
 
+    # Extraer el ID del atleta desde datos_sidebar
+    atleta_id = datos_sidebar.get("usuario_id")
+
     # 1. Preparar DataFrame de evaluaciones antropométricas
     df_eval = pd.DataFrame(evaluaciones)
     df_eval["fecha_evaluacion"] = pd.to_datetime(df_eval["fecha_evaluacion"])
     df_eval = df_eval.sort_values("fecha_evaluacion")
 
-    # 2. Consultar marcas históricas usando la columna 'edad' y la fecha de nacimiento del atleta
+    # 2. Consultar marcas históricas usando la columna 'edad'
     res_hist_todas = supabase.table("marcas_historicas") \
         .select("prueba, tiempo, edad") \
         .eq("usuario_id", atleta_id) \
@@ -219,8 +222,9 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
                 (df_hist_prueba["tiempo"] > 0) & (df_hist_prueba["edad"].notnull())
             ].copy()
 
-            # Obtener la fecha de nacimiento del perfil del atleta
-            fecha_nac = pd.to_datetime(atleta.get("fecha_nacimiento", "2014-12-30"))
+            # --- CORRECCIÓN DE LA LÍNEA 223 ---
+            fecha_nac_str = datos_sidebar.get("fecha_nacimiento", "2014-12-30")
+            fecha_nac = pd.to_datetime(fecha_nac_str)
 
             # Reconstruir la fecha exacta del evento a partir de la edad decimal
             df_hist_prueba["fecha_calculada"] = df_hist_prueba["edad"].apply(
@@ -258,7 +262,7 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
                 yaxis="y1"
             ))
 
-            # Eje Y2: Puntos WA reales ordenados por edad
+            # Eje Y2: Puntos WA reales ordenados por fecha estimada
             fig.add_trace(plt_go.Scatter(
                 x=df_hist_prueba["fecha_calculada"],
                 y=df_hist_prueba["puntos_wa"],
