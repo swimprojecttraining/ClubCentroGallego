@@ -187,42 +187,58 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
 
     st.markdown("---")
 
-    # -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
     # 6. GRÁFICO COMBINADO: DESARROLLO FÍSICO VS. EVOLUCIÓN PUNTOS WA
     # -------------------------------------------------------------------------
     st.subheader("📈 Evolución Longitudinal: Crecimiento Somático vs. Puntos WA")
 
-    # Preparar DataFrame de evaluaciones
+    # 1. Preparar DataFrame de evaluaciones antropométricas
     df_eval = pd.DataFrame(evaluaciones)
     df_eval["fecha_evaluacion"] = pd.to_datetime(df_eval["fecha_evaluacion"])
     df_eval = df_eval.sort_values("fecha_evaluacion")
 
-    # Consultar el historial completo de marcas para calcular los Puntos WA históricos
+    # 2. Consultar marcas históricas usando la columna 'edad' y la fecha de nacimiento del atleta
     res_hist_todas = supabase.table("marcas_historicas") \
-        .select("prueba, tiempo, created_at") \
+        .select("prueba, tiempo, edad") \
         .eq("usuario_id", atleta_id) \
         .execute()
     
     df_hist = pd.DataFrame(res_hist_todas.data) if res_hist_todas.data else pd.DataFrame()
 
     if not df_hist.empty and m_wr_seg > 0:
-        df_hist["fecha"] = pd.to_datetime(df_hist["created_at"])
-        # Filtrar solo marcas de la prueba seleccionada
-        df_hist_prueba = df_hist[df_hist["prueba"] == prueba_sel].copy()
+        # Filtrar exactamente por la prueba seleccionada
+        prueba_clean = str(prueba_sel).strip().lower()
+        df_hist_prueba = df_hist[
+            df_hist["prueba"].astype(str).str.strip().str.lower() == prueba_clean
+        ].copy()
         
         if not df_hist_prueba.empty:
             df_hist_prueba["tiempo"] = pd.to_numeric(df_hist_prueba["tiempo"], errors="coerce")
-            df_hist_prueba = df_hist_prueba[df_hist_prueba["tiempo"] > 0].copy()
+            df_hist_prueba["edad"] = pd.to_numeric(df_hist_prueba["edad"], errors="coerce")
+            df_hist_prueba = df_hist_prueba[
+                (df_hist_prueba["tiempo"] > 0) & (df_hist_prueba["edad"].notnull())
+            ].copy()
 
+            # Obtener la fecha de nacimiento del perfil del atleta
+            fecha_nac = pd.to_datetime(atleta.get("fecha_nacimiento", "2014-12-30"))
+
+            # Reconstruir la fecha exacta del evento a partir de la edad decimal
+            df_hist_prueba["fecha_calculada"] = df_hist_prueba["edad"].apply(
+                lambda ed: fecha_nac + pd.Timedelta(days=float(ed) * 365.25)
+            )
+
+            # Calcular Puntos World Aquatics para cada tiempo
             df_hist_prueba["puntos_wa"] = df_hist_prueba["tiempo"].apply(
                 lambda t: int(1000 * ((m_wr_seg / float(t)) ** 3))
             )
-            df_hist_prueba = df_hist_prueba.sort_values("fecha")
 
-            # Construir gráfico multieje con Plotly
+            # ORDENAR CRONOLÓGICAMENTE SEGÚN LA FECHA RECONSTRUIDA
+            df_hist_prueba = df_hist_prueba.sort_values("fecha_calculada")
+
+            # Construcción del gráfico con Plotly
             fig = plt_go.Figure()
 
-            # Eje Y1: Estatura (cm)
+            # Eje Y1: Estatura
             fig.add_trace(plt_go.Scatter(
                 x=df_eval["fecha_evaluacion"],
                 y=df_eval["estatura_cm"],
@@ -232,7 +248,7 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
                 yaxis="y1"
             ))
 
-            # Eje Y1: Envergadura (cm)
+            # Eje Y1: Envergadura
             fig.add_trace(plt_go.Scatter(
                 x=df_eval["fecha_evaluacion"],
                 y=df_eval["envergadura_cm"],
@@ -242,20 +258,20 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
                 yaxis="y1"
             ))
 
-            # Eje Y2: Puntos WA Históricos (Como Puntos/Línea punteada)
+            # Eje Y2: Puntos WA reales ordenados por edad
             fig.add_trace(plt_go.Scatter(
-                x=df_hist_prueba["fecha"],
+                x=df_hist_prueba["fecha_calculada"],
                 y=df_hist_prueba["puntos_wa"],
                 name=f"Puntos WA ({prueba_sel})",
                 mode="lines+markers",
                 marker=dict(size=8, color="#d97706"),
-                line=dict(color="#d97706", width=2, dash="dot"),
+                line=dict(color="#d97706", width=2),
                 yaxis="y2"
             ))
 
             fig.update_layout(
                 title=f"Evolución Físico-Deportiva del Atleta en {prueba_sel}",
-                xaxis=dict(title="Fecha de Medición / Competencia"),
+                xaxis=dict(title="Fecha Estimada del Evento / Evaluación"),
                 yaxis=dict(title="Dimensión Antropométrica (cm)", side="left"),
                 yaxis2=dict(
                     title="Puntos World Aquatics", 
@@ -271,6 +287,6 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
 
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info(f"Ingresa más resultados de competencias en la prueba **{prueba_sel}** para desplegar el gráfico comparativo.")
+            st.info(f"No hay marcas registradas para la prueba **{prueba_sel}**.")
     else:
-        st.info("No se encontraron registros de marcas históricas suficientes para graficar el avance de Puntos WA.")
+        st.info("No se encontraron registros en el historial del atleta.")
