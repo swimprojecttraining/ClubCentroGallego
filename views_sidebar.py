@@ -841,6 +841,7 @@ def renderizar_sidebar_completo():
   # -------------------------------------------------------------
   return {
       "usuario_id": st.session_state.get("nadador_seleccionado_id"),
+      "fecha_nacimiento": st.session_state.get("nadador_seleccionado_fecha_nacimiento", "2014-12-30"),
       "genero": st.session_state.get("nadador_seleccionado_genero", "M"),
       "nombre": st.session_state.get("nadador_seleccionado_nombre", "Atleta"),
       "categoria": st.session_state.get("nadador_seleccionado_categoria", ""),
