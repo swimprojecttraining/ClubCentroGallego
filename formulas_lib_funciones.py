@@ -477,21 +477,42 @@ def calcular_proyeccion_rendimiento_wa(
     es_prueba_potencia: bool = True,
     meses_proyeccion: int = 12
 ) -> dict:
-    """Normalización y proyección fisiológica realista."""
+    """
+    Calcula la normalización del tiempo por desarrollo biológico
+    y genera la proyección futura a 'meses_proyeccion' en tiempo y Puntos WA.
+    """
     if tiempo_real_seg <= 0 or record_mundial_seg <= 0:
-        return {"puntos_wa_actuales": 0, "tiempo_normalizado": 0.0, "puntos_wa_normalizados": 0, "tiempo_proyectado": 0.0, "puntos_wa_proyectados": 0, "ganancia_puntos_wa": 0}
+        return {
+            "puntos_wa_actuales": 0,
+            "tiempo_normalizado": 0.0,
+            "puntos_wa_normalizados": 0,
+            "tiempo_proyectado": 0.0,
+            "puntos_wa_proyectados": 0,
+            "ganancia_puntos_wa": 0
+        }
 
     puntos_wa_actuales = int(1000 * ((record_mundial_seg / tiempo_real_seg) ** 3))
 
-    # Factor de ajuste acotado a maximo ±5%
-    factor_desarrollo = max(-0.05, min(0.05, maturity_offset * 0.015))
-    tiempo_normalizado = tiempo_real_seg * (1.0 + factor_desarrollo)
+    gamma = 0.040 if es_prueba_potencia else 0.025
+    factor_correccion = 1.0 + (gamma * maturity_offset)
+    
+    tiempo_normalizado = tiempo_real_seg * factor_correccion
     puntos_wa_normalizados = int(1000 * ((record_mundial_seg / tiempo_normalizado) ** 3))
 
-    tasa_mejora = 0.035 if categoria_phv == "Circa-PHV" else 0.025
-    if ape_index > 2.0: tasa_mejora += 0.005
+    delta_base = 0.028
+    if categoria_phv == "Circa-PHV":
+        delta_phv = 0.022
+    elif categoria_phv == "Pré-PHV":
+        delta_phv = 0.010
+    else:
+        delta_phv = 0.005
 
-    tiempo_proyectado = tiempo_real_seg * (1.0 - (tasa_mejora * (meses_proyeccion / 12.0)))
+    delta_ape = 0.008 if ape_index > 2.0 else (0.004 if ape_index >= 0.0 else 0.000)
+
+    tasa_anual_total = delta_base + delta_phv + delta_ape
+    factor_tiempo_futuro = 1.0 - (tasa_anual_total * (meses_proyeccion / 12.0))
+
+    tiempo_proyectado = tiempo_real_seg * factor_tiempo_futuro
     puntos_wa_proyectados = int(1000 * ((record_mundial_seg / tiempo_proyectado) ** 3))
 
     return {
@@ -500,5 +521,6 @@ def calcular_proyeccion_rendimiento_wa(
         "puntos_wa_normalizados": max(0, puntos_wa_normalizados),
         "tiempo_proyectado": round(tiempo_proyectado, 2),
         "puntos_wa_proyectados": max(0, puntos_wa_proyectados),
-        "ganancia_puntos_wa": max(0, puntos_wa_proyectados - puntos_wa_actuales)
+        "ganancia_puntos_wa": max(0, puntos_wa_proyectados - puntos_wa_actuales),
+        "tasa_mejora_anual_pct": round(tasa_anual_total * 100, 2)
     }
