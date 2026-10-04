@@ -211,8 +211,11 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
         df_hist_prueba = df_hist[df_hist["prueba"] == prueba_sel].copy()
         
         if not df_hist_prueba.empty:
+            df_hist_prueba["tiempo"] = pd.to_numeric(df_hist_prueba["tiempo"], errors="coerce")
+            df_hist_prueba = df_hist_prueba[df_hist_prueba["tiempo"] > 0].copy()
+
             df_hist_prueba["puntos_wa"] = df_hist_prueba["tiempo"].apply(
-                lambda t: int(1000 * ((m_wr_seg / float(t)) ** 3)) if t > 0 else 0
+                lambda t: int(1000 * ((m_wr_seg / float(t)) ** 3))
             )
             df_hist_prueba = df_hist_prueba.sort_values("fecha")
 
@@ -239,12 +242,14 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
                 yaxis="y1"
             ))
 
-            # Eje Y2: Puntos WA Históricos
-            fig.add_trace(plt_go.Bar(
+            # Eje Y2: Puntos WA Históricos (Como Puntos/Línea punteada)
+            fig.add_trace(plt_go.Scatter(
                 x=df_hist_prueba["fecha"],
                 y=df_hist_prueba["puntos_wa"],
                 name=f"Puntos WA ({prueba_sel})",
-                marker_color="rgba(217, 119, 6, 0.4)",
+                mode="lines+markers",
+                marker=dict(size=8, color="#d97706"),
+                line=dict(color="#d97706", width=2, dash="dot"),
                 yaxis="y2"
             ))
 
@@ -252,7 +257,13 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
                 title=f"Evolución Físico-Deportiva del Atleta en {prueba_sel}",
                 xaxis=dict(title="Fecha de Medición / Competencia"),
                 yaxis=dict(title="Dimensión Antropométrica (cm)", side="left"),
-                yaxis2=dict(title="Puntos World Aquatics", side="right", overlaying="y", showgrid=False),
+                yaxis2=dict(
+                    title="Puntos World Aquatics", 
+                    side="right", 
+                    overlaying="y", 
+                    showgrid=False,
+                    range=[0, 1000]
+                ),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 height=420,
                 margin=dict(l=20, r=20, t=50, b=20)
@@ -262,4 +273,4 @@ def renderizar_tab_antropometria(datos_sidebar: dict):
         else:
             st.info(f"Ingresa más resultados de competencias en la prueba **{prueba_sel}** para desplegar el gráfico comparativo.")
     else:
-        st.info("No se encontraron registros de marcas históricas sufientes para graficar el avance de Puntos WA.")
+        st.info("No se encontraron registros de marcas históricas suficientes para graficar el avance de Puntos WA.")
