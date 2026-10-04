@@ -395,7 +395,7 @@ def calcular_expiracion_token(horas_validez=24):
     return datetime.utcnow() + timedelta(hours=horas_validez)
 
 # ==============================================================================
-# MÓDULO DE EVALUACIÓN ANTROPOMÉTRICA Y MADURACIÓN BIOLÓGICA (CORREGIDO)
+# MÓDULO DE EVALUACIÓN ANTROPOMÉTRICA Y MADURACIÓN BIOLÓGICA
 # ==============================================================================
 
 def calcular_mirwald_offset(
@@ -439,10 +439,10 @@ def calcular_mirwald_offset(
             + (0.001037 * (estatura_cm * peso_kg))
         )
 
-    # Acotar offset empírico entre -3.0 y +3.0 años para evitar deformaciones polinomiales de Mirwald
+    # Acotar offset empírico entre -3.0 y +3.0 años para evitar deformaciones
     maturity_offset_acotado = max(-3.0, min(3.0, maturity_offset))
 
-    # La Edad Biológica / Edad de Maduración es Edad Cronológica + Offset
+    # Edad Biológica / Edad de Maduración
     edad_biologica = edad_cronologica + maturity_offset_acotado
 
     # Clasificación PHV
@@ -467,6 +467,32 @@ def calcular_mirwald_offset(
     }
 
 
+def obtener_record_mundial_wa(prueba: str, genero: str) -> float:
+    """
+    Consulta en la tabla 'marcas_referencia' el récord mundial (m_wr)
+    para la prueba y género especificados.
+    """
+    try:
+        supabase = st.session_state.get("supabase")
+        if not supabase:
+            return 0.0
+
+        gen_db = "M" if str(genero).upper().startswith("M") else "F"
+        
+        res = supabase.table("marcas_referencia") \
+            .select("m_wr") \
+            .eq("prueba", prueba) \
+            .eq("genero", gen_db) \
+            .limit(1) \
+            .execute()
+
+        if res.data and len(res.data) > 0 and res.data[0].get("m_wr"):
+            return float(res.data[0]["m_wr"])
+    except Exception as e:
+        print(f"Error al obtener m_wr en Supabase: {e}")
+    return 0.0
+
+
 def calcular_proyeccion_rendimiento_wa(
     tiempo_real_seg: float,
     record_mundial_seg: float,
@@ -489,16 +515,15 @@ def calcular_proyeccion_rendimiento_wa(
     # 1. Puntos WA Actuales
     puntos_wa_actuales = int(1000 * ((record_mundial_seg / tiempo_real_seg) ** 3))
 
-    # 2. Normalización Fisiológica por Desarrollo (Ajuste Máximo Controlado ±7%)
-    # Un desarrollo infantil/temprano no puede alterar el tiempo de carrera más de un 5-7%
-    factor_desarrollo = max(-0.07, min(0.07, maturity_offset * 0.02))
+    # 2. Normalización Fisiológica por Desarrollo (Ajuste Controlado ±5%)
+    factor_desarrollo = max(-0.05, min(0.05, maturity_offset * 0.015))
     tiempo_normalizado = tiempo_real_seg * (1.0 + factor_desarrollo)
     puntos_wa_normalizados = int(1000 * ((record_mundial_seg / tiempo_normalizado) ** 3))
 
-    # 3. Proyección Realista a Futuro (Porcentaje de mejora anual fisiológica 2% - 5%)
+    # 3. Proyección Realista a Futuro (2.5% a 4% mejora anual)
     tasa_mejora_anual = 0.035 if categoria_phv == "Circa-PHV" else 0.025
     if ape_index > 2.0:
-        tasa_mejora_anual += 0.005  # Bonificación por palanca hidrodinámica
+        tasa_mejora_anual += 0.005
 
     factor_tiempo_futuro = 1.0 - (tasa_mejora_anual * (meses_proyeccion / 12.0))
     tiempo_proyectado = tiempo_real_seg * factor_tiempo_futuro
