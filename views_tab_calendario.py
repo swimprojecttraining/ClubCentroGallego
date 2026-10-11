@@ -44,7 +44,7 @@ from conections_supabase_cache import (
     get_marcas_historicas_bulk_sin_prueba,
     get_hitos_por_competencia,
     invalidar_cache_competencias,
-    invalidar_cache_hitos_por_competencia,
+    invalidar_cache_hitos,
 )
 
 
