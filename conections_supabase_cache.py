@@ -1,14 +1,19 @@
 # -------------------------------------------------------------
 # CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
 # -------------------------------------------------------------
-# v2.1 — Fase 1: refactorización incremental
+# v2.2 — Fase 1: refactorización incremental
 # Última actualización: 2026-10-11
 #
 # CHANGELOG:
+#   v2.2 (2026-10-11) — Adiciones para views_tab_calendario.py:
+#     - Nueva función get_competencias(temporada)
+#     - Nueva función get_hitos_por_competencia(competencia_id)
+#     - Nuevas funciones invalidar_cache_competencias()
+#       e invalidar_cache_hitos_por_competencia()
+#
 #   v2.1 (2026-10-11) — Adiciones para views_tab_antropometria.py:
 #     - Nueva función get_evaluaciones_antropometricas(usuario_id)
 #     - Nueva función invalidar_cache_antropometria()
-#     - get_evaluaciones_antropometricas añadida a invalidar_toda_la_cache()
 #
 #   v2.0 (2026-10-10) — Refactorización inicial Fase 1:
 #     - Cliente Supabase singleton con @st.cache_resource
@@ -63,7 +68,7 @@ def get_usuarios(rol: str | None = None, estatus: str | None = None) -> list[dic
     db = get_db()
     try:
         q = db.table("usuarios").select(
-            "id, nombre, email, genero, rol, estatus, fecha_nacimiento"
+            "id, nombre, email, genero, rol, estatus, fecha_nacimiento, cedula, telefono"
         )
         if rol:
             q = q.eq("rol", rol)
@@ -177,6 +182,33 @@ def get_marcas_historicas_bulk(usuario_ids: tuple, prueba: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_marcas_historicas_bulk_sin_prueba(usuario_ids: tuple) -> pd.DataFrame:
+    """
+    [v2.2] Igual que get_marcas_historicas_bulk pero SIN filtro de prueba.
+    Trae todas las marcas de todos los atletas indicados en UNA sola query.
+
+    Útil para la planilla de inscripción del calendario.
+
+    IMPORTANTE: `usuario_ids` debe ser una tupla (hashable), no una lista.
+    """
+    if not usuario_ids:
+        return pd.DataFrame()
+    db = get_db()
+    try:
+        res = (
+            db.table("marcas_historicas")
+            .select("id, usuario_id, prueba, edad, tiempo, nota")
+            .in_("usuario_id", list(usuario_ids))
+            .order("edad", desc=False)
+            .execute()
+        )
+        return pd.DataFrame(res.data or [])
+    except Exception as e:
+        print(f"[get_marcas_historicas_bulk_sin_prueba] {e}")
+        return pd.DataFrame()
+
+
 # =============================================================================
 # MARCAS DEL EQUIPO — query con IN (evita N+1)
 # =============================================================================
@@ -285,7 +317,7 @@ def get_bitacora_atleta(atleta_id: int) -> list[dict]:
 
 
 # =============================================================================
-# ANTROPOMETRÍA — [NUEVO en v2.1] para views_tab_antropometria.py
+# ANTROPOMETRÍA — [v2.1] para views_tab_antropometria.py
 # =============================================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def get_evaluaciones_antropometricas(usuario_id: int) -> list[dict]:
@@ -311,12 +343,56 @@ def get_evaluaciones_antropometricas(usuario_id: int) -> list[dict]:
 
 
 # =============================================================================
+# CALENDARIO Y HITOS — [v2.2] para views_tab_calendario.py
+# =============================================================================
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_competencias(temporada: int | None = None) -> list[dict]:
+    """
+    Devuelve el catálogo de competencias, opcionalmente filtrado por temporada.
+    Ordenadas por fecha_inicio ascendente.
+    """
+    db = get_db()
+    try:
+        q = db.table("catalogo_competencias").select("*")
+        if temporada is not None:
+            q = q.eq("temporada", temporada)
+        q = q.order("fecha_inicio", desc=False)
+        return q.execute().data or []
+    except Exception as e:
+        print(f"[get_competencias] {e}")
+        return []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_hitos_por_competencia(competencia_id: int) -> list[dict]:
+    """
+    Devuelve los hitos registrados para una competencia específica.
+    Útil para saber qué atletas ya están procesados.
+    """
+    if not competencia_id:
+        return []
+    db = get_db()
+    try:
+        res = (
+            db.table("historial_hitos")
+            .select("usuario_id")
+            .eq("competencia_id", competencia_id)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        print(f"[get_hitos_por_competencia] {e}")
+        return []
+
+
+# =============================================================================
 # INVALIDACIÓN DE CACHÉ (llamar tras inserts/updates)
 # =============================================================================
 def invalidar_cache_marcas():
     """Limpia la caché de marcas. Úsala tras insertar/editar marcas."""
     get_marcas_historicas.clear()
     get_marcas_historicas_bulk.clear()
+    get_marcas_historicas_bulk_sin_prueba.clear()
     get_marcas_equipo.clear()
 
 
@@ -334,11 +410,17 @@ def invalidar_cache_asignaciones():
 def invalidar_cache_hitos():
     """Limpia la caché de hitos."""
     get_hitos_atleta.clear()
+    get_hitos_por_competencia.clear()
 
 
 def invalidar_cache_antropometria():
-    """[NUEVO en v2.1] Limpia la caché de evaluaciones antropométricas."""
+    """Limpia la caché de evaluaciones antropométricas."""
     get_evaluaciones_antropometricas.clear()
+
+
+def invalidar_cache_competencias():
+    """Limpia la caché de competencias."""
+    get_competencias.clear()
 
 
 def invalidar_toda_la_cache():
@@ -348,12 +430,15 @@ def invalidar_toda_la_cache():
     get_atletas_asignados.clear()
     get_marcas_historicas.clear()
     get_marcas_historicas_bulk.clear()
+    get_marcas_historicas_bulk_sin_prueba.clear()
     get_marcas_equipo.clear()
     get_catalogo_competencias.clear()
     get_marcas_referencia.clear()
     get_hitos_atleta.clear()
+    get_hitos_por_competencia.clear()
     get_bitacora_atleta.clear()
-    get_evaluaciones_antropometricas.clear()   # [NUEVO en v2.1]
+    get_evaluaciones_antropometricas.clear()
+    get_competencias.clear()
 
 
 # =============================================================================
@@ -438,5 +523,5 @@ def obtener_bitacora_atleta_cache(atleta_id):
 
 
 # =============================================================================
-# FIN DEL ARCHIVO — v2.1
+# FIN DEL ARCHIVO — v2.2
 # =============================================================================
