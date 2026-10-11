@@ -2,10 +2,9 @@
 # views_sidebar.py — v2.0 (Fase 1: refactorización incremental)
 # =============================================================================
 # CAMBIOS vs v1.0:
-#   1. Imports migrados a funciones get_* (con wrappers de compatibilidad
-#      disponibles, pero se usan las nuevas directamente).
+#   1. Imports migrados a funciones get_*.
 #   2. §3 Entrenador: carga de atletas unificada con caché de sesión.
-#   3. §5 Modo Equipo: reutiliza atletas ya cargados en §3 (evita 2 queries).
+#   3. §5 Modo Equipo: reutiliza atletas ya cargados en §3.
 #   4. §7 Historial: cacheado en session_state por (atleta_id, prueba).
 #   5. Fix bug: nadador_seleccionado_fecha_nacimiento ahora se persiste.
 #   6. Helper _persistir_atleta_sel() para evitar duplicación.
@@ -13,12 +12,11 @@
 # NO TOCADO (deliberadamente):
 #   - CSS, keys de widgets, sliders, checkboxes, layout visual
 #   - Estructura del dict de retorno (compatibilidad total)
-#   - Lógica de marcas de referencia (§6)
 #
-# PENDIENTE FASE 2 (no aplicar hasta que todos los archivos estén migrados):
+# PENDIENTE FASE 2:
 #   [F2-1] §7 — Mover carga de historial y cálculo de PB al gráfico.
 #   [F2-2] §4 — Reemplazar st.stop() por retorno {"prueba_valida": False}.
-#   [F2-3] §11 — Aplanar el dict de retorno (48 claves → sub-dicts).
+#   [F2-3] §11 — Aplanar el dict de retorno.
 #   [F2-4] §5 — Extraer bloque "modo equipo" a función propia.
 #   [F2-5] Aplicar @st.fragment a sliders finales.
 # =============================================================================
@@ -64,7 +62,7 @@ def _persistir_atleta_sel(atleta_row: dict) -> None:
     st.session_state["nadador_seleccionado_nombre"] = atleta_row["nombre"]
     st.session_state["nadador_seleccionado_genero"] = atleta_row.get("genero", "M")
 
-    # FIX: antes esta clave nunca se seteaba → el gráfico recibía siempre "2014-12-30"
+    # FIX: antes esta clave nunca se seteaba → el gráfico recibía "2014-12-30"
     fecha_nac = atleta_row.get("fecha_nacimiento")
     st.session_state["nadador_seleccionado_fecha_nacimiento"] = fecha_nac
 
@@ -80,8 +78,8 @@ def _persistir_atleta_sel(atleta_row: dict) -> None:
 
 def ordenar_atletas_jerarquicamente(lista_atletas):
     """Ordena atletas por:
-    1º Categoría/Edad (Menor a Mayor) 2º Género (Femenino -> Masculino) 3º Nombre
-    alfabético (A -> Z)
+    1º Categoría/Edad (Menor a Mayor) 2º Género (Femenino -> Masculino)
+    3º Nombre alfabético (A -> Z)
     """
     if not lista_atletas:
         return []
@@ -106,7 +104,7 @@ def ordenar_atletas_jerarquicamente(lista_atletas):
     return sorted(lista_atletas, key=key_ordenamiento)
 
 
-def _atletas_del_entrenador_actual(entrenador_id, rol_real) -> list[dict]:
+def _atletas_del_entrenador_actual(entrenador_id, rol_real) -> list:
     """
     Devuelve (y cachea en session_state) los atletas del entrenador indicado.
     Evita la doble consulta que había entre §3 y §5 del sidebar original.
@@ -535,6 +533,9 @@ def renderizar_sidebar_completo():
       except Exception as e:
         st.sidebar.error(f"Error cargando los filtros secundarios: {e}")
 
+# === FIN PARTE 1/3 ===
+# NO GUARDES AÚN — CONTINÚA CON LA PARTE 2/3 EN EL SIGUIENTE MENSAJE
+
   # -------------------------------------------------------------
   # 6. EXTRACCIÓN ALINEADA CON 'marcas_referencia'
   # -------------------------------------------------------------
@@ -562,4 +563,333 @@ def renderizar_sidebar_completo():
       m_wr = m_ano * 0.8 if m_ano > 0 else 15.0
     elif titulo_grafico == "50 Libre":
       m_ano = get_m_ano_infantil_a("50 Libre")
-      m_wr = m_ano * 0.
+      m_wr = m_ano * 0.8 if m_ano > 0 else 30.0
+    elif titulo_grafico == "100 Combinado":
+      m_l = get_m_ano_infantil_a("50 Libre")
+      m_e = get_m_ano_infantil_a("50 Espalda")
+      m_p = get_m_ano_infantil_a("50 Pecho")
+      m_m = get_m_ano_infantil_a("50 Mariposa")
+
+      if all(v > 0 for v in [m_l, m_e, m_p, m_m]):
+        m_ano = ((m_l + m_e + m_p + m_m) / 2.0) * 1.15
+      else:
+        m_ano = 0.0
+      m_wr = m_ano * 0.8 if m_ano > 0 else 70.0
+  else:
+    try:
+      genero_sel = st.session_state.get("nadador_seleccionado_genero", "M")
+      cat_sel_atleta = st.session_state.get(
+          "nadador_seleccionado_categoria", ""
+      )
+
+      if cat_sel_atleta:
+        ref_resp = get_marcas_referencia(
+            titulo_grafico, genero_sel, cat_sel_atleta
+        )
+        if ref_resp:
+          ref_data = ref_resp[0]
+          m_ano = (
+              float(ref_data["m_ano"])
+              if ref_data.get("m_ano") is not None
+              else 0.0
+          )
+          m_panam_b = (
+              float(ref_data["m_panam_b"])
+              if ref_data.get("m_panam_b") is not None
+              else 0.0
+          )
+          m_panam_a = (
+              float(ref_data["m_panam_a"])
+              if ref_data.get("m_panam_a") is not None
+              else 0.0
+          )
+          m_wa_b = (
+              float(ref_data["m_wa_b"])
+              if ref_data.get("m_wa_b") is not None
+              else 0.0
+          )
+          m_wa_a = (
+              float(ref_data["m_wa_a"])
+              if ref_data.get("m_wa_a") is not None
+              else 0.0
+          )
+          m_wr = (
+              float(ref_data["m_wr"])
+              if ref_data.get("m_wr") is not None
+              else 25.0
+          )
+    except Exception as e:
+      st.error(f"Error extrayendo marcas de la categoría: {e}")
+
+  # -------------------------------------------------------------
+  # 7. MODO SIMULACIÓN Y EXTRACCIÓN HISTÓRICA DE PB
+  # -------------------------------------------------------------
+  spc()
+  st.sidebar.subheader("🚨 Simulación de Escenarios")
+  simulacion_externa = st.sidebar.checkbox(
+      "Activar Modo Simulación Externa", value=False
+  )
+
+  # CAMBIO v2.0: caché de sesión por (atleta_id, prueba)
+  # Antes: query a marcas_historicas en CADA rerun del sidebar.
+  # Ahora: query solo cuando cambia el atleta o la prueba.
+  db_t0, db_T0, db_t_pb, db_T_pb = None, None, None, None
+  try:
+    id_atleta_sel = st.session_state.get("nadador_seleccionado_id")
+    cache_key_hist = f"_hist_sidebar_{id_atleta_sel}_{titulo_grafico}"
+
+    if id_atleta_sel and titulo_grafico and not titulo_grafico.startswith("---"):
+      # Cache key depende de (atleta, prueba) para que se invalide solo
+      if cache_key_hist not in st.session_state:
+        datos_historicos = get_marcas_historicas(
+            usuario_id=id_atleta_sel, prueba=titulo_grafico
+        )
+        if datos_historicos:
+          df_tmp = pd.DataFrame(datos_historicos).rename(
+              columns={
+                  "edad": "Edad",
+                  "tiempo": "Tiempo",
+                  "nota": "Evento / Fecha",
+              }
+          )
+          t0_i, T0_i, t_pb_i, T_pb_i = procesar_mejor_marca_historica(df_tmp)
+          st.session_state[cache_key_hist] = {
+              "df": df_tmp,
+              "t0": t0_i,
+              "T0": T0_i,
+              "t_pb": t_pb_i,
+              "T_pb": T_pb_i,
+          }
+        else:
+          st.session_state[cache_key_hist] = None
+
+      cache_data = st.session_state.get(cache_key_hist)
+      if cache_data:
+        df_procesado = cache_data["df"]
+        db_t0 = cache_data["t0"]
+        db_T0 = cache_data["T0"]
+        db_t_pb = cache_data["t_pb"]
+        db_T_pb = cache_data["T_pb"]
+  except Exception as e_hist:
+    print(f"[sidebar §7] Error cargando historial: {e_hist}")
+
+  inputs_bloqueados = not simulacion_externa
+
+  val_t0 = db_t0 if (db_t0 is not None) else 10.0
+  val_T0 = db_T0 if (db_T0 is not None) else float(round(m_wr * 1.8, 2))
+  val_t_pb = db_t_pb if (db_t_pb is not None) else 12.0
+  val_T_pb = db_T_pb if (db_T_pb is not None) else float(round(m_wr * 1.3, 2))
+
+  st.session_state["val_t0"] = val_t0
+  st.session_state["val_T0"] = val_T0
+  st.session_state["val_t_pb"] = val_t_pb
+  st.session_state["val_T_pb"] = val_T_pb
+
+  if es_preinfantil:
+    val_T_target = float(round(m_ano, 2)) if m_ano > 0 else 25.0
+  else:
+    val_T_target = (
+        float(round(m_wa_a * 0.99, 2))
+        if m_wa_a > 0
+        else float(round(m_wr * 1.08, 2))
+    )
+
+  # -------------------------------------------------------------
+  # 8. PARÁMETROS DE LÍMITES Y PB
+  # -------------------------------------------------------------
+  spc()
+  st.sidebar.subheader(
+      "📐 Parámetros de Límites y PB " + ("🔓" if simulacion_externa else "🔒")
+  )
+
+  t0 = st.sidebar.number_input(
+      "1. Edad Start (t0):",
+      min_value=4.0,
+      value=val_t0,
+      step=0.1,
+      disabled=inputs_bloqueados,
+  )
+
+  T0_str = st.sidebar.text_input(
+      "2. Tiempo Inicial (T0):",
+      value=formatear_a_minutos(val_T0).replace(" s", ""),
+      disabled=inputs_bloqueados,
+      help="Formato mm:ss.00 o ss.00",
+  )
+  try:
+    T0 = float(convertir_string_a_segundos(T0_str))
+  except ValueError:
+    st.sidebar.error("❌ Formato T0 inválido. Use 'mm:ss.00'")
+    T0 = float(val_T0)
+
+  t_peak = st.sidebar.number_input(
+      "3. Edad Peak Proyectado (t_peak):",
+      min_value=5.0,
+      max_value=30.0,
+      step=1.0,
+      value=23.0,
+  )
+
+  T_target_str = st.sidebar.text_input(
+      "4. Tiempo Objetivo Peak (T_target):",
+      value=formatear_a_minutos(val_T_target).replace(" s", ""),
+      help="Formato mm:ss.00 o ss.00",
+  )
+  try:
+    T_target = float(convertir_string_a_segundos(T_target_str))
+  except ValueError:
+    st.sidebar.error("❌ Formato T_target inválido. Use 'mm:ss.00'")
+    T_target = float(val_T_target)
+
+  t_pb = st.sidebar.number_input(
+      "5. Edad del PB de Control (t_pb):",
+      min_value=4.0,
+      value=val_t_pb,
+      step=0.05,
+      disabled=inputs_bloqueados,
+  )
+
+  T_pb_str = st.sidebar.text_input(
+      "6. Tiempo del PB de Control (T_pb):",
+      value=formatear_a_minutos(val_T_pb).replace(" s", ""),
+      disabled=inputs_bloqueados,
+      help="Formato mm:ss.00 o ss.00",
+  )
+  try:
+    T_pb = float(convertir_string_a_segundos(T_pb_str))
+  except ValueError:
+    st.sidebar.error("❌ Formato T_pb inválido. Use 'mm:ss.00'")
+    T_pb = float(val_T_pb)
+
+  st.session_state["t0_segundos"] = T0
+  st.session_state["ttarget_segundos"] = T_target
+  st.session_state["tpb_segundos"] = T_pb
+
+  # -------------------------------------------------------------
+  # 9. CONTROLES DE VISTA
+  # -------------------------------------------------------------
+  tipo_vista = st.sidebar.selectbox(
+      "Enfoque del Gráfico",
+      ["Macro (Historial Completo)", "Micro (Ventana Anual)"],
+  )
+
+  if tipo_vista == "Micro (Ventana Anual)":
+    usuario_id = st.session_state.get("nadador_seleccionado_id")
+    user = get_usuario_por_id(usuario_id) if usuario_id else None
+
+    if user and user.get("fecha_nacimiento"):
+      birth_date = datetime.date.fromisoformat(
+          str(user["fecha_nacimiento"])[:10]
+      )
+      min_date = birth_date + timedelta(days=int(float(t0) * 365.25))
+      max_date = birth_date + timedelta(days=int(float(t_peak) * 365.25))
+
+      año_actual = datetime.date.today().year
+      if año_actual < min_date.year:
+        año_actual = min_date.year
+      elif año_actual > max_date.year:
+        año_actual = max_date.year
+
+      default_start = max(min_date, datetime.date(año_actual, 1, 1))
+      default_end = min(max_date, datetime.date(año_actual, 12, 31))
+
+      rango_fechas = st.sidebar.slider(
+          "🔎 Rango de la Ventana (Fechas)",
+          min_value=min_date,
+          max_value=max_date,
+          value=(default_start, default_end),
+          step=timedelta(days=1),
+          format="DD/MM/YYYY",
+      )
+
+      edad_min_zoom = (rango_fechas[0] - birth_date).days / 365.25
+      edad_max_zoom = (rango_fechas[1] - birth_date).days / 365.25
+    else:
+      limite_inf_abs = float(t0)
+      limite_sup_abs = float(t_peak)
+      rango_def_min = max(limite_inf_abs, min(float(t_pb), limite_sup_abs))
+      rango_def_max = min(rango_def_min + 1.0, limite_sup_abs)
+
+      edad_min_zoom, edad_max_zoom = st.sidebar.slider(
+          "🔎 Rango de la Ventana (Edad)",
+          min_value=limite_inf_abs,
+          max_value=limite_sup_abs,
+          value=(rango_def_min, rango_def_max),
+          step=0.1,
+          format="%.2f años",
+      )
+
+  # -------------------------------------------------------------
+  # 10. CONTENEDOR DE SLIDERS Y NOTA
+  # -------------------------------------------------------------
+  with contenedor_sliders:
+    spc()
+    st.markdown("**⏱️ Rapidez de Deriva e Intervalo**")
+
+    factor_h = st.slider(
+        "Factor ajustable de rapidez de deriva (h):",
+        min_value=0.1,
+        max_value=1.0,
+        value=0.35,
+        step=0.05,
+    )
+    t_intermedia = st.slider(
+        "Consultar Edad Intermedia:",
+        min_value=float(t0),
+        max_value=float(t_peak),
+        value=float(round((t0 + t_peak) / 2, 1)),
+        step=0.1,
+    )
+
+  if not modo_equipo and rol_activo == "Nadador":
+    st.sidebar.markdown("---")
+    st.sidebar.caption(
+        "📅 *Requerido proyectar cada 3 meses hasta los 18 años para verificar"
+        " marcas, asistir a campeonatos y optar por becas universitarias"
+        " nacionales e internacionales.*"
+    )
+
+# === FIN PARTE 2/3 ===
+# NO GUARDES AÚN — FALTA LA PARTE 3/3 (el return final)
+
+  # -------------------------------------------------------------
+  # 11. RETORNO DE DATOS EMPAQUETADOS
+  # -------------------------------------------------------------
+  return {
+      "usuario_id": st.session_state.get("nadador_seleccionado_id"),
+      "fecha_nacimiento": st.session_state.get(
+          "nadador_seleccionado_fecha_nacimiento", "2014-12-30"
+      ),
+      "genero": st.session_state.get("nadador_seleccionado_genero", "M"),
+      "nombre": st.session_state.get("nadador_seleccionado_nombre", "Atleta"),
+      "categoria": st.session_state.get("nadador_seleccionado_categoria", ""),
+      "titulo_grafico": titulo_grafico,
+      "simulacion_externa": simulacion_externa,
+      "modo_equipo": modo_equipo,
+      "filtro_genero": filtro_genero,
+      "tipo_filtro": tipo_filtro,
+      "cat_sel": cat_sel,
+      "ids_sel": ids_sel,
+      "lista_atletas_filtrados": lista_atletas,
+      "df_global_marcas": df_global,
+      "t0": t0,
+      "T0": T0,
+      "t_peak": t_peak,
+      "T_target": T_target,
+      "t_pb": t_pb,
+      "T_pb": T_pb,
+      "tipo_vista": tipo_vista,
+      "edad_min_zoom": edad_min_zoom,
+      "edad_max_zoom": edad_max_zoom,
+      "factor_h": factor_h,
+      "t_intermedia": t_intermedia,
+      "df_procesado": df_procesado,
+      "m_ano": m_ano,
+      "m_panam_b": m_panam_b,
+      "m_panam_a": m_panam_a,
+      "m_wa_b": m_wa_b,
+      "m_wa_a": m_wa_a,
+      "m_wr": m_wr,
+  }
+
+# === FIN DEL ARCHIVO views_sidebar.py (v2.0) ===
