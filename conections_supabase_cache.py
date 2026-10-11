@@ -1,15 +1,23 @@
 # -------------------------------------------------------------
 # CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
 # -------------------------------------------------------------
-# v2.0 — Refactorización incremental con compatibilidad total
+# v2.1 — Fase 1: refactorización incremental
+# Última actualización: 2026-10-11
 #
-# CAMBIOS vs v1.0:
-#   1. Cliente Supabase singleton con @st.cache_resource (no se recrea por rerun)
-#   2. Nuevas funciones unificadas: get_usuarios, get_marcas_historicas, etc.
-#   3. Nuevas funciones bulk: get_marcas_historicas_bulk, get_marcas_equipo
-#   4. Las funciones antiguas (obtener_*_cache) se mantienen como WRAPPERS
-#      que llaman a las nuevas. NADA se rompe.
-#   5. Invalidación explícita: invalidar_cache_marcas() tras inserts/updates
+# CHANGELOG:
+#   v2.1 (2026-10-11) — Adiciones para views_tab_antropometria.py:
+#     - Nueva función get_evaluaciones_antropometricas(usuario_id)
+#     - Nueva función invalidar_cache_antropometria()
+#     - get_evaluaciones_antropometricas añadida a invalidar_toda_la_cache()
+#
+#   v2.0 (2026-10-10) — Refactorización inicial Fase 1:
+#     - Cliente Supabase singleton con @st.cache_resource
+#     - 12 wrappers de compatibilidad hacia atrás
+#     - Nuevas funciones get_* unificadas
+#     - Nueva función get_marcas_historicas_bulk para evitar N+1
+#     - Funciones invalidar_cache_*() para invalidación quirúrgica
+#
+#   v1.0 — Versión original (obsoleta, no disponible)
 # -------------------------------------------------------------
 import streamlit as st
 import pandas as pd
@@ -277,6 +285,32 @@ def get_bitacora_atleta(atleta_id: int) -> list[dict]:
 
 
 # =============================================================================
+# ANTROPOMETRÍA — [NUEVO en v2.1] para views_tab_antropometria.py
+# =============================================================================
+@st.cache_data(ttl=300, show_spinner=False)
+def get_evaluaciones_antropometricas(usuario_id: int) -> list[dict]:
+    """
+    Devuelve el historial completo de evaluaciones antropométricas
+    de un atleta, ordenadas por fecha descendente (la más reciente primero).
+    """
+    if not usuario_id:
+        return []
+    db = get_db()
+    try:
+        res = (
+            db.table("evaluaciones_antropometricas")
+            .select("*")
+            .eq("usuario_id", usuario_id)
+            .order("fecha_evaluacion", desc=True)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        print(f"[get_evaluaciones_antropometricas] {e}")
+        return []
+
+
+# =============================================================================
 # INVALIDACIÓN DE CACHÉ (llamar tras inserts/updates)
 # =============================================================================
 def invalidar_cache_marcas():
@@ -302,6 +336,11 @@ def invalidar_cache_hitos():
     get_hitos_atleta.clear()
 
 
+def invalidar_cache_antropometria():
+    """[NUEVO en v2.1] Limpia la caché de evaluaciones antropométricas."""
+    get_evaluaciones_antropometricas.clear()
+
+
 def invalidar_toda_la_cache():
     """Limpieza total. Útil como botón de emergencia en el sidebar del admin."""
     get_usuarios.clear()
@@ -314,6 +353,7 @@ def invalidar_toda_la_cache():
     get_marcas_referencia.clear()
     get_hitos_atleta.clear()
     get_bitacora_atleta.clear()
+    get_evaluaciones_antropometricas.clear()   # [NUEVO en v2.1]
 
 
 # =============================================================================
@@ -398,5 +438,5 @@ def obtener_bitacora_atleta_cache(atleta_id):
 
 
 # =============================================================================
-# FIN DEL ARCHIVO
+# FIN DEL ARCHIVO — v2.1
 # =============================================================================
