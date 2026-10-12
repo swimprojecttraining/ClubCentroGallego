@@ -133,10 +133,16 @@ def _atletas_del_entrenador_actual(entrenador_id, rol_real) -> list:
 # =============================================================================
 def renderizar_sidebar_completo():
   """Renderiza el sidebar completo con soporte de emulación para el Administrador."""
-  if "supabase" not in st.session_state or st.session_state.supabase is None:
-    st.error("No hay una conexión activa a la base de datos.")
-    st.stop()
-
+  # [F1-17b] v2.1: Verificación de conexión vía get_db() en lugar de
+  # st.session_state["supabase"] (que ahora se elimina).
+  from conections_supabase_cache import get_db
+  try:
+      if not get_db():
+          st.error("No hay una conexión activa a la base de datos.")
+          st.stop()
+  except Exception as e:
+      st.error(f"No hay una conexión activa a la base de datos: {e}")
+      st.stop()
   # -------------------------------------------------------------
   # 0. INICIALIZACIÓN DE VARIABLES GLOBALES
   # -------------------------------------------------------------
