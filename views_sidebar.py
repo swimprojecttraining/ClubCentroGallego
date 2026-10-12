@@ -1,6 +1,8 @@
 # =============================================================================
-# views_sidebar.py — v2.0 (Fase 1: refactorización incremental)
-# =============================================================================
+# views_sidebar.py — v2.1 (Fase 1: refactorización incremental)# =============================================================================
+#   v2.1 (2026-10-12) — Compatibilidad con login_general_app v2.0:
+#     - Check de conexión migrado de st.session_state["supabase"] a get_db()
+#
 # CAMBIOS vs v1.0:
 #   1. Imports migrados a funciones get_*.
 #   2. §3 Entrenador: carga de atletas unificada con caché de sesión.
