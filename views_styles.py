@@ -1,16 +1,17 @@
 # =============================================================================
-# views_styles.py — v2.0 (Fase 1: refactorización incremental)
+# views_styles.py — v2.1 (Fase 1: refactorización incremental)
 # =============================================================================
-# CAMBIOS vs v1.0:
-#   6a.1 — Añadida aplicar_estilos_root(): el CSS que antes vivía inline
-#          en root_app.py (block-container, tabs, etc.)
-#   6a.2 — Añadida aplicar_estilos_candado(): el CSS de las alertas
-#          del candado de seguridad en root_app.py.
+# Última actualización: 2026-10-12
 #
-# NO TOCADO:
-#   - obtener_base64_imagen() — sin cambios
-#   - aplicar_estilos_globales() — sin cambios (copia verbatim de v1.0)
-#   - spc() — sin cambios
+# CHANGELOG:
+#   v2.1 (2026-10-12) — Adición para views_tab_router.py:
+#     - Nueva función aplicar_estilos_router()
+#     (extrae el CSS que estaba duplicado en 2 lugares del router)
+#
+#   v2.0 (2026-10-11) — Refactorización inicial Fase 1:
+#     - Añadidas aplicar_estilos_root() y aplicar_estilos_candado()
+#     - Funciones existentes (obtener_base64_imagen, aplicar_estilos_globales,
+#       spc) sin cambios
 # =============================================================================
 import base64
 import streamlit as st
@@ -230,10 +231,6 @@ def spc():
   st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
 
-# =============================================================================
-# FUNCIONES NUEVAS (movidas desde root_app.py en Fase 1)
-# =============================================================================
-
 def aplicar_estilos_root():
     """
     [F1-6a.1] CSS global de layout que antes vivía inline en root_app.py.
@@ -297,23 +294,44 @@ def aplicar_estilos_candado():
     """
     [F1-6a.2] CSS dedicado para forzar la visibilidad de las alertas
     del candado de seguridad en root_app.py.
-    Se movió aquí por consistencia con aplicar_estilos_root().
     """
     st.markdown(
         """
         <style>
-        /* Forzar margen superior para que las alertas no se metan debajo del header de Streamlit */
         .block-container {
             padding-top: 3rem !important;
         }
         
-        /* Resaltar la caja de alerta y asegurar que esté por encima de cualquier capa */
         [data-testid="stNotification"], [data-testid="stAlert"] {
             z-index: 999999 !important;
             margin-top: 15px !important;
             box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.25) !important;
             border-radius: 10px !important;
         }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# =============================================================================
+# FUNCIÓN NUEVA (v2.1)
+# =============================================================================
+def aplicar_estilos_router():
+    """
+    [F1-16c] CSS específico del router de pestañas.
+    Antes estaba duplicado en 2 lugares de views_tab_router.py.
+    Se centraliza aquí para mantener una sola fuente de verdad.
+    """
+    st.markdown(
+        """
+        <style>
+            .block-container.block-container {
+                padding-top: 0.1rem;
+            }
+            .main > div {
+                padding-bottom: 5rem;
+            }
         </style>
         """,
         unsafe_allow_html=True,
