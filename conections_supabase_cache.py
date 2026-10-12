@@ -1,10 +1,14 @@
 # -------------------------------------------------------------
 # CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
 # -------------------------------------------------------------
-# v2.3 — Fase 1: refactorización incremental
+# v2.4 — Fase 1: refactorización incremental
 # Última actualización: 2026-10-12
 #
 # CHANGELOG:
+#   v2.4 (2026-10-12) — Adiciones para views_tab_pizarra.py:
+#     - Nueva función get_bitacora_rango(fecha_desde, fecha_hasta, atleta_ids)
+#     - Nueva función invalidar_cache_bitacora()
+#
 #   v2.3 (2026-10-12) — Adición para views_tab_entrenador.py:
 #     - Nueva función invalidar_cache_referencias()
 #
@@ -319,6 +323,46 @@ def get_bitacora_atleta(atleta_id: int) -> list[dict]:
         return []
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_bitacora_rango(
+    fecha_desde: str,
+    fecha_hasta: str,
+    atleta_ids: tuple | None = None,
+) -> list[dict]:
+    """
+    [v2.4] Trae las entradas de bitácora en un rango de fechas, opcionalmente
+    filtradas por una lista de atleta_ids.
+
+    Parámetros:
+        fecha_desde: fecha en formato 'YYYY-MM-DD'.
+        fecha_hasta: fecha en formato 'YYYY-MM-DD'.
+        atleta_ids: tupla de IDs a filtrar. Si es None, no filtra.
+
+    IMPORTANTE: `atleta_ids` debe ser tupla (hashable), no lista.
+    """
+    if not fecha_desde or not fecha_hasta:
+        return []
+    db = get_db()
+    try:
+        q = (
+            db.table("bitacora_entrenamientos")
+            .select(
+                "fecha, identificador_carril, metros_totales, "
+                "desglose_estilos, desglose_intensidad, implementos_usados, "
+                "atleta_id, pizarra_original"
+            )
+            .gte("fecha", fecha_desde)
+            .lte("fecha", fecha_hasta)
+        )
+        if atleta_ids:
+            q = q.in_("atleta_id", list(atleta_ids))
+        q = q.order("fecha", desc=True)
+        return q.execute().data or []
+    except Exception as e:
+        print(f"[get_bitacora_rango] {e}")
+        return []
+
+
 # =============================================================================
 # ANTROPOMETRÍA — [v2.1]
 # =============================================================================
@@ -431,6 +475,12 @@ def invalidar_cache_referencias():
     get_marcas_referencia.clear()
 
 
+def invalidar_cache_bitacora():
+    """[v2.4] Limpia la caché de bitácora de entrenamientos."""
+    get_bitacora_atleta.clear()
+    get_bitacora_rango.clear()
+
+
 def invalidar_toda_la_cache():
     """Limpieza total. Útil como botón de emergencia en el sidebar del admin."""
     get_usuarios.clear()
@@ -445,6 +495,7 @@ def invalidar_toda_la_cache():
     get_hitos_atleta.clear()
     get_hitos_por_competencia.clear()
     get_bitacora_atleta.clear()
+    get_bitacora_rango.clear()
     get_evaluaciones_antropometricas.clear()
     get_competencias.clear()
 
@@ -485,7 +536,6 @@ def obtener_atletas_asignados_cache(id_entrenador):
 # --- Marcas históricas ---
 def obtener_marcas_historicas_cache(prueba, usuario_id):
     """[DEPRECATED] Usar get_marcas_historicas(usuario_id, prueba=prueba)"""
-    # Compatibilidad con la firma antigua (prueba, usuario_id)
     return get_marcas_historicas(usuario_id=usuario_id, prueba=prueba)
 
 
@@ -504,9 +554,8 @@ def obtener_marcas_referencia_cache(prueba, genero, categoria):
 def obtener_marcas_equipo_cache(supabase_cliente, lista_ids_nadadores, prueba_seleccionada):
     """
     [DEPRECATED] Usar get_marcas_equipo(tuple(lista_ids), prueba).
-    Nota: El primer argumento (supabase_cliente) se ignora. Ya no se necesita.
+    Nota: El primer argumento (supabase_cliente) se ignora.
     """
-    # Convertimos la lista a tupla para que sea hashable y cacheable
     ids_tuple = tuple(lista_ids_nadadores) if lista_ids_nadadores else ()
     return get_marcas_equipo(ids_tuple, prueba_seleccionada)
 
@@ -531,5 +580,5 @@ def obtener_bitacora_atleta_cache(atleta_id):
 
 
 # =============================================================================
-# FIN DEL ARCHIVO — v2.3
+# FIN DEL ARCHIVO — v2.4
 # =============================================================================
