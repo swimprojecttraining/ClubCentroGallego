@@ -1,10 +1,13 @@
 # -------------------------------------------------------------
 # CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
 # -------------------------------------------------------------
-# v2.2 — Fase 1: refactorización incremental
-# Última actualización: 2026-10-11
+# v2.3 — Fase 1: refactorización incremental
+# Última actualización: 2026-10-12
 #
 # CHANGELOG:
+#   v2.3 (2026-10-12) — Adición para views_tab_entrenador.py:
+#     - Nueva función invalidar_cache_referencias()
+#
 #   v2.2 (2026-10-11) — Adiciones para views_tab_calendario.py:
 #     - Nueva función get_competencias(temporada)
 #     - Nueva función get_hitos_por_competencia(competencia_id)
@@ -317,7 +320,7 @@ def get_bitacora_atleta(atleta_id: int) -> list[dict]:
 
 
 # =============================================================================
-# ANTROPOMETRÍA — [v2.1] para views_tab_antropometria.py
+# ANTROPOMETRÍA — [v2.1]
 # =============================================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def get_evaluaciones_antropometricas(usuario_id: int) -> list[dict]:
@@ -343,7 +346,7 @@ def get_evaluaciones_antropometricas(usuario_id: int) -> list[dict]:
 
 
 # =============================================================================
-# CALENDARIO Y HITOS — [v2.2] para views_tab_calendario.py
+# CALENDARIO Y HITOS — [v2.2]
 # =============================================================================
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_competencias(temporada: int | None = None) -> list[dict]:
@@ -421,6 +424,11 @@ def invalidar_cache_antropometria():
 def invalidar_cache_competencias():
     """Limpia la caché de competencias."""
     get_competencias.clear()
+
+
+def invalidar_cache_referencias():
+    """[v2.3] Limpia la caché de marcas de referencia."""
+    get_marcas_referencia.clear()
 
 
 def invalidar_toda_la_cache():
@@ -523,5 +531,5 @@ def obtener_bitacora_atleta_cache(atleta_id):
 
 
 # =============================================================================
-# FIN DEL ARCHIVO — v2.2
+# FIN DEL ARCHIVO — v2.3
 # =============================================================================
