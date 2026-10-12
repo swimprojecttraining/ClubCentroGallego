@@ -1,10 +1,17 @@
 # -------------------------------------------------------------
 # CACHÉ INTELIGENTE PARA CONSULTAS A SUPABASE (OPTIMIZACIÓN DE RENDIMIENTO)
 # -------------------------------------------------------------
-# v2.4 — Fase 1: refactorización incremental
+# v2.5 — Fase 1: refactorización incremental
 # Última actualización: 2026-10-12
 #
 # CHANGELOG:
+#   v2.5 (2026-10-12) — Adiciones para views_tab_club.py:
+#     - Nueva función get_invitaciones_pendientes()
+#     - Nueva función get_pagos_por_temporada(temporada)
+#     - Nueva función get_documentos_correlativos(tipo_documento, anio)
+#     - Nueva función invalidar_cache_pagos()
+#     - Nueva función invalidar_cache_invitaciones()
+#
 #   v2.4 (2026-10-12) — Adiciones para views_tab_pizarra.py:
 #     - Nueva función get_bitacora_rango(fecha_desde, fecha_hasta, atleta_ids)
 #     - Nueva función invalidar_cache_bitacora()
@@ -75,7 +82,7 @@ def get_usuarios(rol: str | None = None, estatus: str | None = None) -> list[dic
     db = get_db()
     try:
         q = db.table("usuarios").select(
-            "id, nombre, email, genero, rol, estatus, fecha_nacimiento, cedula, telefono"
+            "id, nombre, email, usuario, genero, rol, estatus, fecha_nacimiento, cedula, telefono"
         )
         if rol:
             q = q.eq("rol", rol)
@@ -137,7 +144,7 @@ def get_atletas_asignados(entrenador_id: int) -> list[int]:
 
 
 # =============================================================================
-# MARCAS HISTÓRICAS — UNA función que sirve para todos los casos
+# MARCAS HISTÓRICAS
 # =============================================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def get_marcas_historicas(
@@ -145,10 +152,6 @@ def get_marcas_historicas(
     prueba: str | None = None,
     columnas: str = "id, prueba, edad, tiempo, nota",
 ) -> list[dict]:
-    """
-    Reemplaza a obtener_marcas_historicas_cache + obtener_todo_el_historial_cache.
-    Si `prueba` es None, trae todo el historial del atleta.
-    """
     if not usuario_id:
         return []
     db = get_db()
@@ -165,12 +168,6 @@ def get_marcas_historicas(
 
 @st.cache_data(ttl=300, show_spinner=False)
 def get_marcas_historicas_bulk(usuario_ids: tuple, prueba: str) -> pd.DataFrame:
-    """
-    Trae las marcas de MÚLTIPLES atletas en UNA SOLA query.
-    Reemplaza el patrón N+1 (un for con una query por atleta).
-
-    IMPORTANTE: `usuario_ids` debe ser una tupla (hashable), no una lista.
-    """
     if not usuario_ids:
         return pd.DataFrame()
     db = get_db()
@@ -191,14 +188,6 @@ def get_marcas_historicas_bulk(usuario_ids: tuple, prueba: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def get_marcas_historicas_bulk_sin_prueba(usuario_ids: tuple) -> pd.DataFrame:
-    """
-    [v2.2] Igual que get_marcas_historicas_bulk pero SIN filtro de prueba.
-    Trae todas las marcas de todos los atletas indicados en UNA sola query.
-
-    Útil para la planilla de inscripción del calendario.
-
-    IMPORTANTE: `usuario_ids` debe ser una tupla (hashable), no una lista.
-    """
     if not usuario_ids:
         return pd.DataFrame()
     db = get_db()
@@ -217,14 +206,10 @@ def get_marcas_historicas_bulk_sin_prueba(usuario_ids: tuple) -> pd.DataFrame:
 
 
 # =============================================================================
-# MARCAS DEL EQUIPO — query con IN (evita N+1)
+# MARCAS DEL EQUIPO
 # =============================================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def get_marcas_equipo(lista_ids: tuple, prueba: str) -> pd.DataFrame:
-    """
-    Reemplaza a obtener_marcas_equipo_cache.
-    Usa `tuple` (hashable) para que st.cache_data funcione de verdad.
-    """
     if not lista_ids:
         return pd.DataFrame()
     db = get_db()
@@ -246,7 +231,7 @@ def get_marcas_equipo(lista_ids: tuple, prueba: str) -> pd.DataFrame:
 
 
 # =============================================================================
-# CATÁLOGOS ESTÁTICOS — ttl largo
+# CATÁLOGOS ESTÁTICOS
 # =============================================================================
 @st.cache_data(ttl=86400, show_spinner=False)
 def get_catalogo_competencias() -> list[dict]:
@@ -278,14 +263,10 @@ def get_marcas_referencia(prueba: str, genero: str, categoria: str) -> list[dict
 
 
 # =============================================================================
-# HITOS — una sola función, no dos
+# HITOS
 # =============================================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def get_hitos_atleta(nadador_id: int) -> dict | None:
-    """
-    Unifica obtener_historial_hitos_cache y obtener_datos_hitos_atleta.
-    Devuelve {'hitos': [...]} o None.
-    """
     if not nadador_id:
         return None
     db = get_db()
@@ -329,17 +310,6 @@ def get_bitacora_rango(
     fecha_hasta: str,
     atleta_ids: tuple | None = None,
 ) -> list[dict]:
-    """
-    [v2.4] Trae las entradas de bitácora en un rango de fechas, opcionalmente
-    filtradas por una lista de atleta_ids.
-
-    Parámetros:
-        fecha_desde: fecha en formato 'YYYY-MM-DD'.
-        fecha_hasta: fecha en formato 'YYYY-MM-DD'.
-        atleta_ids: tupla de IDs a filtrar. Si es None, no filtra.
-
-    IMPORTANTE: `atleta_ids` debe ser tupla (hashable), no lista.
-    """
     if not fecha_desde or not fecha_hasta:
         return []
     db = get_db()
@@ -364,14 +334,10 @@ def get_bitacora_rango(
 
 
 # =============================================================================
-# ANTROPOMETRÍA — [v2.1]
+# ANTROPOMETRÍA
 # =============================================================================
 @st.cache_data(ttl=300, show_spinner=False)
 def get_evaluaciones_antropometricas(usuario_id: int) -> list[dict]:
-    """
-    Devuelve el historial completo de evaluaciones antropométricas
-    de un atleta, ordenadas por fecha descendente (la más reciente primero).
-    """
     if not usuario_id:
         return []
     db = get_db()
@@ -390,14 +356,10 @@ def get_evaluaciones_antropometricas(usuario_id: int) -> list[dict]:
 
 
 # =============================================================================
-# CALENDARIO Y HITOS — [v2.2]
+# CALENDARIO Y HITOS
 # =============================================================================
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_competencias(temporada: int | None = None) -> list[dict]:
-    """
-    Devuelve el catálogo de competencias, opcionalmente filtrado por temporada.
-    Ordenadas por fecha_inicio ascendente.
-    """
     db = get_db()
     try:
         q = db.table("catalogo_competencias").select("*")
@@ -412,10 +374,6 @@ def get_competencias(temporada: int | None = None) -> list[dict]:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def get_hitos_por_competencia(competencia_id: int) -> list[dict]:
-    """
-    Devuelve los hitos registrados para una competencia específica.
-    Útil para saber qué atletas ya están procesados.
-    """
     if not competencia_id:
         return []
     db = get_db()
@@ -433,10 +391,83 @@ def get_hitos_por_competencia(competencia_id: int) -> list[dict]:
 
 
 # =============================================================================
-# INVALIDACIÓN DE CACHÉ (llamar tras inserts/updates)
+# CLUB — INVITACIONES, PAGOS, DOCUMENTOS [v2.5]
+# =============================================================================
+@st.cache_data(ttl=300, show_spinner=False)
+def get_invitaciones_pendientes() -> list[dict]:
+    """
+    [v2.5] Devuelve las invitaciones no usadas, ordenadas por fecha
+    de creación descendente.
+    """
+    db = get_db()
+    try:
+        res = (
+            db.table("invitaciones")
+            .select("*")
+            .eq("usado", False)
+            .order("creado_en", desc=True)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        print(f"[get_invitaciones_pendientes] {e}")
+        return []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_pagos_por_temporada(temporada: int) -> list[dict]:
+    """
+    [v2.5] Devuelve los registros de control_pagos de una temporada.
+    """
+    if temporada is None:
+        return []
+    db = get_db()
+    try:
+        res = (
+            db.table("control_pagos")
+            .select("*")
+            .eq("temporada", temporada)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        print(f"[get_pagos_por_temporada] {e}")
+        return []
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_documentos_correlativos(tipo_documento: str, anio: int) -> list[dict]:
+    """
+    [v2.5] Devuelve los correlativos de documentos oficiales del tipo
+    y año indicados. Se usa para calcular el siguiente número consecutivo.
+    """
+    db = get_db()
+    prefix_map = {
+        "Memorándum": "MEM",
+        "Circular": "CIR",
+        "Correspondencia": "COR",
+    }
+    prefix = prefix_map.get(tipo_documento, "DOC")
+    try:
+        res = (
+            db.table("documentos_oficiales")
+            .select("codigo_correlativo")
+            .eq("tipo_documento", tipo_documento)
+            .ilike("codigo_correlativo", f"{prefix}-{anio}-%")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        print(f"[get_documentos_correlativos] {e}")
+        return []
+
+
+# =============================================================================
+# INVALIDACIÓN DE CACHÉ
 # =============================================================================
 def invalidar_cache_marcas():
-    """Limpia la caché de marcas. Úsala tras insertar/editar marcas."""
     get_marcas_historicas.clear()
     get_marcas_historicas_bulk.clear()
     get_marcas_historicas_bulk_sin_prueba.clear()
@@ -444,45 +475,47 @@ def invalidar_cache_marcas():
 
 
 def invalidar_cache_usuarios():
-    """Limpia la caché de usuarios. Úsala tras insertar/editar usuarios."""
     get_usuarios.clear()
     get_usuario_por_id.clear()
 
 
 def invalidar_cache_asignaciones():
-    """Limpia la caché de asignaciones."""
     get_atletas_asignados.clear()
 
 
 def invalidar_cache_hitos():
-    """Limpia la caché de hitos."""
     get_hitos_atleta.clear()
     get_hitos_por_competencia.clear()
 
 
 def invalidar_cache_antropometria():
-    """Limpia la caché de evaluaciones antropométricas."""
     get_evaluaciones_antropometricas.clear()
 
 
 def invalidar_cache_competencias():
-    """Limpia la caché de competencias."""
     get_competencias.clear()
 
 
 def invalidar_cache_referencias():
-    """[v2.3] Limpia la caché de marcas de referencia."""
     get_marcas_referencia.clear()
 
 
 def invalidar_cache_bitacora():
-    """[v2.4] Limpia la caché de bitácora de entrenamientos."""
     get_bitacora_atleta.clear()
     get_bitacora_rango.clear()
 
 
+def invalidar_cache_pagos():
+    """[v2.5] Limpia la caché de control de pagos."""
+    get_pagos_por_temporada.clear()
+
+
+def invalidar_cache_invitaciones():
+    """[v2.5] Limpia la caché de invitaciones pendientes."""
+    get_invitaciones_pendientes.clear()
+
+
 def invalidar_toda_la_cache():
-    """Limpieza total. Útil como botón de emergencia en el sidebar del admin."""
     get_usuarios.clear()
     get_usuario_por_id.clear()
     get_atletas_asignados.clear()
@@ -498,87 +531,69 @@ def invalidar_toda_la_cache():
     get_bitacora_rango.clear()
     get_evaluaciones_antropometricas.clear()
     get_competencias.clear()
+    get_invitaciones_pendientes.clear()
+    get_pagos_por_temporada.clear()
+    get_documentos_correlativos.clear()
 
 
-# =============================================================================
 # =============================================================================
 # WRAPPERS DE COMPATIBILIDAD HACIA ATRÁS
 # =============================================================================
-# Estas funciones mantienen los NOMBRES ANTIGUOS para no romper las 11 pestañas
-# que las importan. Internamente llaman a las nuevas. Cuando todas las pestañas
-# estén migradas, se pueden borrar.
-# =============================================================================
-# =============================================================================
-
 
 # --- Usuarios ---
 def obtener_nadadores_activos_cache():
-    """[DEPRECATED] Usar get_usuarios(rol='Nadador', estatus='Activo')"""
     return get_usuarios(rol="Nadador", estatus="Activo")
 
 
 def obtener_usuario_por_id_cache(usuario_id):
-    """[DEPRECATED] Usar get_usuario_por_id(usuario_id)"""
     return get_usuario_por_id(usuario_id)
 
 
 def obtener_usuarios_por_rol_cache(rol="Entrenador"):
-    """[DEPRECATED] Usar get_usuarios(rol=rol)"""
     return get_usuarios(rol=rol)
 
 
 # --- Asignaciones ---
 def obtener_atletas_asignados_cache(id_entrenador):
-    """[DEPRECATED] Usar get_atletas_asignados(entrenador_id)"""
     return get_atletas_asignados(id_entrenador)
 
 
 # --- Marcas históricas ---
 def obtener_marcas_historicas_cache(prueba, usuario_id):
-    """[DEPRECATED] Usar get_marcas_historicas(usuario_id, prueba=prueba)"""
     return get_marcas_historicas(usuario_id=usuario_id, prueba=prueba)
 
 
 def obtener_todo_el_historial_cache(usuario_id):
-    """[DEPRECATED] Usar get_marcas_historicas(usuario_id)"""
     return get_marcas_historicas(usuario_id=usuario_id)
 
 
 # --- Marcas de referencia ---
 def obtener_marcas_referencia_cache(prueba, genero, categoria):
-    """[DEPRECATED] Usar get_marcas_referencia(prueba, genero, categoria)"""
     return get_marcas_referencia(prueba=prueba, genero=genero, categoria=categoria)
 
 
 # --- Marcas del equipo ---
 def obtener_marcas_equipo_cache(supabase_cliente, lista_ids_nadadores, prueba_seleccionada):
-    """
-    [DEPRECATED] Usar get_marcas_equipo(tuple(lista_ids), prueba).
-    Nota: El primer argumento (supabase_cliente) se ignora.
-    """
     ids_tuple = tuple(lista_ids_nadadores) if lista_ids_nadadores else ()
     return get_marcas_equipo(ids_tuple, prueba_seleccionada)
 
 
 # --- Hitos ---
 def obtener_historial_hitos_cache(nadador_id):
-    """[DEPRECATED] Usar get_hitos_atleta(nadador_id)"""
     res = get_hitos_atleta(nadador_id)
     return res.get("hitos", []) if res else []
 
 
 # --- Catálogo de competencias ---
 def obtener_catalogo_competencias_cache():
-    """[DEPRECATED] Usar get_catalogo_competencias()"""
     return get_catalogo_competencias()
 
 
 # --- Bitácora ---
 def obtener_bitacora_atleta_cache(atleta_id):
-    """[DEPRECATED] Usar get_bitacora_atleta(atleta_id)"""
     return get_bitacora_atleta(atleta_id)
 
 
 # =============================================================================
-# FIN DEL ARCHIVO — v2.4
+# FIN DEL ARCHIVO — v2.5
 # =============================================================================
