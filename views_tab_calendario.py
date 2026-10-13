@@ -1,15 +1,25 @@
 # =============================================================================
-# views_tab_calendario.py — v2.0 (Fase 1: refactorización incremental)
+# views_tab_calendario.py — v2.1 (Fase 1: refactorización incremental)
 # =============================================================================
-# CAMBIOS vs v1.0:
+# CAMBIOS vs v2.0:
+#   10j — Fix: nombre de función corregido en las 3 ocurrencias
+#         (invalidar_cache_hitos_por_competencia → invalidar_cache_hitos).
+#   10k — Reestructurado el try/except del INSERT masivo: ahora SOLO envuelve
+#         el INSERT, no el feedback ni la invalidación de caché. Esto evita
+#         que un error posterior al INSERT active el fallback innecesariamente.
+#   10l — Añadido contador explícito de insertados.
+#   10m — Feedback más claro que distingue error de INSERT vs post-INSERT.
+#
+# CAMBIOS vs v1.0 (heredados de v2.0):
 #   10a — Consultas a catalogo_competencias migradas a get_competencias().
 #   10b — Consultas a usuarios migradas a get_usuarios() cacheada.
-#   10c — Consultas a marcas_historicas migradas a get_marcas_historicas_bulk_sin_prueba().
+#   10c — Consultas a marcas_historicas migradas a
+#         get_marcas_historicas_bulk_sin_prueba().
 #   10d — Invalidación quirúrgica de competencias tras insert/update.
 #   10e — Invalidación quirúrgica de hitos tras insert masivo.
 #   10f — Insert masivo de hitos con fallback 1x1 informativo.
 #   10g — Eliminada sintaxis `with ... if ... else` por `if` explícito.
-#   10h — Feedback explícito en TODOS los botones (ver [F2-21]).
+#   10h — Feedback explícito en TODOS los botones ([F2-21]).
 #   10i — Encabezado con changelog versionado.
 #
 # NO TOCADO:
@@ -20,10 +30,9 @@
 #   - key= de los widgets
 #
 # PENDIENTE FASE 2:
-#   [F2-17] Extraer bloque de "Generación de Hitos" a función propia.
+#   [F2-17] Extraer bloque "Generación de Hitos" a función propia.
 #   [F2-18] Mover "estimar_fecha_marca" a formulas_lib_funciones.py.
-#   [F2-20] Añadir constraint UNIQUE a historial_hitos (usuario_id, competencia_id).
-#   [F2-21] Revisar feedback explícito en las restantes pestañas.
+#   [F2-20] Añadir constraint UNIQUE a historial_hitos.
 # =============================================================================
 import datetime
 import pandas as pd
@@ -37,7 +46,7 @@ from formulas_lib_funciones import (
     formatear_a_minutos,
 )
 
-# 🚀 IMPORTACIÓN DESDE TU CAPA DE CACHÉ (v2.2)
+# 🚀 IMPORTACIÓN DESDE TU CAPA DE CACHÉ (v2.5)
 from conections_supabase_cache import (
     get_competencias,
     get_usuarios,
@@ -253,6 +262,7 @@ def renderizar_tab_calendario():
                         "esta temporada."
                     )
 
+
             st.markdown("---")
             st.markdown("### 🎯 Generación de Hitos")
             if dict_comps:
@@ -320,7 +330,10 @@ def renderizar_tab_calendario():
                                 ] += 1
 
                             # =========================================================
-                            # [F1-10f] INSERCIÓN: masiva con fallback 1x1
+                            # [F1-10f] INSERCIÓN con fallback 1x1
+                            # [F1-10k] El try/except SOLO envuelve el INSERT.
+                            # El feedback posterior NO está dentro del try para
+                            # evitar que errores post-INSERT disparen el fallback.
                             # =========================================================
                             if not nuevos_hitos:
                                 # [F1-10h] Feedback explícito cuando no hay nada nuevo
@@ -337,12 +350,21 @@ def renderizar_tab_calendario():
                                     f"planificada)."
                                 )
                             else:
+                                # --- INTENTO MASIVO ---
+                                insert_masivo_ok = False
+                                error_masivo_msg = ""
+
                                 try:
-                                    # Intento rápido: 1 sola query
                                     supabase.table("historial_hitos").insert(
                                         nuevos_hitos
                                     ).execute()
+                                    insert_masivo_ok = True
+                                except Exception as e_masivo:
+                                    insert_masivo_ok = False
+                                    error_masivo_msg = str(e_masivo)
 
+                                if insert_masivo_ok:
+                                    # --- ÉXITO MASIVO ---
                                     st.success(
                                         f"✅ **Proceso completado.**\n\n"
                                         f"Se generaron **{len(nuevos_hitos)}** "
@@ -356,16 +378,25 @@ def renderizar_tab_calendario():
                                         f"ya registrados previamente."
                                     )
 
-                                    # [F1-10e] Invalidación de caché
-                                    invalidar_cache_hitos()
+                                    # Invalidación FUERA del try del INSERT.
+                                    try:
+                                        invalidar_cache_hitos()
+                                    except Exception as e_cache:
+                                        print(
+                                            f"[calendario] Error invalidando "
+                                            f"caché de hitos: {e_cache}"
+                                        )
+
                                     st.rerun()
 
-                                except Exception as e_masivo:
-                                    # Fallback: insert 1x1 para identificar culpables
+                                else:
+                                    # --- FALLO MASIVO → FALLBACK 1x1 ---
                                     st.warning(
                                         f"⚠️ El INSERT masivo falló. "
                                         f"Iniciando diagnóstico individual "
-                                        f"para identificar los registros problemáticos..."
+                                        f"para identificar los registros "
+                                        f"problemáticos...\n\n"
+                                        f"Error reportado: `{error_masivo_msg}`"
                                     )
 
                                     exitosos = []
@@ -414,8 +445,15 @@ def renderizar_tab_calendario():
                                                     f"{f['error']}"
                                                 )
 
-                                    # Invalidación de caché tras los cambios
-                                    invalidar_cache_hitos()
+                                    # Invalidación FUERA del try del INSERT.
+                                    try:
+                                        invalidar_cache_hitos()
+                                    except Exception as e_cache:
+                                        print(
+                                            f"[calendario] Error invalidando "
+                                            f"caché de hitos tras fallback: "
+                                            f"{e_cache}"
+                                        )
 
                                     st.info(
                                         f"📊 Resumen: {contadores['elegibles']} "
@@ -424,8 +462,7 @@ def renderizar_tab_calendario():
                                         f"ya registrados."
                                     )
 
-                                    # NO hacemos rerun: dejamos el reporte visible
-                                    # para que el usuario pueda leer los errores.
+                                    # NO hacemos rerun para dejar el reporte visible
 
                         except Exception as e:
                             st.error(f"❌ Error técnico en procesamiento: {e}")
@@ -434,10 +471,6 @@ def renderizar_tab_calendario():
                     "ℹ️ No hay competencias disponibles para procesar. "
                     "Programa una competencia primero en el panel superior."
                 )
-
-# === FIN PARTE 1/2 ===
-# NO GUARDES AÚN — CONTINÚA CON LA PARTE 2/2 EN EL SIGUIENTE MENSAJE
-
 
     # ============================================================
     # SUBPESTAÑA 2: PLANILLA DE INSCRIPCIÓN (MARCAS HISTÓRICAS)
@@ -703,5 +736,3 @@ def renderizar_tab_calendario():
                             mime="text/html",
                             use_container_width=True,
                         )
-
-# === FIN DEL ARCHIVO views_tab_calendario.py (v2.0) ===
