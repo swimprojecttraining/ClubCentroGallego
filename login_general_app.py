@@ -1,9 +1,13 @@
-# =============================================================================
-# login_general_app.py — v2.0 (Fase 1: refactorización incremental)
-# =============================================================================
+# login_general_app.py — v2.1 (Fase 1: refactorización incremental)
 # Última actualización: 2026-10-12
 #
 # CHANGELOG:
+#
+#   v2.1 (2026-10-12) — Compatibilidad con pestañas que leen
+#                       st.session_state["supabase"]:
+#     - Se restaura la clave session_state["supabase"] como alias del
+#       singleton get_db(). [F2-44] migrará las pestañas para que usen
+#       get_db() directamente y se pueda eliminar esta clave.
 #   v2.0 (2026-10-12) — Refactorización Fase 1:
 #     17a — [F1-FIX-01] Fix: enviar_email con argumentos nombrados.
 #     17b — Eliminado st.session_state["supabase"] → get_db() singleton.
@@ -244,7 +248,10 @@ def mostrar_pantalla_login():
     if "rec_datos_temporales" not in st.session_state:
         st.session_state.rec_datos_temporales = None
 
-    # [F1-17b] Ya no se inicializa st.session_state["supabase"]
+    # [F1-17b] v2.1: Inicializa session_state["supabase"] apuntando al
+    # singleton get_db(). Esto mantiene compatibilidad con las pestañas
+    # que aún leen st.session_state["supabase"] (serán migradas en Fase 2
+    # según [F2-44]).
     try:
         db_check = get_db()
         if not db_check:
@@ -253,12 +260,17 @@ def mostrar_pantalla_login():
                 "base de datos."
             )
             st.stop()
+        # Alias del singleton en session_state para compatibilidad
+        if (
+            "supabase" not in st.session_state
+            or not st.session_state["supabase"]
+        ):
+            st.session_state["supabase"] = db_check
     except Exception as e:
         st.error(
             f"❌ Error de infraestructura al conectar base de datos: {e}"
         )
         st.stop()
-
     # ------------------------------------------------------------
     # 2. INTERFAZ CENTRADA Y BALANCEADA
     # ------------------------------------------------------------
