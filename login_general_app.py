@@ -446,11 +446,6 @@ def mostrar_pantalla_login():
                                 f"{pa_err}"
                             )
 
-# === FIN PARTE 1/2 ===
-# NO GUARDES AÚN — CONTINÚA CON LA PARTE 2/2 EN EL SIGUIENTE MENSAJE
-
-
-        # --- TAB RECUPERAR ---
         with tab_recuperar:
             st.markdown("### Restablecer Contraseña")
 
