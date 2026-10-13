@@ -357,7 +357,7 @@ def renderizar_tab_calendario():
                                     )
 
                                     # [F1-10e] Invalidación de caché
-                                    invalidar_cache_hitos_por_competencia()
+                                    invalidar_cache_hitos()
                                     st.rerun()
 
                                 except Exception as e_masivo:
@@ -415,7 +415,7 @@ def renderizar_tab_calendario():
                                                 )
 
                                     # Invalidación de caché tras los cambios
-                                    invalidar_cache_hitos_por_competencia()
+                                    invalidar_cache_hitos()
 
                                     st.info(
                                         f"📊 Resumen: {contadores['elegibles']} "
