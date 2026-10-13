@@ -224,7 +224,7 @@ def callback_procesar_login():
 
 
 # =============================================================================
-# PANTALLA PRINCIPAL
+# PANTALLA PRINCIPAL (parte A — encabezado + tab Login + tab OTP)
 # =============================================================================
 def mostrar_pantalla_login():
     """
@@ -245,7 +245,6 @@ def mostrar_pantalla_login():
         st.session_state.rec_datos_temporales = None
 
     # [F1-17b] Ya no se inicializa st.session_state["supabase"]
-    # Se usa el singleton get_db() donde se necesite.
     try:
         db_check = get_db()
         if not db_check:
@@ -263,7 +262,6 @@ def mostrar_pantalla_login():
     # ------------------------------------------------------------
     # 2. INTERFAZ CENTRADA Y BALANCEADA
     # ------------------------------------------------------------
-    # [F1-17e] Nombre del club leído dentro de la función
     nombre_club = _nombre_club_local()
 
     st.markdown(
@@ -367,7 +365,6 @@ def mostrar_pantalla_login():
                             alias_clean = nuevo_alias_pa.strip().lower()
                             db = get_db()
 
-                            # Consulta directa (no cachear: necesita frescura)
                             res_inv = (
                                 db.table("invitaciones")
                                 .select("*")
@@ -391,7 +388,9 @@ def mostrar_pantalla_login():
                                 )
 
                                 if (
-                                    datetime.datetime.now(datetime.timezone.utc)
+                                    datetime.datetime.now(
+                                        datetime.timezone.utc
+                                    )
                                     > expira_en
                                 ):
                                     st.error(
@@ -400,7 +399,6 @@ def mostrar_pantalla_login():
                                         "uno nuevo a la administración."
                                     )
                                 else:
-                                    # Verificar alias único (consulta directa)
                                     res_alias = (
                                         db.table("usuarios")
                                         .select("id")
@@ -447,6 +445,10 @@ def mostrar_pantalla_login():
                                 f"❌ Error al procesar la activación: "
                                 f"{pa_err}"
                             )
+
+# === FIN PARTE 1/2 ===
+# NO GUARDES AÚN — CONTINÚA CON LA PARTE 2/2 EN EL SIGUIENTE MENSAJE
+
 
         # --- TAB RECUPERAR ---
         with tab_recuperar:
@@ -546,7 +548,6 @@ def mostrar_pantalla_login():
                             rec_usuario_clean = rec_usuario.strip().lower()
                             try:
                                 db = get_db()
-                                # Consulta directa (no cachear)
                                 verificacion = (
                                     db.table("usuarios")
                                     .select("id, estatus, nombre")
@@ -602,4 +603,26 @@ def mostrar_pantalla_login():
                                             # [F1-17h] Feedback explícito
                                             st.success(
                                                 "📩 Código de seguridad "
-                                                "enviado al
+                                                "enviado al correo electrónico."
+                                            )
+                                            st.rerun()
+                                        else:
+                                            st.error(
+                                                "❌ Error al enviar el correo "
+                                                "de recuperación. Verifique "
+                                                "con el administrador."
+                                            )
+                                else:
+                                    st.error(
+                                        "❌ Los datos proporcionados no "
+                                        "coinciden con ningún registro activo."
+                                    )
+                            except Exception as rec_err:
+                                st.error(
+                                    f"❌ Error durante el proceso de "
+                                    f"restablecimiento: {rec_err}"
+                                )
+
+    st.stop()
+
+# === FIN DEL ARCHIVO login_general_app.py (v2.0) ===
